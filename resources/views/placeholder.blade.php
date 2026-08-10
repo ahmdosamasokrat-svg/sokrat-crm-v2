@@ -77,7 +77,7 @@
             <h1>SokratCRM</h1>
             <span>لوحة التحكم</span>
         </div>
-        <a class="btn" href="/crm-v2/dashboard">العودة للوحة التحكم</a>
+        <a class="btn" href="{{ route("dashboard") }}">العودة للوحة التحكم</a>
     </aside>
     <main class="main">
         <section class="top-card">
