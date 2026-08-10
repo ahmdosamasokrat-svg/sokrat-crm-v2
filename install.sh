@@ -84,7 +84,7 @@ if [ -f "$SITE_CONF" ]; then
     fail "$SITE_CONF already exists. Fresh installation only."
 fi
 
-log "Installing Apache, MySQL, PHP 8.3, Node.js, Composer, and required packages"
+log "Installing Apache, MySQL, PHP 8.3, Composer, and system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
@@ -93,11 +93,10 @@ apt-get install -y \
     git \
     curl \
     ca-certificates \
+    gnupg \
     unzip \
     openssl \
     composer \
-    nodejs \
-    npm \
     libapache2-mod-php8.3 \
     php8.3-cli \
     php8.3-common \
@@ -110,6 +109,17 @@ apt-get install -y \
     php8.3-intl \
     php8.3-gd \
     php8.3-sqlite3
+
+log "Ensuring Node.js 20.x LTS is installed (required for Vite 8 / Rolldown)"
+NODE_MAJOR="$(node -v 2>/dev/null | cut -d'.' -f1 | tr -d 'v' || echo "0")"
+if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 20 ]; then
+    log "Configuring NodeSource repository for Node.js 20.x"
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+fi
+
+NODE_VER="$(node -v)"
+log "Detected Node.js version: ${NODE_VER}"
 
 systemctl enable --now mysql apache2
 
