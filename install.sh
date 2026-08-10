@@ -183,10 +183,12 @@ cp .env.example .env
 set_env() {
     local key="$1"
     local value="$2"
+    value="${value%\"}"
+    value="${value#\"}"
     if grep -q "^${key}=" .env; then
-        sed -i "s|^${key}=.*|${key}=${value}|" .env
+        sed -i "s|^${key}=.*|${key}=\"${value}\"|" .env
     else
-        echo "${key}=${value}" >> .env
+        echo "${key}=\"${value}\"" >> .env
     fi
 }
 
