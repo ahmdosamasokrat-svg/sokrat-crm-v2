@@ -1,58 +1,141 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SOKRAT CRM V2
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**SOKRAT CRM V2** is a modern, high-performance Customer Relationship Management system built with PHP 8.3 and Laravel 13. Designed specifically for deployment on **Ubuntu 24.04.4 LTS**, it provides comprehensive tools for managing leads, tracking pipeline stages, generating quotations, conducting campaigns, and analyzing team performance.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## ⚡ One-Line Commands
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
+### One-Line Install Command (Ubuntu 24.04.4)
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/main/install.sh | sudo bash
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### One-Line Uninstall Command (Ubuntu 24.04.4)
+```bash
+curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/main/uninstall.sh | sudo bash -s -- -y
+```
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Key Features
 
-## Code of Conduct
+- **Lead Management**: Complete lifecycle tracking, creation, editing, status history, and detailed customer profiles.
+- **Kanban Board & Pipeline Stages**: Interactive pipeline visualization with custom status tracking.
+- **Quotation Generator**: Built-in quotation builder module with custom layout and pricing calculations.
+- **Follow-ups & Task Scheduling**: Real-time tracking of upcoming meetings, calls, daily tasks, and VIP clients.
+- **Data Import & Export**: Import leads from CSV/Excel templates with preview validation; export selected leads cleanly.
+- **Automated Deployment**: Production-ready installer (`install.sh`) and clean uninstaller (`uninstall.sh`) tailored for **Ubuntu 24.04.4 LTS**.
+- **Localhost Accessibility**: Out-of-the-box Apache web server configuration serving the application directly on `http://localhost/`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## System Requirements
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- **Operating System**: Ubuntu 24.04.4 LTS (Noble Numbat)
+- **Web Server**: Apache 2.4 (`mod_rewrite` enabled)
+- **PHP Version**: PHP 8.3 (with `cli`, `mysql`, `mbstring`, `xml`, `curl`, `zip`, `bcmath`, `intl`, `gd`)
+- **Database**: MySQL 8.0+ / MariaDB
+- **Build Tools**: Composer 2.x, Node.js & npm (for Vite assets)
 
-## License
+---
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Quick Start / Installation
+
+### Method 1: One-Line Install (Recommended)
+Run this command on your Ubuntu 24.04.4 server terminal:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/main/install.sh | sudo bash
+```
+
+### Method 2: Manual Clone & Install
+If you have cloned the repository locally:
+
+```bash
+git clone https://github.com/ahmdosamasokrat-svg/sokrat-crm-v2.git
+cd sokrat-crm-v2
+chmod +x install.sh
+sudo ./install.sh
+```
+
+### What `install.sh` Does:
+1. Installs Apache 2.4, MySQL 8.0, PHP 8.3 (with required extensions), Composer, and Node.js/npm.
+2. Clones/places application files in `/var/www/html/crm-v2`.
+3. Installs PHP dependencies (`composer install`) and builds frontend assets (`npm install && npm run build`).
+4. Creates an isolated MySQL database (`sokrat_crm_v2`) and user (`sokrat_crm_v2_app`) with secure generated credentials.
+5. Generates `.env` and application key (`php artisan key:generate`).
+6. Executes database migrations and seeds CRM pipeline stages.
+7. Configures Apache VirtualHost serving `/var/www/html/crm-v2/public` on `http://localhost/`.
+8. Secures directory storage/cache permissions for `www-data`.
+9. Saves generated admin credentials to `/root/sokrat-crm-v2-credentials.txt`.
+
+Once installed, open your browser and navigate to:
+👉 **[http://localhost/](http://localhost/)**
+
+---
+
+## Uninstallation
+
+### Method 1: One-Line Uninstall (Recommended)
+```bash
+curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/main/uninstall.sh | sudo bash -s -- -y
+```
+
+### Method 2: Manual Uninstall
+```bash
+cd sokrat-crm-v2 # or /var/www/html/crm-v2
+chmod +x uninstall.sh
+sudo ./uninstall.sh
+```
+
+### What `uninstall.sh` Does:
+1. Disables and removes the Apache virtual host site (`sokrat-crm-v2.conf`).
+2. Re-enables default Apache site (`000-default.conf`).
+3. Drops the MySQL database (`sokrat_crm_v2`) and database user (`sokrat_crm_v2_app`).
+4. Purges the application directory `/var/www/html/crm-v2`.
+5. Removes `/root/sokrat-crm-v2-credentials.txt`.
+
+---
+
+## Repository Structure
+
+```text
+sokrat-crm-v2/
+├── app/
+│   ├── Http/Controllers/    # Dashboard, Lead, Followup, Quotation, Task controllers
+│   ├── Models/              # Lead, LeadFollowup, LeadStatus, PipelineStage, Quotation, User
+│   └── Providers/           # App Service Provider
+├── bootstrap/               # Application bootstrap & provider registration
+├── config/                  # App, database, auth, session, logging configuration files
+├── database/
+│   ├── factories/           # User factories
+│   ├── migrations/          # Schema migrations for leads, pipelines, quotations
+│   └── seeders/             # Pipeline & initial status seeders
+├── public/
+│   ├── quotation-generator/ # Quotation builder assets & frontend logic
+│   ├── crm-sidebar-shared.css
+│   ├── index.php            # Entry point for Apache/Nginx
+│   └── robots.txt
+├── resources/
+│   ├── css/                 # Tailwind CSS styles
+│   ├── js/                  # App JS bundle
+│   └── views/               # Blade layouts, leads, quotations, tasks, partials
+├── routes/
+│   ├── web.php              # All web routes & authentication endpoints
+│   └── console.php          # CLI commands
+├── storage/                 # Logs, framework cache, compiled views
+├── tests/                   # Unit & feature tests
+├── .env.example             # Example environment file
+├── composer.json            # PHP dependencies
+├── package.json             # JS/Node dependencies & Vite config
+├── install.sh               # Ubuntu 24.04.4 automated installer
+├── uninstall.sh             # Ubuntu 24.04.4 automated uninstaller
+└── README.md                # Documentation
+```
+
+---
+
+## License & Support
+
+Developed for Sokrat CRM systems. Licensed under the MIT License.

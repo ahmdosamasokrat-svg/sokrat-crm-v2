@@ -27,7 +27,7 @@ fail() {
 }
 
 cleanup_on_error() {
-    rc=$?
+    local rc=$?
     trap - ERR
     set +e
 
@@ -53,7 +53,7 @@ cleanup_on_error() {
         fi
     fi
 
-    if [ "$APP_CREATED" -eq 1 ]; then
+    if [ "$APP_CREATED" -eq 1 ] && [ "${APP_DIR_IS_CURRENT:-0}" -eq 0 ]; then
         rm -rf "$APP_DIR"
     fi
 
@@ -68,13 +68,23 @@ trap cleanup_on_error ERR
 [ -r /etc/os-release ] || fail "Cannot detect operating system."
 . /etc/os-release
 
-[ "${ID:-}" = "ubuntu" ] || fail "This installer supports Ubuntu 24.04 only."
+[ "${ID:-}" = "ubuntu" ] || fail "This installer supports Ubuntu 24.04 only. Detected OS: ${ID:-unknown}."
 [ "${VERSION_ID:-}" = "24.04" ] || fail "This installer supports Ubuntu 24.04 only. Detected: ${VERSION_ID:-unknown}."
 
-[ ! -e "$APP_DIR" ] || fail "$APP_DIR already exists. Fresh installation only."
-[ ! -e "$SITE_CONF" ] || fail "$SITE_CONF already exists. Fresh installation only."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR_IS_CURRENT=0
 
-log "Installing Apache, MySQL, PHP 8.3, Composer, Git and required PHP extensions"
+if [ "$SCRIPT_DIR" = "$APP_DIR" ]; then
+    APP_DIR_IS_CURRENT=1
+elif [ -d "$APP_DIR" ] && [ "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+    fail "$APP_DIR already exists and is not empty. Please run uninstall.sh or clear $APP_DIR before running a fresh installation."
+fi
+
+if [ -f "$SITE_CONF" ]; then
+    fail "$SITE_CONF already exists. Fresh installation only."
+fi
+
+log "Installing Apache, MySQL, PHP 8.3, Node.js, Composer, and required packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
@@ -86,6 +96,8 @@ apt-get install -y \
     unzip \
     openssl \
     composer \
+    nodejs \
+    npm \
     libapache2-mod-php8.3 \
     php8.3-cli \
     php8.3-common \
@@ -95,7 +107,9 @@ apt-get install -y \
     php8.3-curl \
     php8.3-zip \
     php8.3-bcmath \
-    php8.3-intl
+    php8.3-intl \
+    php8.3-gd \
+    php8.3-sqlite3
 
 systemctl enable --now mysql apache2
 
@@ -104,25 +118,43 @@ PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 
 log "Checking database isolation names"
 if mysql -NBe "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='${DB_NAME}'" | grep -Fxq "$DB_NAME"; then
-    fail "Database ${DB_NAME} already exists. Fresh installation only."
+    fail "Database ${DB_NAME} already exists. Fresh installation only or run uninstall.sh first."
 fi
 
 if mysql -NBe "SELECT User FROM mysql.user WHERE User='${DB_USER}' LIMIT 1" | grep -Fxq "$DB_USER"; then
-    fail "MySQL user ${DB_USER} already exists. Fresh installation only."
+    fail "MySQL user ${DB_USER} already exists. Fresh installation only or run uninstall.sh first."
 fi
 
-log "Downloading SOKRAT CRM V2"
-git clone --depth 1 "$REPO_URL" "$APP_DIR"
-APP_CREATED=1
+log "Preparing application files in ${APP_DIR}"
+if [ "$APP_DIR_IS_CURRENT" -eq 1 ]; then
+    log "Using current directory as APP_DIR (${APP_DIR})"
+else
+    mkdir -p "$(dirname "$APP_DIR")"
+    if [ -d "$SCRIPT_DIR/.git" ] || [ -f "$SCRIPT_DIR/composer.json" ]; then
+        log "Copying repository contents from ${SCRIPT_DIR} to ${APP_DIR}"
+        cp -a "$SCRIPT_DIR" "$APP_DIR"
+    else
+        log "Cloning repository from ${REPO_URL} into ${APP_DIR}"
+        git clone --depth 1 "$REPO_URL" "$APP_DIR"
+    fi
+    APP_CREATED=1
+fi
+
 cd "$APP_DIR"
 
-log "Installing PHP dependencies"
+log "Installing PHP dependencies via Composer"
 COMPOSER_ALLOW_SUPERUSER=1 composer install \
     --no-dev \
     --prefer-dist \
     --no-interaction \
     --no-progress \
     --optimize-autoloader
+
+if [ -f package.json ]; then
+    log "Installing JavaScript dependencies and building Vite assets"
+    npm install --no-audit --no-fund --no-progress
+    npm run build
+fi
 
 DB_PASSWORD="$(openssl rand -hex 24)"
 CRM_ADMIN_USER="admin"
@@ -131,30 +163,27 @@ CRM_ADMIN_PASSWORD="$(openssl rand -hex 12)"
 log "Creating isolated CRM database and database user"
 mysql -e "CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 DB_CREATED=1
-DB_USERS_CREATED=1
 mysql -e "CREATE USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWORD}'; CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
+DB_USERS_CREATED=1
 mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1'; GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost'; FLUSH PRIVILEGES;"
 
-log "Creating production environment file"
+log "Creating production environment configuration"
 cp .env.example .env
 
 set_env() {
-    key="$1"
-    value="$2"
+    local key="$1"
+    local value="$2"
     if grep -q "^${key}=" .env; then
         sed -i "s|^${key}=.*|${key}=${value}|" .env
     else
-        printf '%s=%s\n' "$key" "$value" >> .env
+        echo "${key}=${value}" >> .env
     fi
 }
 
-SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-[ -n "$SERVER_IP" ] || SERVER_IP="127.0.0.1"
-
-set_env APP_NAME SOKRAT_CRM_V2
+set_env APP_NAME "SOKRAT CRM V2"
 set_env APP_ENV production
 set_env APP_DEBUG false
-set_env APP_URL "http://${SERVER_IP}"
+set_env APP_URL "http://localhost"
 set_env DB_CONNECTION mysql
 set_env DB_HOST 127.0.0.1
 set_env DB_PORT 3306
@@ -175,18 +204,21 @@ php artisan db:seed --class='Database\Seeders\CrmV2PipelineSeeder' --force --no-
 
 php artisan storage:link --no-interaction >/dev/null 2>&1 || true
 
-log "Setting Laravel permissions"
-chown -R www-data:www-data storage bootstrap/cache
+log "Setting file permissions"
+chown -R www-data:www-data storage bootstrap/cache public
 find storage bootstrap/cache -type d -exec chmod 775 {} +
 find storage bootstrap/cache -type f -exec chmod 664 {} +
 
 runuser -u www-data -- php artisan view:clear --no-ansi
 runuser -u www-data -- php artisan view:cache --no-ansi
+runuser -u www-data -- php artisan route:cache --no-ansi
+runuser -u www-data -- php artisan config:cache --no-ansi
 
-log "Configuring Apache"
+log "Configuring Apache VirtualHost for http://localhost/"
 cat > "$SITE_CONF" <<APACHE
 <VirtualHost *:80>
     ServerName localhost
+    ServerAlias 127.0.0.1
     DocumentRoot ${APP_DIR}/public
 
     <Directory ${APP_DIR}/public>
@@ -210,18 +242,20 @@ a2ensite "$SITE_NAME" >/dev/null
 apache2ctl configtest
 systemctl reload apache2
 
-log "Running health checks"
+log "Running application health checks"
 php artisan migrate:status --no-ansi >/dev/null
-curl -fsS --max-time 15 "http://127.0.0.1/login" >/dev/null
+curl -fsS --max-time 15 "http://localhost/login" >/dev/null || curl -fsS --max-time 15 "http://127.0.0.1/login" >/dev/null
 
 cat > "$CREDENTIALS_FILE" <<CREDS
-SOKRAT CRM V2
-URL=http://${SERVER_IP}/
+SOKRAT CRM V2 INSTALLATION CREDENTIALS
+======================================
+URL=http://localhost/
 Admin user=${CRM_ADMIN_USER}
 Admin password=${CRM_ADMIN_PASSWORD}
 Database=${DB_NAME}
 Database user=${DB_USER}
 Database password=${DB_PASSWORD}
+Installed at=$(date '+%Y-%m-%d %H:%M:%S')
 Installed from=${REPO_URL}
 CREDS
 chmod 600 "$CREDENTIALS_FILE"
@@ -231,7 +265,7 @@ trap - ERR
 printf '\n==================================================\n'
 printf 'SOKRAT CRM V2 INSTALLATION COMPLETE\n'
 printf '==================================================\n'
-printf 'URL: http://%s/\n' "$SERVER_IP"
+printf 'URL: http://localhost/\n'
 printf 'Admin user: %s\n' "$CRM_ADMIN_USER"
 printf 'Admin password: %s\n' "$CRM_ADMIN_PASSWORD"
 printf 'Credentials saved to: %s\n' "$CREDENTIALS_FILE"
