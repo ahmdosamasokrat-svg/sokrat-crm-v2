@@ -221,10 +221,10 @@ chown -R www-data:www-data storage bootstrap/cache public
 find storage bootstrap/cache -type d -exec chmod 775 {} +
 find storage bootstrap/cache -type f -exec chmod 664 {} +
 
-runuser -u www-data -- php artisan view:clear --no-ansi
-runuser -u www-data -- php artisan view:cache --no-ansi
-runuser -u www-data -- php artisan route:cache --no-ansi
-runuser -u www-data -- php artisan config:cache --no-ansi
+runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan view:clear --no-ansi"
+runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan view:cache --no-ansi"
+runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan route:cache --no-ansi"
+runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan config:cache --no-ansi"
 
 log "Configuring Apache VirtualHost for http://localhost/"
 cat > "$SITE_CONF" <<APACHE
