@@ -1,0 +1,274 @@
+/*
+ * CRM SHARED SIDEBAR CSS V1
+ * Source: live canonical Leads sidebar.
+ * Do not style CRM sidebar inside feature CSS.
+ */
+
+#crmSidebar{
+ --red:#dc2637;
+ --red-dark:#b81829;
+ --dark:#182033;
+ --text:#4b5568;
+ --muted:#8b94a5;
+ --line:#e5e8ef;
+ --bg:#f5f6f9;
+ --card:#fff;
+ --shadow:0 14px 38px #17203312;
+ font-family:Tahoma,Arial,sans-serif;
+ font-size:15px;
+}
+
+#crmSidebar a,
+#crmSidebar button{
+ font-family:inherit;
+}
+
+.crm-side{
+position:sticky;
+ top:0;
+ flex:0 0 288px;
+ width:288px;
+ height:100vh;
+ overflow:auto;
+ padding:24px 17px;
+ border-left:1px solid var(--line);
+ background:#fff;
+ z-index:80
+}
+
+.crm-side-brand{
+display:flex;
+ align-items:center;
+ gap:11px;
+ padding:4px 8px 20px;
+ margin-bottom:17px;
+ border-bottom:1px solid var(--line);
+ text-decoration:none
+}
+
+.crm-side-brand .logo{
+width:58px;
+ height:58px
+}
+
+.crm-side-brand strong{
+display:block;
+ color:var(--red);
+ font:900 22px Arial
+}
+
+.crm-side-brand small{
+display:block;
+ margin-top:5px;
+ color:var(--muted);
+ font-size:10px
+}
+
+.crm-side-caption{
+margin:0 10px 10px;
+ color:#9aa2b0;
+ font-size:10px;
+ font-weight:bold
+}
+
+.crm-side-nav{
+display:grid;
+ gap:5px
+}
+
+.crm-link,
+.crm-toggle{
+width:100%;
+ min-height:49px;
+ display:flex;
+ align-items:center;
+ gap:10px;
+ padding:8px 10px;
+ border:1px solid transparent;
+ border-radius:13px;
+ background:transparent;
+ color:#566175;
+ text-decoration:none;
+ text-align:right;
+ cursor:pointer;
+ transition:.2s
+}
+
+.crm-link:hover,
+.crm-toggle:hover{
+color:var(--red);
+ background:#fff5f6;
+ transform:translateX(-2px)
+}
+
+.crm-link.active,
+.crm-toggle.active{
+border-color:#cf2031;
+ background:linear-gradient(135deg,#e83243,#c91d2e);
+ color:#fff;
+ box-shadow:0 12px 27px #dc26372c
+}
+
+.crm-ico{
+width:32px;
+ height:32px;
+ flex:0 0 32px;
+ display:grid;
+ place-items:center;
+ border-radius:10px;
+ background:#f0f2f6;
+ font-size:17px
+}
+
+.crm-link.active .crm-ico,
+.crm-toggle.active .crm-ico{
+background:#ffffff2b
+}
+
+.crm-label{
+min-width:0;
+ flex:1
+}
+
+.crm-count{
+min-width:24px;
+ height:24px;
+ display:grid;
+ place-items:center;
+ padding:0 6px;
+ border-radius:99px;
+ background:#eef0f4;
+ color:#7e8796;
+ font:800 10px Arial
+}
+
+.crm-toggle.active .crm-count{
+color:#fff;
+ background:#ffffff2b
+}
+
+.crm-arrow{
+color:#a2a9b5;
+ font-size:11px;
+ transition:.2s
+}
+
+.crm-toggle.active .crm-arrow{
+color:#fff
+}
+
+.crm-toggle[aria-expanded=true] .crm-arrow{
+transform:rotate(180deg)
+}
+
+.crm-sub{
+display:grid;
+ grid-template-rows:0fr;
+ transition:.22s
+}
+
+.crm-sub.open{
+grid-template-rows:1fr
+}
+
+.crm-sub-inner{
+min-height:0;
+ overflow:hidden
+}
+
+.crm-sub nav{
+display:grid;
+ gap:2px;
+ margin:3px 28px 7px 0;
+ padding-right:14px;
+ border-right:1px solid var(--line)
+}
+
+.crm-sub a{
+padding:8px 10px;
+ border-radius:8px;
+ color:#788294;
+ text-decoration:none;
+ font-size:11px;
+ font-weight:bold
+}
+
+.crm-sub a:hover{
+color:var(--red);
+ background:#fff2f4
+}
+
+.crm-sub a.active{
+color:var(--red);
+ background:#fff0f2
+}
+
+.crm-overlay{
+display:none
+}
+
+@media(max-width:900px){
+.crm-side{
+position:fixed;
+  right:0;
+  top:0;
+  width:min(288px,calc(100vw - 45px));
+  max-width:none;
+  transform:translateX(105%);
+  transition:.25s;
+  box-shadow:-20px 0 55px #17203325
+}
+
+.crm-overlay{
+position:fixed;
+  inset:0;
+  display:none;
+  background:#12182788;
+  backdrop-filter:blur(2px);
+  z-index:70
+}
+
+body.crm-side-open{
+overflow:hidden
+}
+
+body.crm-side-open .crm-side{
+transform:none
+}
+
+body.crm-side-open .crm-overlay{
+display:block
+}
+}
+
+@media(max-width:520px){
+.crm-side-brand small,
+ .crm-side-caption{
+font-size:12px
+}
+
+.crm-sub a{
+font-size:13px
+}
+}
+
+.crm-side-brand small{
+font-size:12px
+}
+
+.crm-side-caption{
+font-size:13px
+}
+
+.crm-link,
+.crm-toggle{
+font-size:16px
+}
+
+.crm-sub a{
+font-size:14px
+}
+
+.crm-count{
+font-size:11px
+}
