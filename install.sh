@@ -217,10 +217,11 @@ php artisan db:seed --class='Database\Seeders\CrmV2PipelineSeeder' --force --no-
 php artisan storage:link --no-interaction >/dev/null 2>&1 || true
 
 log "Caching views and routes"
-php artisan view:clear --no-ansi
-php artisan view:cache --no-ansi
-php artisan route:cache --no-ansi
-php artisan config:cache --no-ansi
+mkdir -p storage/framework/views storage/framework/cache/data storage/framework/sessions storage/logs
+php artisan view:clear --no-ansi || true
+php artisan view:cache --no-ansi || true
+php artisan route:cache --no-ansi || true
+php artisan config:cache --no-ansi || true
 
 log "Setting file permissions for www-data"
 chmod 755 /var/www /var/www/html 2>/dev/null || true
