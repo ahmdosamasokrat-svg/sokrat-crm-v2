@@ -216,16 +216,18 @@ php artisan db:seed --class='Database\Seeders\CrmV2PipelineSeeder' --force --no-
 
 php artisan storage:link --no-interaction >/dev/null 2>&1 || true
 
+log "Caching views and routes"
+php artisan view:clear --no-ansi
+php artisan view:cache --no-ansi
+php artisan route:cache --no-ansi
+php artisan config:cache --no-ansi
+
 log "Setting file permissions for www-data"
+chmod 755 /var/www /var/www/html 2>/dev/null || true
 chown -R www-data:www-data "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 775 {} +
 find "$APP_DIR" -type f -exec chmod 664 {} +
 chmod +x "${APP_DIR}/artisan"
-
-runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan view:clear --no-ansi"
-runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan view:cache --no-ansi"
-runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan route:cache --no-ansi"
-runuser -u www-data -- bash -c "cd '$APP_DIR' && php artisan config:cache --no-ansi"
 
 log "Configuring Apache VirtualHost for http://localhost/"
 cat > "$SITE_CONF" <<APACHE
