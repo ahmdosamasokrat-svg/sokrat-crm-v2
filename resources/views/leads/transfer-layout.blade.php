@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
  <meta charset="utf-8">
  <meta
@@ -7,6 +7,7 @@
   content="width=device-width,initial-scale=1"
  >
  <title>@yield('title') | CRM v2</title>
+ <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
  <style>
   *{box-sizing:border-box}
@@ -25,14 +26,21 @@
    --purple:#7b61df
   }
 
+  html.dark-mode{
+   --dark:#f4f4f5;
+   --text:#a1a1aa;
+   --muted:#a1a1aa;
+   --line:rgba(255,255,255,.08);
+   --bg:#121214;
+   --card:rgba(24,24,27,.75);
+   --shadow:0 10px 30px rgba(0,0,0,.5)
+  }
+
   body{
    margin:0;
    background:var(--bg);
    color:var(--dark);
-   font-family:
-    Tahoma,
-    Arial,
-    sans-serif
+   font-family:var(--font-primary)
   }
 
   button,
@@ -44,15 +52,14 @@
   .transfer-layout{
    min-height:100vh;
    display:flex;
-   direction:rtl
-  }
+   }
 
   .transfer-sidebar{
    width:265px;
    min-width:265px;
    min-height:100vh;
    background:#fff;
-   border-left:1px solid var(--line);
+   border-inline-end:1px solid var(--line);
    z-index:40
   }
 
@@ -67,6 +74,8 @@
   }
 
   .transfer-topbar{
+   position:relative;
+   z-index:50;
    min-height:82px;
    display:flex;
    align-items:center;
@@ -126,6 +135,14 @@
    background:var(--card);
    box-shadow:var(--shadow)
   }
+  html.dark-mode .transfer-card{
+   background:var(--bg-card,rgba(24,24,27,.75))!important;
+   backdrop-filter:var(--glass-blur,blur(16px))!important;
+   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
+   box-shadow:var(--shadow-card,0 10px 30px rgba(0,0,0,.5))!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
 
   .transfer-hero{
    padding:25px;
@@ -137,6 +154,14 @@
     );
    color:#fff
   }
+  html.dark-mode .transfer-hero{
+   background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important;
+   color:#fff!important
+  }
+  html.dark-mode .transfer-hero small{color:#f87171!important}
+  html.dark-mode .transfer-hero h2{color:#ffffff!important}
+  html.dark-mode .transfer-hero p{color:#d4d4d8!important}
 
   .transfer-hero small{
    color:#f2a3ac;
@@ -164,19 +189,21 @@
    padding:18px 21px;
    border-bottom:1px solid var(--line)
   }
-
-  .card-head h3{
-   margin:0;
-   font-size:17px
+  html.dark-mode .card-head{
+   border-bottom:1px solid rgba(255,255,255,.08)!important
   }
-
-  .card-head p{
-   margin:5px 0 0;
-   color:var(--muted);
-   font-size:11px;
-   line-height:1.7
+  html.dark-mode .card-head h3{color:var(--text-primary,#f4f4f5)!important}
+  html.dark-mode .card-head p{color:var(--text-muted,#a1a1aa)!important}
+  html.dark-mode .card-body{color:var(--text-primary,#f4f4f5)!important}
+  html.dark-mode .transfer-topbar{
+   background:var(--bg-card,rgba(24,24,27,.75))!important;
+   backdrop-filter:var(--glass-blur,blur(16px))!important;
+   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important;
+   color:var(--text-primary,#f4f4f5)!important
   }
-
+  html.dark-mode .transfer-page-title h1{color:var(--text-primary,#f4f4f5)!important}
+  html.dark-mode .transfer-page-title p{color:var(--text-muted,#a1a1aa)!important}
   .card-body{
    padding:21px
   }
@@ -206,6 +233,9 @@
    font-size:12px;
    font-weight:900
   }
+  html.dark-mode .field label{
+   color:#e4e4e7!important
+  }
 
   .control{
    width:100%;
@@ -217,16 +247,49 @@
    color:var(--dark);
    outline:none
   }
+  html.dark-mode .control{
+   background:var(--bg-input,rgba(39,39,42,.65))!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
 
   .control:focus{
    border-color:#8badde;
    box-shadow:0 0 0 3px #3478f617
+  }
+  html.dark-mode .control:focus{
+   border-color:rgba(239,68,68,.6)!important;
+   background:rgba(39,39,42,.95)!important;
+   box-shadow:0 0 0 3px rgba(239,68,68,.2)!important
+  }
+  html.dark-mode input[type="file"].control{
+   background:rgba(255,255,255,.04)!important;
+   border:1px dashed rgba(255,255,255,.2)!important;
+   color:var(--text-primary,#f4f4f5)!important;
+   cursor:pointer
+  }
+  html.dark-mode input[type="file"].control:hover,
+  html.dark-mode input[type="file"].control:focus{
+   border-color:rgba(239,68,68,.6)!important;
+   background:rgba(239,68,68,.05)!important
+  }
+  html.dark-mode input[type="file"].control::file-selector-button{
+   background:linear-gradient(135deg,#e83243,#bd1728)!important;
+   color:#ffffff!important;
+   border:none!important;
+   border-radius:8px!important;
+   padding:6px 14px!important;
+   font-weight:800!important;
+   cursor:pointer!important
   }
 
   .help{
    color:var(--muted);
    font-size:10px;
    line-height:1.8
+  }
+  html.dark-mode .help{
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .btn{
@@ -267,6 +330,30 @@
   .btn.soft{
    background:#f8fafc
   }
+  html.dark-mode .btn.soft{
+   background:rgba(255,255,255,.08)!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:var(--text-primary,#f4f4f5)!important;
+   font-weight:700!important
+  }
+  html.dark-mode .btn.soft:hover{
+   background:rgba(255,255,255,.16)!important;
+   border-color:rgba(255,255,255,.25)!important;
+   color:#ffffff!important
+  }
+  html.dark-mode .btn.primary{
+   background:linear-gradient(135deg,#e83243,#c91d2e)!important;
+   border-color:#ef4444!important;
+   color:#ffffff!important;
+   font-weight:800!important;
+   box-shadow:0 4px 16px rgba(239,68,68,.35)!important
+  }
+  html.dark-mode .btn.success{
+   background:linear-gradient(135deg,#169a64,#137e51)!important;
+   border-color:#16a34a!important;
+   color:#ffffff!important;
+   font-weight:800!important
+  }
 
   .actions{
    display:flex;
@@ -290,11 +377,21 @@
    background:#eefaf2;
    color:#146238
   }
+  html.dark-mode .notice.success{
+   background:rgba(34,197,94,.12)!important;
+   border:1px solid rgba(34,197,94,.3)!important;
+   color:#86efac!important
+  }
 
   .notice.error{
    border:1px solid #efbcbc;
    background:#fff2f2;
    color:#a62d2d
+  }
+  html.dark-mode .notice.error{
+   background:rgba(239,68,68,.12)!important;
+   border:1px solid rgba(239,68,68,.35)!important;
+   color:#fca5a5!important
   }
 
   .notice.info{
@@ -302,10 +399,14 @@
    background:#f1f7ff;
    color:#2b5e9d
   }
-
+  html.dark-mode .notice.info{
+   background:rgba(59,130,246,.12)!important;
+   border:1px solid rgba(59,130,246,.3)!important;
+   color:#93c5fd!important
+  }
   .error-list{
    margin:7px 0 0;
-   padding-right:20px
+   padding-inline-start:20px
   }
 
   .stat-grid{
@@ -321,6 +422,17 @@
    border:1px solid var(--line);
    border-radius:13px;
    background:#fff
+  }
+  html.dark-mode .stat{
+   background:rgba(255,255,255,.04)!important;
+   border:1px solid rgba(255,255,255,.08)!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
+  html.dark-mode .stat span{
+   color:var(--text-muted,#a1a1aa)!important
+  }
+  html.dark-mode .stat strong{
+   color:var(--text-primary,#f4f4f5)!important
   }
 
   .stat span{
@@ -349,6 +461,16 @@
    border-radius:10px;
    background:#fafbfc
   }
+  html.dark-mode .status-guide-item{
+   background:rgba(255,255,255,.04)!important;
+   border:1px solid rgba(255,255,255,.08)!important
+  }
+  html.dark-mode .status-guide-item strong{
+   color:var(--text-primary,#f4f4f5)!important
+  }
+  html.dark-mode .status-guide-item small{
+   color:var(--text-muted,#a1a1aa)!important
+  }
 
   .status-guide-item strong{
    display:block;
@@ -367,6 +489,9 @@
    border:1px solid var(--line);
    border-radius:13px
   }
+  html.dark-mode .table-wrap{
+   border-color:rgba(255,255,255,.08)!important
+  }
 
   table{
    width:100%;
@@ -374,14 +499,21 @@
    border-collapse:collapse;
    background:#fff
   }
+  html.dark-mode table{
+   background:transparent!important
+  }
 
   th,
   td{
    padding:11px 10px;
    border-bottom:1px solid #edf0f4;
-   text-align:right;
+   text-align:start;
    vertical-align:top;
    font-size:11px
+  }
+  html.dark-mode td{
+   border-bottom:1px solid rgba(255,255,255,.07)!important;
+   color:#d4d4d8!important
   }
 
   th{
@@ -392,16 +524,23 @@
    color:#526076;
    font-weight:900
   }
+  html.dark-mode th{
+   background:rgba(255,255,255,.06)!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important;
+   color:var(--text-muted,#a1a1aa)!important
+  }
 
   .row-errors,
   .row-warnings{
    margin:0;
-   padding-right:17px;
+   padding-inline-start:17px;
    line-height:1.8
   }
 
   .row-errors{color:#a62d2d}
+  html.dark-mode .row-errors{color:#f87171!important}
   .row-warnings{color:#9a6700}
+  html.dark-mode .row-warnings{color:#fbbf24!important}
 
   .badge{
    display:inline-flex;
@@ -412,21 +551,22 @@
    font-size:10px;
    font-weight:900
   }
-
-  .badge.valid{
-   background:#eaf8ef;
-   color:#126837
+  html.dark-mode .badge.valid{
+   background:rgba(34,197,94,.15)!important;
+   border:1px solid rgba(34,197,94,.3)!important;
+   color:#4ade80!important
+  }
+  html.dark-mode .badge.duplicate{
+   background:rgba(245,158,11,.15)!important;
+   border:1px solid rgba(245,158,11,.3)!important;
+   color:#fbbf24!important
+  }
+  html.dark-mode .badge.error{
+   background:rgba(239,68,68,.15)!important;
+   border:1px solid rgba(239,68,68,.3)!important;
+   color:#f87171!important
   }
 
-  .badge.error{
-   background:#fff0f0;
-   color:#b42c2c
-  }
-
-  .badge.duplicate{
-   background:#fff7e5;
-   color:#946300
-  }
 
   .checkbox-grid{
    display:grid;
@@ -560,7 +700,7 @@
    height:100vh;
    overflow:auto;
    padding:24px 17px;
-   border-left:1px solid var(--line);
+   border-inline-end:1px solid var(--line);
    background:#fff;
    z-index:80
   }
@@ -587,7 +727,7 @@
   .crm-side-brand strong{
    display:block;
    color:var(--red);
-   font:900 22px Arial
+   font:900 22px var(--font-primary)
   }
 
   .crm-side-brand small{
@@ -622,7 +762,7 @@
    background:transparent;
    color:#566175;
    text-decoration:none;
-   text-align:right;
+   text-align:start;
    font-size:16px;
    font-weight:bold;
    cursor:pointer;
@@ -680,7 +820,7 @@
    border-radius:99px;
    background:#eef0f4;
    color:#7e8796;
-   font:800 11px Arial
+   font:800 11px var(--font-primary)
   }
 
   .crm-toggle.active .crm-count{
@@ -723,8 +863,8 @@
    display:grid;
    gap:2px;
    margin:3px 28px 7px 0;
-   padding-right:14px;
-   border-right:1px solid var(--line)
+   padding-inline-start:14px;
+   border-inline-start:1px solid var(--line)
   }
 
   .crm-sub a{
@@ -753,15 +893,13 @@
   .transfer-layout{
    display:flex;
    min-height:100vh;
-   direction:rtl
-  }
+   }
 
   .transfer-main{
    min-width:0;
    flex:1 1 auto;
    width:calc(100% - 288px);
-   direction:rtl
-  }
+   }
 
   @media(max-width:900px){
    .transfer-layout{
@@ -861,24 +999,25 @@
   ></div>
 
   <main class="transfer-main">
-   <header class="transfer-topbar">
+   <header class="transfer-topbar relative z-50">
     <button
      class="transfer-menu"
      id="transferMenuButton"
      type="button"
-     aria-label="فتح القائمة"
+     aria-label="{{ __('crm.open_menu') }}"
     >
      ☰
     </button>
 
     <div class="transfer-page-title">
-     <h1>@yield('page-title')</h1>
+     <h1 data-ar-label="@yield('page-title-ar')">@yield('page-title')</h1>
      <p>@yield('page-description')</p>
     </div>
 
     <div class="transfer-top-actions">
      @yield('top-actions')
     </div>
+    @include('partials.profile-dropdown')
    </header>
 
    <div class="transfer-content">
@@ -891,7 +1030,7 @@
     @if ($errors->any())
      <div class="notice error">
       <strong>
-       يرجى مراجعة البيانات التالية:
+       {{ __('crm.review_errors') }}
       </strong>
 
       <ul class="error-list">

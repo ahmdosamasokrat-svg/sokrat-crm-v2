@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Lead;
 use App\Models\LeadStatus;
+use App\Support\CrmDatabaseGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class TaskStatusController extends Controller
 {
@@ -38,36 +38,28 @@ class TaskStatusController extends Controller
     ];
 
     private const SCOPE_LABELS = [
-        'today' =>
-            'يجب التواصل معهم اليوم',
+        'today' => 'يجب التواصل معهم اليوم',
 
-        'overdue' =>
-            'المتابعات المتأخرة',
+        'overdue' => 'المتابعات المتأخرة',
 
-        'upcoming' =>
-            'المتابعات القادمة',
+        'upcoming' => 'المتابعات القادمة',
     ];
 
     private const SCOPE_DESCRIPTIONS = [
-        'today' =>
-            'العملاء المطلوب التواصل معهم اليوم.',
+        'today' => 'العملاء المطلوب التواصل معهم اليوم.',
 
-        'overdue' =>
-            'العملاء الذين مر موعد متابعتهم.',
+        'overdue' => 'العملاء الذين مر موعد متابعتهم.',
 
-        'upcoming' =>
-            'العملاء الذين لديهم متابعة قادمة.',
+        'upcoming' => 'العملاء الذين لديهم متابعة قادمة.',
     ];
 
     public function show(
         Request $request,
         string $status
     ): View|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
+        $user = $request->user();
 
         abort_unless(
             array_key_exists(
@@ -111,8 +103,10 @@ class TaskStatusController extends Controller
 
         $baseQuery =
             Lead::query()
+                ->accessibleTo($user)
                 ->with([
                     'status.stage',
+                    'assignedUser:id,name',
                 ])
                 ->where(
                     'lead_status_id',
@@ -191,6 +185,7 @@ class TaskStatusController extends Controller
 
         $totalStatusLeads =
             Lead::query()
+                ->accessibleTo($user)
                 ->where(
                     'lead_status_id',
                     $statusRecord->id
@@ -199,6 +194,7 @@ class TaskStatusController extends Controller
 
         $withoutFollowUpCount =
             Lead::query()
+                ->accessibleTo($user)
                 ->where(
                     'lead_status_id',
                     $statusRecord->id
@@ -209,79 +205,64 @@ class TaskStatusController extends Controller
                 ->count();
 
         $totalLeads =
-            Lead::query()->count();
+            Lead::query()
+                ->accessibleTo($user)
+                ->count();
 
         return view(
             'tasks.status',
             [
-                'statusSlug' =>
-                    $status,
+                'statusSlug' => $status,
 
-                'statusRecord' =>
-                    $statusRecord,
+                'statusRecord' => $statusRecord,
 
-                'statusLinks' =>
-                    self::STATUS_LABELS,
+                'statusLinks' => self::STATUS_LABELS,
 
-                'scopeLinks' =>
-                    self::SCOPE_LABELS,
+                'scopeLinks' => self::SCOPE_LABELS,
 
-                'activeScope' =>
-                    $scope,
+                'activeScope' => $scope,
 
-                'activeScopeLabel' =>
-                    self::SCOPE_LABELS[
+                'activeScopeLabel' => self::SCOPE_LABELS[
                         $scope
                     ],
 
-                'activeScopeDescription' =>
-                    self::SCOPE_DESCRIPTIONS[
+                'activeScopeDescription' => self::SCOPE_DESCRIPTIONS[
                         $scope
                     ],
 
                 'scopeCounts' => [
-                    'today' =>
-                        $todayCount,
+                    'today' => $todayCount,
 
-                    'overdue' =>
-                        $overdueCount,
+                    'overdue' => $overdueCount,
 
-                    'upcoming' =>
-                        $upcomingCount,
+                    'upcoming' => $upcomingCount,
                 ],
 
-                'activeLeads' =>
-                    $activeLeads,
+                'activeLeads' => $activeLeads,
 
-                'statusColor' =>
-                    $this->safeColor(
-                        (string)
-                            $statusRecord->color
-                    ),
+                'statusColor' => $this->safeColor(
+                    (string)
+                        $statusRecord->color
+                ),
 
-                'stageColor' =>
-                    $this->safeColor(
-                        (string) (
-                            $statusRecord
-                                ->stage
-                                ?->color
-                            ?? ''
-                        )
-                    ),
+                'stageColor' => $this->safeColor(
+                    (string) (
+                        $statusRecord
+                            ->stage
+                            ?->color
+                        ?? ''
+                    )
+                ),
 
-                'todayLabel' =>
-                    now()->format(
-                        'Y-m-d'
-                    ),
+                'todayLabel' => now()->format(
+                    'Y-m-d'
+                ),
 
-                'totalStatusLeads' =>
-                    $totalStatusLeads,
+                'totalStatusLeads' => $totalStatusLeads,
 
-                'withoutFollowUpCount' =>
-                    $withoutFollowUpCount,
+                'withoutFollowUpCount' => $withoutFollowUpCount,
 
-                'totalLeads' =>
-                    $totalLeads,
+                'totalLeads' => $totalLeads,
             ]
         );
     }
@@ -301,26 +282,6 @@ class TaskStatusController extends Controller
 
     private function assertCrmV2Database(): void
     {
-        $database = (string)
-            DB::connection()
-                ->getDatabaseName();
-
-        $host = (string)
-            config(
-                'database.connections.mysql.host'
-            );
-
-        $user = (string)
-            config(
-                'database.connections.mysql.username'
-            );
-
-        abort_unless(
-            $database === 'sokrat_crm_v2'
-            && $host === '127.0.0.1'
-            && $user === 'sokrat_crm_v2_app',
-            500,
-            'CRM v2 database isolation check failed.'
-        );
+        CrmDatabaseGuard::ensureConnected();
     }
 }

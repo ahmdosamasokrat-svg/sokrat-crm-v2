@@ -12,6 +12,7 @@ class LeadFollowup extends Model
         'from_status_id',
         'to_status_id',
         'employee_name',
+        'user_id',
         'communication_type',
         'outcome',
         'field_changes',
@@ -33,6 +34,11 @@ class LeadFollowup extends Model
         return $this->belongsTo(
             Lead::class
         );
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function fromStatus(): BelongsTo

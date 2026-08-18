@@ -8,20 +8,21 @@
 
 @section(
  'title',
- $statusRecord->name_ar
+ __($statusRecord->name_ar)
  .' - '
- .$activeScopeLabel
+ .__($activeScopeLabel)
 )
 
 @section(
  'page-title',
- 'متابعات '
- .$statusRecord->name_ar
+ __('متابعات')
+ .' '
+ .__($statusRecord->name_ar)
 )
 
 @section(
  'page-description',
- 'اختار نوع المتابعة لعرض العملاء المطلوب متابعتهم في هذه الحالة.'
+ __('اختار نوع المتابعة لعرض العملاء المطلوب متابعتهم في هذه الحالة.')
 )
 
 @section('top-actions')
@@ -29,7 +30,7 @@
   class="btn soft"
   href="{{ route('v2.leads') }}"
  >
-  عرض العملاء
+  {{ __('crm.view_leads') }}
  </a>
 @endsection
 
@@ -41,7 +42,162 @@
   --current-stage-color:
    {{ $stageColor }}
  }
+ html.dark-mode .task-status-head {
+  background: var(--bg-card, rgba(24, 24, 27, 0.75)) !important;
+  border: var(--border-glass, 1px solid rgba(255, 255, 255, 0.08)) !important;
+  backdrop-filter: var(--glass-blur, blur(16px)) !important;
+ }
 
+ html.dark-mode .task-pill.status {
+  background: color-mix(in srgb, var(--current-status-color) 16%, rgba(24, 24, 27, 0.8)) !important;
+  border: 1px solid var(--current-status-color) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+ }
+
+ html.dark-mode .task-pill.stage {
+  background: color-mix(in srgb, var(--current-stage-color) 16%, rgba(24, 24, 27, 0.8)) !important;
+  border: 1px solid var(--current-stage-color) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+ }
+
+ html.dark-mode .task-work-date {
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-status-nav {
+  background: var(--bg-card, rgba(24, 24, 27, 0.75)) !important;
+  border: var(--border-glass, 1px solid rgba(255, 255, 255, 0.08)) !important;
+ }
+
+ html.dark-mode .task-status-nav a {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-status-nav a:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-status-nav a.active {
+  background: color-mix(in srgb, var(--current-status-color, #dc2637) 18%, rgba(24, 24, 27, 0.85)) !important;
+  border-color: var(--current-status-color, #dc2637) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--current-status-color) 30%, transparent) !important;
+ }
+
+ html.dark-mode .task-scope-box {
+  background: var(--bg-card, rgba(24, 24, 27, 0.75)) !important;
+  border: var(--border-glass, 1px solid rgba(255, 255, 255, 0.08)) !important;
+ }
+
+ html.dark-mode .task-scope-title {
+  color: #f4f4f5 !important;
+  font-weight: 800;
+ }
+
+ html.dark-mode .task-scope-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #d4d4d8 !important;
+ }
+
+ html.dark-mode .task-scope-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+ }
+
+ html.dark-mode .task-scope-btn strong {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-scope-btn.today.active {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: #3b82f6 !important;
+  color: #60a5fa !important;
+ }
+
+ html.dark-mode .task-scope-btn.overdue.active {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: #ef4444 !important;
+  color: #f87171 !important;
+ }
+
+ html.dark-mode .task-scope-btn.upcoming.active {
+  background: rgba(123, 97, 223, 0.15) !important;
+  border-color: #8b5cf6 !important;
+  color: #a78bfa !important;
+ }
+
+ html.dark-mode .task-meta {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-meta strong {
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-section {
+  background: var(--bg-card, rgba(24, 24, 27, 0.75)) !important;
+  border: var(--border-glass, 1px solid rgba(255, 255, 255, 0.08)) !important;
+  box-shadow: var(--shadow-card) !important;
+ }
+
+ html.dark-mode .task-section-head {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+ }
+
+ html.dark-mode .task-section-head h2 {
+  color: #f4f4f5 !important;
+  font-weight: 800;
+ }
+
+ html.dark-mode .task-section-head p {
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-section-count {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-customer {
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-customer strong {
+  color: #f4f4f5 !important;
+ }
+
+ html.dark-mode .task-customer small {
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-avatar {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--current-status-color) !important;
+  border: 1px solid var(--current-status-color) !important;
+ }
+
+ html.dark-mode .task-phone {
+  color: #38bdf8 !important;
+ }
+
+ html.dark-mode .task-empty {
+  color: var(--text-muted, #a1a1aa) !important;
+ }
+
+ html.dark-mode .task-empty strong {
+  color: #f4f4f5 !important;
+ }
  .task-status-head{
   display:flex;
   align-items:center;
@@ -55,7 +211,6 @@
   background:#fff;
   box-shadow:var(--shadow)
  }
-
  .task-status-badges{
   display:flex;
   align-items:center;
@@ -187,7 +342,7 @@
   padding:0 6px;
   border-radius:999px;
   background:#eef1f6;
-  font-family:Arial;
+  font-family:var(--font-primary);
   font-size:11px
  }
 
@@ -309,7 +464,7 @@
   border-radius:999px;
   background:#f1f3f7;
   color:#596579;
-  font:900 11px Arial
+  font:900 11px var(--font-primary)
  }
 
  .task-empty{
@@ -364,7 +519,7 @@
   display:inline-block;
   color:#356cb2;
   text-decoration:none;
-  font-family:Arial
+  font-family:var(--font-primary)
  }
 
  .task-time{
@@ -772,7 +927,7 @@
   display:inline-block;
   color:#356cb2;
   text-decoration:none;
-  font-family:Arial;
+  font-family:var(--font-primary);
   font-size:14px
  }
 
@@ -911,7 +1066,7 @@
  }
 
  .task-card-follow-date{
-  border-right:
+  border-inline-start:
    4px solid
    {{ $stageColor }}!important
  }
@@ -985,35 +1140,37 @@
 @section('content')
  <div
   class="task-status-page"
+  dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}"
   data-task-scope="{{ $activeScope }}"
  >
   <div class="task-status-head">
    <div class="task-status-badges">
     <span class="task-pill status">
      <i></i>
-     الحالة:
-     {{ $statusRecord->name_ar }}
+     {{ __('الحالة:') }}
+     {{ __($statusRecord->name_ar) }}
     </span>
 
     <span class="task-pill stage">
      <i></i>
-     المرحلة:
+     {{ __('المرحلة:') }}
      {{
       $statusRecord->stage?->name_ar
-      ?? 'بدون مرحلة'
+      ? __($statusRecord->stage->name_ar)
+      : __('بدون مرحلة')
      }}
     </span>
    </div>
 
    <div class="task-work-date">
-    تاريخ العمل:
+    {{ __('تاريخ العمل:') }}
     {{ $todayLabel }}
    </div>
   </div>
 
   <nav
    class="task-status-nav"
-   aria-label="حالات العملاء"
+   aria-label="{{ __('crm.lead_statuses') }}"
   >
    @foreach (
     $statusLinks
@@ -1033,14 +1190,14 @@
       ]
      ) }}"
     >
-     {{ $label }}
+     {{ __($label) }}
     </a>
    @endforeach
   </nav>
 
   <div class="task-scope-box">
    <div class="task-scope-title">
-    اختار نوع المتابعة
+    {{ __('crm.choose_followup_type') }}
    </div>
 
    <div class="task-scope-buttons">
@@ -1064,7 +1221,7 @@
       ) }}"
      >
       <span>
-       {{ $label }}
+       {{ __($label) }}
       </span>
 
       <strong>
@@ -1080,7 +1237,7 @@
 
    <div class="task-status-meta">
     <div class="task-meta">
-     إجمالي العملاء في الحالة:
+     {{ __('crm.total_leads_in_status') }}
      <strong>
       {{
        number_format(
@@ -1091,7 +1248,7 @@
     </div>
 
     <div class="task-meta">
-     بدون موعد متابعة:
+     {{ __('crm.without_followup_date') }}
      <strong>
       {{
        number_format(
@@ -1112,11 +1269,11 @@
 
      <div>
       <h2>
-       {{ $activeScopeLabel }}
+       {{ __($activeScopeLabel) }}
       </h2>
 
       <p>
-       {{ $activeScopeDescription }}
+       {{ __($activeScopeDescription) }}
       </p>
      </div>
     </div>
@@ -1133,12 +1290,12 @@
    @if ($activeLeads->isEmpty())
     <div class="task-empty">
      <strong>
-      لا يوجد عملاء في هذه المتابعة
+      {{ __('crm.no_leads_in_followup') }}
      </strong>
 
-     لا يوجد حاليًا عميل في حالة
-     {{ $statusRecord->name_ar }}
-     مطابق لنوع المتابعة المختار.
+     {{ __('لا يوجد حاليًا عميل في حالة') }}
+     {{ __($statusRecord->name_ar) }}
+     {{ __('مطابق لنوع المتابعة المختار.') }}
     </div>
    @else
     <!-- CRM TASK CUSTOMER CARDS START -->
@@ -1177,7 +1334,7 @@
           <small>
            {{
             $lead->email
-            ?: 'لا يوجد بريد إلكتروني'
+            ?: __('crm.no_email')
            }}
           </small>
          </span>
@@ -1192,14 +1349,14 @@
            {{ $statusColor }};
          "
         >
-         {{ $statusRecord->name_ar }}
+         {{ __($statusRecord->name_ar) }}
         </span>
        </div>
 
        <div class="task-card-details">
         <div class="task-card-detail">
          <span class="task-card-detail-label">
-          الهاتف
+          {{ __('crm.phone') }}
          </span>
 
          <strong>
@@ -1211,53 +1368,55 @@
             {{ $lead->phone }}
            </a>
           @else
-           غير مسجل
+           {{ __('غير مسجل') }}
           @endif
          </strong>
         </div>
 
         <div class="task-card-detail">
          <span class="task-card-detail-label">
-          الشركة
+          {{ __('الشركة') }}
          </span>
 
          <strong>
           {{
            $lead->company_name
-           ?: 'بدون شركة'
+           ?: __('crm.no_company')
           }}
          </strong>
         </div>
 
         <div class="task-card-detail">
          <span class="task-card-detail-label">
-          المصدر
+          {{ __('crm.source') }}
          </span>
 
          <strong>
           {{
            $lead->source
-           ?: 'غير محدد'
+           ? __($lead->source)
+           : __('غير محدد')
           }}
          </strong>
         </div>
 
         <div class="task-card-detail">
          <span class="task-card-detail-label">
-          الموظف المسؤول
+          {{ __('crm.responsible_employee') }}
          </span>
 
          <strong>
           {{
-           $lead->assigned_employee
-           ?: 'غير مسند'
+           $lead->assignedUser?->name
+           ?? $lead->assigned_employee
+           ?: __('crm.unassigned')
           }}
          </strong>
         </div>
 
         <div class="task-card-detail task-card-follow-date">
          <span class="task-card-detail-label">
-          موعد المتابعة
+          {{ __('crm.followup_date') }}
          </span>
 
          <strong
@@ -1270,7 +1429,7 @@
             ?->format(
              'd/m/Y - h:i A'
             )
-           ?? 'غير محدد'
+           ?? __('غير محدد')
           }}
          </strong>
         </div>
@@ -1299,18 +1458,18 @@
             'noopener,noreferrer'
            );
           "
-          title="اتصال بالعميل وفتح تسجيل المتابعة"
-          aria-label="اتصال بالعميل {{ $lead->name }} وفتح تسجيل المتابعة"
+          title="{{ __('crm.call_and_followup') }}"
+          aria-label="{{ __('اتصال بالعميل') }} {{ $lead->name }} {{ __('وفتح تسجيل المتابعة') }}"
          >
-          ☎ اتصال
+          {{ __('crm.call_action') }}
          </a>
         @else
          <span
           class="btn task-call-btn task-call-btn-disabled"
           aria-disabled="true"
-          title="لا يوجد رقم هاتف مسجل"
+          title="{{ __('crm.no_phone_registered') }}"
          >
-          ☎ لا يوجد هاتف
+          {{ __('crm.no_phone_action') }}
          </span>
         @endif
         <a
@@ -1320,7 +1479,7 @@
           $lead
          ) }}"
         >
-         ◷ تسجيل متابعة
+         {{ __('crm.log_followup') }}
         </a>
 
         <a
@@ -1330,7 +1489,7 @@
           $lead
          ) }}"
         >
-         عرض العميل
+         {{ __('crm.view_lead') }}
         </a>
        </div>
       </article>
@@ -1342,7 +1501,7 @@
      <nav class="task-pagination">
       @if ($activeLeads->onFirstPage())
        <span class="disabled">
-        السابق
+        {{ __('crm.previous') }}
        </span>
       @else
        <a
@@ -1351,14 +1510,14 @@
           ->previousPageUrl()
         }}"
        >
-        السابق
+        {{ __('crm.previous') }}
        </a>
       @endif
 
       <span>
-       صفحة
+       {{ __('صفحة') }}
        {{ $activeLeads->currentPage() }}
-       من
+       {{ __('من') }}
        {{ $activeLeads->lastPage() }}
       </span>
 
@@ -1369,11 +1528,11 @@
           ->nextPageUrl()
         }}"
        >
-        التالي
+        {{ __('crm.next') }}
        </a>
       @else
        <span class="disabled">
-        التالي
+        {{ __('crm.next') }}
        </span>
       @endif
      </nav>

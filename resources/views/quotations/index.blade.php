@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
  <meta charset="utf-8">
  <meta
   name="viewport"
   content="width=device-width,initial-scale=1"
  >
- <title>عروض الأسعار | CRM v2</title>
+ <title>{{ __('crm.quotations') }} | CRM v2</title>
+ <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
  <link
   rel="stylesheet"
@@ -25,18 +26,23 @@
 
    <header class="crm-list-head">
     <div>
-     <h1>عروض الأسعار</h1>
+     <h1>{{ __('crm.quotations') }}</h1>
      <p>
-      جميع عروض الأسعار المحفوظة داخل CRM.
+      {{ __('crm.saved_quotations_subtitle') }}
      </p>
     </div>
 
-    <a
-     class="crm-qbtn"
-     href="{{ route('v2.quotations.create') }}"
-    >
-     ＋ إنشاء عرض سعر
-    </a>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+     @can('quotations.create')
+     <a
+      class="crm-qbtn"
+      href="{{ route('v2.quotations.create') }}"
+     >
+      {{ __('crm.create_quotation') }}
+     </a>
+     @endcan
+     @include('partials.profile-dropdown')
+    </div>
    </header>
 
    <form
@@ -48,14 +54,14 @@
      type="search"
      name="q"
      value="{{ $term }}"
-     placeholder="بحث برقم العرض أو العميل أو مقدم العرض..."
+     placeholder="{{ __('crm.quotation_search_placeholder') }}"
     >
 
     <button
      class="crm-qbtn light"
      type="submit"
     >
-     بحث
+     {{ __('crm.search') }}
     </button>
 
     @if ($term !== '')
@@ -63,7 +69,7 @@
       class="crm-qbtn light"
       href="{{ route('v2.quotations.index') }}"
      >
-      إلغاء
+      {{ __('crm.cancel') }}
      </a>
     @endif
    </form>
@@ -76,14 +82,14 @@
       <thead>
        <tr>
         <th>#</th>
-        <th>رقم العرض</th>
-        <th>العميل</th>
-        <th>التاريخ</th>
-        <th>مقدم العرض</th>
-        <th>النظام / العنوان</th>
-        <th>الإجمالي</th>
-        <th>تاريخ الحفظ</th>
-        <th>الإجراء</th>
+        <th>{{ __('crm.quotation_number') }}</th>
+        <th>{{ __('crm.client') }}</th>
+        <th>{{ __('crm.date') }}</th>
+        <th>{{ __('crm.prepared_by') }}</th>
+        <th>{{ __('crm.system_title') }}</th>
+        <th>{{ __('crm.total') }}</th>
+        <th>{{ __('crm.saved_at') }}</th>
+        <th>{{ __('crm.action') }}</th>
        </tr>
       </thead>
 
@@ -154,7 +160,7 @@
             )
            }}"
           >
-           فتح / طباعة
+           {{ __('crm.open_print') }}
           </a>
          </td>
 
@@ -168,7 +174,7 @@
     @else
 
      <div class="crm-qempty">
-      لا توجد عروض أسعار محفوظة حتى الآن.
+      {{ __('crm.no_saved_quotations') }}
      </div>
 
     @endif
@@ -193,7 +199,7 @@
         class="crm-qbtn light"
         href="{{ $quotations->previousPageUrl() }}"
        >
-        السابق
+        {{ __('crm.previous') }}
        </a>
       @endif
 
@@ -202,7 +208,7 @@
         class="crm-qbtn light"
         href="{{ $quotations->nextPageUrl() }}"
        >
-        التالي
+        {{ __('crm.next') }}
        </a>
       @endif
 

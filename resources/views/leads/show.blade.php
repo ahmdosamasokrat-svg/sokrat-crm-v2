@@ -1,15 +1,14 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
- <meta charset="utf-8">
- <meta
-  name="viewport"
-  content="width=device-width,initial-scale=1"
- >
-
- <title>
-  عرض بيانات {{ $lead->name }} | CRM v2
- </title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>SokratCRM — {{ $lead->name }}</title>
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 
  <style>
   :root{
@@ -31,7 +30,7 @@
    margin:0;
    background:var(--bg);
    color:var(--dark);
-   font-family:Tahoma,Arial,sans-serif
+   font-family:var(--font-primary)
   }
 
   button,
@@ -42,8 +41,7 @@
   .crm-app{
    min-height:100vh;
    display:flex;
-   direction:rtl
-  }
+   }
 
   .crm-side{
    width:270px;
@@ -149,7 +147,8 @@
   }
 
   .shell{
-   width:min(1400px,calc(100% - 38px));
+   width: calc(100% - 32px);
+   max-width: 100%;
    margin:24px auto 45px
   }
 
@@ -579,7 +578,7 @@
    overflow:auto;
    padding:24px 17px;
    border:0;
-   border-left:1px solid var(--line);
+   border-inline-end:1px solid var(--line);
    background:#fff;
    color:var(--dark);
    transform:none;
@@ -605,7 +604,7 @@
   .crm-side-brand strong{
    display:block;
    color:var(--red);
-   font:900 22px Arial
+   font:900 22px var(--font-primary)
   }
 
   .crm-side-brand small{
@@ -640,7 +639,7 @@
    background:transparent;
    color:#566175;
    text-decoration:none;
-   text-align:right;
+   text-align:start;
    font-family:inherit;
    font-size:13px;
    cursor:pointer;
@@ -697,7 +696,7 @@
    border-radius:99px;
    background:#eef0f4;
    color:#7e8796;
-   font:800 10px Arial
+   font:800 10px var(--font-primary)
   }
 
   .crm-toggle.active .crm-count{
@@ -739,8 +738,8 @@
    display:grid;
    gap:2px;
    margin:3px 28px 7px 0;
-   padding-right:14px;
-   border-right:1px solid var(--line)
+   padding-inline-start:14px;
+   border-inline-start:1px solid var(--line)
   }
 
   .crm-sub a{
@@ -1035,6 +1034,254 @@
    font-weight:900
   }
 
+  /* VoIP Call Records Section Theme */
+  .voip-card {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(24, 32, 51, 0.04);
+    overflow: hidden;
+    margin-top: 24px;
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+  }
+  .voip-card > .card-content {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .voip-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #fafbfc, #f3f5f9);
+    border-bottom: 1px solid var(--line);
+  }
+  .voip-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .voip-icon-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #fff0f1;
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(220, 38, 55, 0.12);
+  }
+  .voip-title-text h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--dark);
+  }
+  .voip-title-text p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .voip-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid #dbe1e9;
+    padding: 7px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--dark);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+    transition: all 0.2s ease;
+  }
+  .voip-refresh-btn:hover {
+    background: #f8fafc;
+    border-color: var(--red);
+    color: var(--red);
+    transform: translateY(-1px);
+  }
+  .voip-table-wrapper {
+    display: block;
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .voip-table {
+    width: 100% !important;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align:start;
+    table-layout: auto;
+  }
+  .voip-table th:nth-child(1), .voip-table td:nth-child(1) { width: 17%; }
+  .voip-table th:nth-child(2), .voip-table td:nth-child(2) { width: 11%; }
+  .voip-table th:nth-child(3), .voip-table td:nth-child(3) { width: 22%; }
+  .voip-table th:nth-child(4), .voip-table td:nth-child(4) { width: 22%; }
+  .voip-table th:nth-child(5), .voip-table td:nth-child(5) { width: 9%; }
+  .voip-table th:nth-child(6), .voip-table td:nth-child(6) { width: 11%; }
+  .voip-table th:nth-child(7), .voip-table td:nth-child(7) { width: 8%; }
+  .voip-table th {
+    padding: 14px 16px;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 12px;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .voip-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #edf0f4;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .voip-table tr:hover td {
+    background: #f8fafc;
+  }
+  .voip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .voip-badge.inbound {
+    background: #e7f8ed;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+  .voip-badge.outbound {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+  .voip-badge.internal {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+  }
+  .voip-badge.answered {
+    background: #e7f8ed;
+    color: #166534;
+  }
+  .voip-badge.no-answer {
+    background: #fff0f1;
+    color: #b42332;
+  }
+  .voip-badge.busy {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .voip-agent-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    color: #334155;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    direction: ltr;
+  }
+
+  /* Custom Audio Player Component */
+  .crm-audio-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 30px;
+    padding: 4px 12px 4px 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    min-width: 210px;
+    direction: ltr;
+  }
+  .crm-audio-play-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #dc2637, #b91c1c);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(220, 38, 55, 0.3);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  .crm-audio-play-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 5px 12px rgba(220, 38, 55, 0.4);
+  }
+  .crm-audio-play-btn i {
+    font-size: 15px;
+  }
+  .crm-audio-progress-wrap {
+    flex: 1;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .crm-audio-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #dc2637, #ef4444);
+    border-radius: 10px;
+    transition: width 0.1s linear;
+  }
+  .crm-audio-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    font-family: monospace;
+    min-width: 35px;
+    text-align: center;
+  }
+  .crm-audio-download-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  .crm-audio-download-btn:hover {
+    color: #dc2637;
+    border-color: #dc2637;
+    background: #fff0f1;
+    transform: scale(1.05);
+  }
 </style>
 </head>
 
@@ -1048,7 +1295,7 @@
    class="crm-side-overlay"
    id="crmSidebarOverlay"
    type="button"
-   aria-label="إغلاق القائمة"
+   aria-label="{{ __('crm.close_menu') }}"
   ></button>
 
   <main class="crm-main">
@@ -1059,37 +1306,19 @@
      type="button"
      aria-controls="crmSidebar"
      aria-expanded="false"
-     aria-label="فتح القائمة"
+     aria-label="{{ __('crm.open_menu') }}"
     >
      ☰
     </button>
 
     <div class="page-title">
-     <h1>عرض بيانات العميل</h1>
+     <h1>{{ __('crm.view_lead_data') }}</h1>
      <p>
       تفاصيل العميل وحالته وبيانات التواصل
      </p>
     </div>
 
-    <div class="user-tools">
-     <span class="user-chip">
-      {{ session('crm_v2_user', 'المستخدم') }}
-     </span>
-
-     <form
-      method="POST"
-      action="{{ route('logout') }}"
-     >
-      @csrf
-
-      <button
-       class="logout-button"
-       type="submit"
-      >
-       تسجيل الخروج
-      </button>
-     </form>
-    </div>
+     @include('partials.profile-dropdown')
    </header>
 
    <div class="shell">
@@ -1123,7 +1352,7 @@
          style="background:{{ $statusColor }}"
         ></i>
 
-        {{ $lead->status?->name_ar ?? 'بدون حالة' }}
+        {{ $lead->status?->name_ar ?? __('crm.no_status') }}
 
         @if ($lead->status?->stage?->name_ar)
          —
@@ -1140,19 +1369,21 @@
         ← رجوع للعملاء
        </a>
 
+       @can('leads.update')
        <a
         class="action-link edit"
         href="{{ route('v2.leads.edit', $lead) }}"
        >
         ✎ تعديل بيانات العميل
        </a>
+       @endcan
 
        @if ($callPhone)
         <a
          class="action-link"
          href="callto:{{ $callPhone }}"
         >
-         ☎ اتصال
+         {{ __('crm.call_action') }}
         </a>
        @endif
 
@@ -1163,11 +1394,11 @@
          target="_blank"
          rel="noopener noreferrer"
         >
-         ◉ واتساب
+         {{ __('crm.whatsapp') }}
         </a>
        @endif
 
-       @if ($hasQuotationFile)
+       @if ($hasQuotationFile && auth()->user()->can('quotations.view'))
         <a
          class="action-link quotation"
          href="{{ route(
@@ -1212,7 +1443,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           الهاتف
+           {{ __('crm.phone') }}
           </span>
           <span class="detail-value">
            @if ($lead->phone)
@@ -1227,7 +1458,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           البريد الإلكتروني
+           {{ __('crm.email') }}
           </span>
           <span class="detail-value">
            @if ($lead->email)
@@ -1242,7 +1473,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           المصدر
+           {{ __('crm.source') }}
           </span>
           <span class="detail-value">
            {{ $lead->source ?: 'غير محدد' }}
@@ -1269,10 +1500,10 @@
         <div class="card-content">
          <div class="detail-item">
           <span class="detail-label">
-           الحالة الحالية
+           {{ __('crm.current_status') }}
           </span>
           <span class="detail-value">
-           {{ $lead->status?->name_ar ?? 'بدون حالة' }}
+           {{ $lead->status?->name_ar ?? __('crm.no_status') }}
           </span>
          </div>
 
@@ -1290,12 +1521,13 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           الموظف المسؤول
+           {{ __('crm.responsible_employee') }}
           </span>
           <span class="detail-value">
            {{
-            $lead->assigned_employee
-            ?: 'غير مسند'
+            $lead->assignedUser?->name
+            ?? $lead->assigned_employee
+            ?: __('crm.unassigned')
            }}
           </span>
          </div>
@@ -1311,7 +1543,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           المتابعة القادمة
+           {{ __('crm.next_followup') }}
           </span>
           <span class="detail-value">
            {{
@@ -1324,7 +1556,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           تاريخ الإضافة
+           {{ __('crm.created_date') }}
           </span>
           <span class="detail-value">
            {{
@@ -1358,21 +1590,21 @@
 
         <div class="card-content">
          <div class="detail-item">
-          <span class="detail-label">اسم الشركة</span>
+          <span class="detail-label">{{ __('crm.company_name') }}</span>
           <span class="detail-value">
            {{ $lead->company_name ?: '----' }}
           </span>
          </div>
 
          <div class="detail-item">
-          <span class="detail-label">النشاط</span>
+          <span class="detail-label">{{ __('crm.activity') }}</span>
           <span class="detail-value">
            {{ $lead->activity ?: '----' }}
           </span>
          </div>
 
          <div class="detail-item">
-          <span class="detail-label">المحافظة</span>
+          <span class="detail-label">{{ __('crm.governorate') }}</span>
           <span class="detail-value">
            {{ $lead->governorate ?: '----' }}
           </span>
@@ -1389,7 +1621,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           عدد المستخدمين
+           {{ __('crm.user_count') }}
           </span>
           <span class="detail-value">
            {{
@@ -1401,7 +1633,7 @@
          </div>
 
          <div class="detail-item">
-          <span class="detail-label">عدد الفروع</span>
+          <span class="detail-label">{{ __('crm.branch_count') }}</span>
           <span class="detail-value">
            {{
             $lead->branches_count === null
@@ -1412,7 +1644,7 @@
          </div>
 
          <div class="detail-item full">
-          <span class="detail-label">العنوان</span>
+          <span class="detail-label">{{ __('crm.address') }}</span>
           <span class="detail-value">
            {{ $lead->address ?: '----' }}
           </span>
@@ -1428,7 +1660,7 @@
 
         <div class="card-content">
          <div class="detail-item">
-          <span class="detail-label">نوع النظام</span>
+          <span class="detail-label">{{ __('crm.system_type') }}</span>
           <span class="detail-value">
            {{ $solutionTypeLabel }}
           </span>
@@ -1448,7 +1680,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           عدد الخطوط
+           {{ __('crm.line_count') }}
           </span>
           <span class="detail-value">
            {{
@@ -1461,7 +1693,7 @@
 
          <div class="detail-item">
           <span class="detail-label">
-           ملف عرض السعر
+           {{ __('crm.quotation_file') }}
           </span>
           <span class="detail-value">
            {{
@@ -1473,7 +1705,7 @@
          </div>
 
          <div class="detail-item full">
-          <span class="detail-label">الملحقات</span>
+          <span class="detail-label">{{ __('crm.accessories') }}</span>
           <span class="detail-value long-text">{!!
            $lead->extensions
             ? nl2br(e($lead->extensions))
@@ -1482,7 +1714,7 @@
          </div>
 
          <div class="detail-item full">
-          <span class="detail-label">الأقسام</span>
+          <span class="detail-label">{{ __('crm.departments') }}</span>
           <span class="detail-value long-text">{!!
            $lead->departments
             ? nl2br(e($lead->departments))
@@ -1501,7 +1733,7 @@
         <div class="card-content">
          <div class="detail-item full">
           <span class="detail-label">
-           سبب عدم الاهتمام
+           {{ __('crm.not_interested_reason') }}
           </span>
           <span class="detail-value long-text">{!!
            $lead->disinterest_reason
@@ -1521,6 +1753,7 @@
         </div>
        </section>
 
+       @can('leads.followups.view')
        <section
         class="details-card full followup-history-card"
        >
@@ -1528,7 +1761,7 @@
          class="card-head followup-history-head"
         >
          <div>
-          <h3>آخر المتابعات</h3>
+          <h3>{{ __('crm.latest_followups') }}</h3>
 
           <p>
            أحدث 5 متابعات مسجلة لهذا العميل
@@ -1556,7 +1789,7 @@
              <strong
               class="followup-history-employee"
              >
-              {{ $followup->employee_name }}
+              {{ $followup->user?->name ?? $followup->employee_name }}
              </strong>
 
              <span
@@ -1584,7 +1817,7 @@
 
            <div class="followup-history-status">
             <span>
-             المرحلة:
+             {{ __('crm.stage_label') }}
              <strong>
               {{
                $followup->toStatus?->stage
@@ -1595,7 +1828,7 @@
             </span>
 
             <span>
-             الحالة:
+             {{ __('crm.status_label') }}
              <strong>
               {{
                $followup->toStatus?->name_ar
@@ -1622,7 +1855,7 @@
               )
                <li class="followup-change-item">
                 <span class="followup-change-label">
-                 {{ $change['label'] ?? 'تعديل' }}
+                 {{ $change['label'] ?? __('crm.edit') }}
                 </span>
 
                 <div class="followup-change-values">
@@ -1663,7 +1896,57 @@
          @endforelse
         </div>
        </section>
+       @endcan
       </div>
+       @can('voip.view')
+       <section class="details-card full voip-card" id="voipCallHistoryCard" style="margin-top:20px">
+        <header class="voip-card-head">
+         <div class="voip-title-group">
+          <div class="voip-icon-badge">
+           <i class="bi bi-telephone-outbound-fill"></i>
+          </div>
+          <div class="voip-title-text">
+           <h3>سجل مكالمات السنترال (VoIP)</h3>
+           <p>سجل المكالمات الواردة والصادرة على هذا الرقم ({{ $lead->phone }}) <span id="voipCallCountBadge" class="voip-badge inbound" style="margin-inline-start:6px;display:none"></span></p>
+          </div>
+         </div>
+         <button type="button" id="btnRefreshVoipCalls" class="voip-refresh-btn">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>تحديث السجل</span>
+         </button>
+        </header>
+
+        <div class="card-content" style="padding:0">
+         <div id="voipCallsLoading" style="text-align:center;padding:30px;color:var(--muted)">
+          <i class="bi bi-arrow-repeat spin" style="font-size:24px;display:inline-block;margin-bottom:8px"></i>
+          <div>جاري تحميل سجل المكالمات من السنترال...</div>
+         </div>
+
+         <div id="voipCallsError" style="display:none;background:#fff0f1;color:#b42332;border:1px solid #f1bbc1;padding:12px 16px;border-radius:12px;font-weight:bold;margin-bottom:15px">
+         </div>
+
+         <div id="voipCallsContainer" class="voip-table-wrapper" style="display:none">
+          <table class="voip-table">
+           <thead>
+            <tr>
+             <th><i class="bi bi-clock"></i> {{ __('crm.datetime') }}</th>
+             <th><i class="bi bi-arrow-left-right"></i> {{ __('crm.direction') }}</th>
+             <th><i class="bi bi-telephone-outbound"></i> المصدر (المتصل)</th>
+             <th><i class="bi bi-telephone-inbound"></i> الوجهة (المستقبل)</th>
+             <th><i class="bi bi-stopwatch"></i> {{ __('crm.duration') }}</th>
+             <th><i class="bi bi-check-circle"></i> {{ __('crm.status') }}</th>
+             @can('voip.recordings')
+             <th style="text-align:center"><i class="bi bi-mic"></i> التسجيل الصوتي</th>
+             @endcan
+            </tr>
+           </thead>
+           <tbody id="voipCallsTableBody">
+           </tbody>
+          </table>
+         </div>
+        </div>
+       </section>
+       @endcan
 
      </div>
     </article>
@@ -1783,6 +2066,210 @@
     );
    });
 
+ })();
+
+ (() => {
+  const leadId = @json($lead->id);
+  const phone = @json($lead->phone);
+  const card = document.getElementById('voipCallHistoryCard');
+  if (!card || !phone) return;
+
+  const loading = document.getElementById('voipCallsLoading');
+  const errorDiv = document.getElementById('voipCallsError');
+  const container = document.getElementById('voipCallsContainer');
+  const tbody = document.getElementById('voipCallsTableBody');
+  const btnRefresh = document.getElementById('btnRefreshVoipCalls');
+  const countBadge = document.getElementById('voipCallCountBadge');
+
+  let activeAudio = null;
+  let activePlayBtn = null;
+
+  function stopActiveAudio() {
+    if (activeAudio) {
+      activeAudio.pause();
+      if (activePlayBtn) {
+        activePlayBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+      }
+      activeAudio = null;
+      activePlayBtn = null;
+    }
+  }
+
+  function setupAudioPlayers() {
+    tbody.querySelectorAll('.crm-audio-player').forEach(playerEl => {
+      const playBtn = playerEl.querySelector('.crm-audio-play-btn');
+      const progressWrap = playerEl.querySelector('.crm-audio-progress-wrap');
+      const progressBar = playerEl.querySelector('.crm-audio-progress-bar');
+      const timeEl = playerEl.querySelector('.crm-audio-time');
+      const src = playerEl.dataset.src;
+
+      let audio = playerEl._audioInstance || null;
+
+      function formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '00:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        if (activeAudio && activeAudio !== audio) {
+          stopActiveAudio();
+        }
+
+        if (!audio) {
+          audio = new Audio(src);
+          playerEl._audioInstance = audio;
+
+          audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+              const pct = (audio.currentTime / audio.duration) * 100;
+              progressBar.style.width = pct + '%';
+              timeEl.textContent = formatTime(audio.currentTime);
+            }
+          });
+
+          audio.addEventListener('ended', () => {
+            playBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+            progressBar.style.width = '0%';
+            timeEl.textContent = formatTime(0);
+            activeAudio = null;
+            activePlayBtn = null;
+          });
+
+          audio.addEventListener('error', () => {
+            playBtn.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
+            timeEl.textContent = 'خطأ';
+          });
+        }
+
+        if (audio.paused) {
+          audio.play().then(() => {
+            playBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+            activeAudio = audio;
+            activePlayBtn = playBtn;
+          }).catch(err => {
+            console.error('Audio play error:', err);
+          });
+        } else {
+          audio.pause();
+          playBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+          activeAudio = null;
+          activePlayBtn = null;
+        }
+      });
+
+      progressWrap.addEventListener('click', (e) => {
+        if (!audio || !audio.duration) return;
+        const rect = progressWrap.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const pct = clickX / rect.width;
+        audio.currentTime = pct * audio.duration;
+      });
+    });
+  }
+
+  function fetchCalls() {
+    stopActiveAudio();
+    loading.style.display = 'block';
+    container.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    fetch(`/leads/${leadId}/calls`)
+      .then(res => res.json())
+      .then(data => {
+        loading.style.display = 'none';
+        if (!data || data.success === false) {
+          errorDiv.textContent = (data && data.error) ? data.error : 'فشل تحميل سجل المكالمات.';
+          errorDiv.style.display = 'block';
+          return;
+        }
+
+        const calls = data.calls || data.data || [];
+        if (countBadge) {
+          countBadge.textContent = `${calls.length} مكالمة`;
+          countBadge.style.display = 'inline-flex';
+        }
+
+        if (calls.length === 0) {
+          loading.innerHTML = '<i class="bi bi-telephone-x" style="font-size:24px;color:#94a3b8;display:block;margin-bottom:6px"></i> لا توجد مكالمات مسجلة على هذا الرقم.';
+          loading.style.display = 'block';
+          return;
+        }
+
+        tbody.innerHTML = calls.map(c => {
+          let dirHtml = '<span class="voip-badge internal"><i class="bi bi-arrow-left-right"></i> مكالمة</span>';
+          if (c.direction === 'inbound') {
+            dirHtml = '<span class="voip-badge inbound"><i class="bi bi-telephone-inbound-fill"></i> {{ __('crm.incoming') }}</span>';
+          } else if (c.direction === 'outbound') {
+            dirHtml = '<span class="voip-badge outbound"><i class="bi bi-telephone-outbound-fill"></i> {{ __('crm.outgoing') }}</span>';
+          } else if (c.direction === 'internal') {
+            dirHtml = '<span class="voip-badge internal"><i class="bi bi-arrow-left-right"></i> {{ __('crm.internal') }}</span>';
+          }
+
+          let dispHtml = `<span class="voip-badge answered"><i class="bi bi-check-circle-fill"></i> ${c.disposition || 'تم الرد'}</span>`;
+          if (c.disposition === 'NO ANSWER' || c.disposition === 'FAILED' || c.disposition === 'CANCEL') {
+            dispHtml = `<span class="voip-badge no-answer"><i class="bi bi-x-circle-fill"></i> ${c.disposition === 'NO ANSWER' ? 'لم يتم الرد' : c.disposition}</span>`;
+          } else if (c.disposition === 'BUSY') {
+            dispHtml = `<span class="voip-badge busy"><i class="bi bi-dash-circle-fill"></i> مشغول</span>`;
+          }
+
+          const srcChip = `<span class="voip-agent-chip"><i class="bi bi-telephone-outbound"></i> ${c.src || '—'}</span>`;
+          const dstChip = `<span class="voip-agent-chip"><i class="bi bi-telephone-inbound"></i> ${c.dst || '—'}</span>`;
+
+          const rawDate = c.call_date || c.started_at || '—';
+          const formattedDate = rawDate !== '—' ? rawDate.replace('T', ' ').substring(0, 19) : '—';
+          const durationStr = c.duration_formatted || (c.duration_seconds !== undefined ? c.duration_seconds + ' ثانية' : (c.billsec ? c.billsec + ' ثانية' : '0 ثانية'));
+
+          let recHtml = '';
+          @can('voip.recordings')
+          if (c.has_recording && c.media_id) {
+            const recUrl = `/voip/recordings/${encodeURIComponent(c.media_id)}`;
+            recHtml = `
+              <div class="crm-audio-player" data-src="${recUrl}">
+                <button type="button" class="crm-audio-play-btn" title="تشغيل التسجيل الصوتي">
+                  <i class="bi bi-play-fill"></i>
+                </button>
+                <div class="crm-audio-progress-wrap" title="الانتقال بالصوت">
+                  <div class="crm-audio-progress-bar"></div>
+                </div>
+                <span class="crm-audio-time">00:00</span>
+                <a href="${recUrl}" download class="crm-audio-download-btn" title="تحميل التسجيل">
+                  <i class="bi bi-download"></i>
+                </a>
+              </div>
+            `;
+          } else {
+            recHtml = '<span style="color:#94a3b8;font-size:12px;font-weight:600"><i class="bi bi-mic-mute"></i> لا يوجد تسجيل</span>';
+          }
+          @endcan
+
+          return `<tr>
+            <td style="white-space:nowrap;font-weight:600;color:#334155"><i class="bi bi-calendar3" style="color:#94a3b8;margin-inline-end:4px"></i> ${formattedDate}</td>
+            <td>${dirHtml}</td>
+            <td>${srcChip}</td>
+            <td>${dstChip}</td>
+            <td style="font-weight:600;color:#475569">${durationStr}</td>
+            <td>${dispHtml}</td>
+            @can('voip.recordings')
+            <td style="text-align:center">${recHtml}</td>
+            @endcan
+          </tr>`;
+        }).join('');
+        container.style.display = 'block';
+        setupAudioPlayers();
+      })
+      .catch(err => {
+        loading.style.display = 'none';
+        errorDiv.textContent = 'تعذر الاتصال بسيرفر VoIP: ' + err.message;
+        errorDiv.style.display = 'block';
+      });
+  }
+
+  btnRefresh?.addEventListener('click', fetchCalls);
+  fetchCalls();
  })();
  </script>
 </body>

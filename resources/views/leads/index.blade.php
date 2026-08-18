@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>عرض العملاء | SokratCRM</title>
-
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>SokratCRM — {{ __('crm.view_leads') }}</title>
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <style>
 :root{
  --red:#dc2637;
@@ -25,7 +29,7 @@ body{
   radial-gradient(circle at 7% 0,#dc26370d,transparent 28rem),
   var(--bg);
  color:var(--dark);
- font-family:Tahoma,Arial,sans-serif;
+ font-family:var(--font-primary);
  font-size:15px
 }
 button,input,select{font:inherit}
@@ -62,7 +66,7 @@ a{color:inherit}
 .brand-copy strong{
  display:block;
  color:var(--red);
- font:900 20px Arial
+ font:900 20px var(--font-primary)
 }
 .brand-copy small{
  display:block;
@@ -73,8 +77,8 @@ a{color:inherit}
 .page-title{
  min-width:0;
  flex:1;
- padding-right:14px;
- border-right:1px solid var(--line)
+ padding-inline-start:14px;
+ border-inline-start:1px solid var(--line)
 }
 .page-title h1{
  margin:0;
@@ -198,7 +202,7 @@ a{color:inherit}
  background:#ffffff0d
 }
 .hero-count strong{
- font:900 42px Arial
+ font:900 42px var(--font-primary)
 }
 .hero-count span{
  margin-top:7px;
@@ -237,11 +241,34 @@ a{color:inherit}
  color:#687386;
  text-decoration:none;
  font-size:9px;
- font-weight:bold
+ font-weight:bold;
+ transition:.2s
+}
+.all-statuses:hover{
+ background:#e4e8ef;
+ color:#334155
 }
 .all-statuses.active{
  background:#fff0f2;
  color:var(--red)
+}
+html.dark-mode .all-statuses{
+ background:rgba(255,255,255,.06)!important;
+ border:1px solid rgba(255,255,255,.1)!important;
+ color:var(--text-muted,#a1a1aa)!important;
+ font-weight:700!important
+}
+html.dark-mode .all-statuses:hover{
+ background:rgba(255,255,255,.12)!important;
+ border-color:rgba(255,255,255,.2)!important;
+ color:var(--text-primary,#f4f4f5)!important
+}
+html.dark-mode .all-statuses.active{
+ background:rgba(239,68,68,.15)!important;
+ border:1px solid rgba(239,68,68,.4)!important;
+ color:#f87171!important;
+ font-weight:800!important;
+ box-shadow:0 4px 15px rgba(239,68,68,.2)!important
 }
 .status-grid{
  display:grid;
@@ -259,6 +286,7 @@ a{color:inherit}
  border:1px solid var(--line);
  border-radius:13px;
  background:#fafbfc;
+ color:inherit;
  text-decoration:none;
  transition:.2s
 }
@@ -270,6 +298,26 @@ a{color:inherit}
 }
 .status-card.selected{
  background:#fff
+}
+html.dark-mode .status-card{
+ background:var(--bg-card,rgba(24,24,27,.75))!important;
+ backdrop-filter:var(--glass-blur,blur(16px))!important;
+ -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+ border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
+ box-shadow:0 4px 18px rgba(0,0,0,.25)!important;
+ color:var(--text-primary,#f4f4f5)!important
+}
+html.dark-mode .status-card:hover{
+ background:rgba(39,39,42,.75)!important;
+ border-color:var(--status-color,rgba(255,255,255,.25))!important;
+ transform:translateY(-2px);
+ box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 1px color-mix(in srgb,var(--status-color) 40%,transparent)!important
+}
+html.dark-mode .status-card.selected{
+ background:color-mix(in srgb,var(--status-color) 12%,var(--bg-card,rgba(24,24,27,.85)))!important;
+ border-color:var(--status-color)!important;
+ box-shadow:0 8px 28px rgba(0,0,0,.4),0 0 0 1px var(--status-color),inset 0 1px 0 rgba(255,255,255,.1)!important;
+ color:#ffffff!important
 }
 .status-name{
  display:flex;
@@ -284,25 +332,55 @@ a{color:inherit}
  border-radius:50%;
  background:var(--status-color)
 }
+html.dark-mode .status-dot{
+ box-shadow:0 0 8px color-mix(in srgb,var(--status-color) 80%,transparent)
+}
 .status-name strong{
  overflow:hidden;
  text-overflow:ellipsis;
  white-space:nowrap;
  font-size:10px
 }
+html.dark-mode .status-name strong{
+ color:var(--text-primary,#f4f4f5)!important;
+ font-weight:700
+}
+html.dark-mode .status-card.selected .status-name strong{
+ color:#ffffff!important
+}
 .status-card b{
  color:var(--status-color);
- font:900 23px Arial
+ font:900 23px var(--font-primary)
+}
+html.dark-mode .status-card b{
+ text-shadow:0 0 12px color-mix(in srgb,var(--status-color) 25%,transparent)
 }
 .status-card small{
  color:var(--muted);
  font-size:8px
 }
+html.dark-mode .status-card small{
+ color:var(--text-muted,#a1a1aa)!important;
+ font-weight:600
+}
+html.dark-mode .status-card.selected small{
+ color:rgba(255,255,255,.75)!important
+}
 .filters{
  display:grid;
  grid-template-columns:minmax(220px,1.6fr) repeat(4,minmax(145px,1fr)) auto;
  align-items:end;
- gap:10px
+ gap:10px;
+ background:transparent;
+ border:none;
+ box-shadow:none;
+ padding:0
+}
+html.dark-mode .filters{
+ background:transparent!important;
+ border:none!important;
+ box-shadow:none!important;
+ padding:0!important
 }
 .field label{
  display:block;
@@ -310,6 +388,9 @@ a{color:inherit}
  color:#757f91;
  font-size:9px;
  font-weight:bold
+}
+html.dark-mode .field label{
+ color:var(--text-muted,#a1a1aa)!important
 }
 .field input,
 .field select{
@@ -330,6 +411,22 @@ a{color:inherit}
  background:#fff;
  box-shadow:0 0 0 3px #dc263710
 }
+html.dark-mode .field input,
+html.dark-mode .field select{
+ background:var(--bg-input,rgba(39,39,42,.65))!important;
+ border:1px solid rgba(255,255,255,.14)!important;
+ color:var(--text-primary,#f4f4f5)!important
+}
+html.dark-mode .field input:focus,
+html.dark-mode .field select:focus{
+ border-color:rgba(239,68,68,.6)!important;
+ background:rgba(39,39,42,.95)!important;
+ box-shadow:0 0 0 3px rgba(239,68,68,.2)!important
+}
+html.dark-mode .field select option{
+ background:#18181b!important;
+ color:#f4f4f5!important
+}
 .filter-buttons{
  display:flex;
  gap:7px
@@ -337,6 +434,17 @@ a{color:inherit}
 .filter-buttons .btn{
  min-width:78px;
  padding-inline:12px
+}
+html.dark-mode .filter-buttons .btn.secondary{
+ background:rgba(255,255,255,.08)!important;
+ border:1px solid rgba(255,255,255,.14)!important;
+ color:#f4f4f5!important;
+ font-weight:700!important
+}
+html.dark-mode .filter-buttons .btn.secondary:hover{
+ background:rgba(255,255,255,.16)!important;
+ border-color:rgba(255,255,255,.28)!important;
+ color:#ffffff!important
 }
 .results{
  overflow:hidden;
@@ -354,17 +462,29 @@ a{color:inherit}
  margin:0;
  font-size:14px
 }
+html.dark-mode .results-head h2{
+ color:var(--text-primary,#f4f4f5)!important
+}
 .results-head p{
  margin:5px 0 0;
  color:var(--muted);
  font-size:9px
+}
+html.dark-mode .results-head p{
+ color:var(--text-muted,#a1a1aa)!important
 }
 .result-count{
  padding:7px 10px;
  border-radius:9px;
  background:#f1f3f6;
  color:#667184;
- font:800 9px Arial
+ font:800 9px var(--font-primary)
+}
+html.dark-mode .result-count{
+ background:rgba(255,255,255,.08)!important;
+ border:1px solid rgba(255,255,255,.12)!important;
+ color:var(--text-primary,#f4f4f5)!important;
+ font-weight:800!important
 }
 .table-wrap{
  overflow-x:auto
@@ -379,9 +499,15 @@ th{
  border-bottom:1px solid var(--line);
  background:#fafbfc;
  color:#8992a1;
- text-align:right;
+ text-align:start;
  font-size:8px;
  white-space:nowrap
+}
+html.dark-mode th{
+ background:rgba(255,255,255,.04)!important;
+ border-bottom:1px solid rgba(255,255,255,.08)!important;
+ color:var(--text-muted,#a1a1aa)!important;
+ font-weight:700!important
 }
 td{
  padding:13px 14px;
@@ -390,11 +516,19 @@ td{
  font-size:9px;
  vertical-align:middle
 }
+html.dark-mode td{
+ background:transparent!important;
+ border-bottom:1px solid rgba(255,255,255,.07)!important;
+ color:#d4d4d8!important
+}
 tbody tr{
  transition:.18s
 }
 tbody tr:hover{
  background:#fff9fa
+}
+html.dark-mode tbody tr:hover{
+ background:rgba(255,255,255,.04)!important
 }
 .customer{
  display:flex;
@@ -417,6 +551,9 @@ tbody tr:hover{
  color:var(--dark);
  font-size:10px
 }
+html.dark-mode .customer strong{
+ color:var(--text-primary,#f4f4f5)!important
+}
 .customer small{
  display:block;
  max-width:190px;
@@ -426,6 +563,35 @@ tbody tr:hover{
  color:var(--muted);
  font-size:8px;
  white-space:nowrap
+}
+html.dark-mode .customer small{
+ color:var(--text-muted,#a1a1aa)!important
+}
+html.dark-mode .customer-avatar{
+ background:rgba(255,255,255,.12)!important;
+ color:#f4f4f5!important;
+ border:1px solid rgba(255,255,255,.14)!important
+}
+html.dark-mode .contact a{
+ color:#d4d4d8!important
+}
+html.dark-mode .contact a:hover{
+ color:#f87171!important
+}
+html.dark-mode .stage-name{
+ color:var(--text-muted,#a1a1aa)!important
+}
+html.dark-mode .status-badge{
+ background:color-mix(in srgb,var(--status-color,#64748b) 16%,rgba(24,24,27,.85))!important;
+ border:1px solid color-mix(in srgb,var(--status-color,#64748b) 40%,transparent)!important;
+ color:#ffffff!important;
+ font-weight:700!important
+}
+html.dark-mode .follow-up{
+ background:rgba(245,158,11,.14)!important;
+ border:1px solid rgba(245,158,11,.35)!important;
+ color:#fbbf24!important;
+ font-weight:600!important
 }
 .contact{
  display:grid;
@@ -478,31 +644,77 @@ tbody tr:hover{
  background:#f3f7fd;
  color:#275a9c
 }
-
+html.dark-mode .lead-action{
+ font-weight:700!important;
+ border-radius:9px!important;
+ text-shadow:none!important;
+ transition:all .18s ease!important
+}
+html.dark-mode .lead-action.call-action{
+ background:rgba(59,130,246,.15)!important;
+ border:1px solid rgba(59,130,246,.35)!important;
+ color:#60a5fa!important
+}
+html.dark-mode .lead-action.call-action:hover{
+ background:rgba(59,130,246,.25)!important;
+ border-color:rgba(59,130,246,.55)!important;
+ color:#93c5fd!important;
+ transform:translateY(-1px);
+ box-shadow:0 4px 14px rgba(59,130,246,.25)!important
+}
 .lead-action.followup-action{
  border-color:#e2c993;
  background:#fff9ed;
  color:#8d6515
 }
-
+html.dark-mode .lead-action.followup-action{
+ background:rgba(245,158,11,.15)!important;
+ border:1px solid rgba(245,158,11,.35)!important;
+ color:#fbbf24!important
+}
+html.dark-mode .lead-action.followup-action:hover{
+ background:rgba(245,158,11,.25)!important;
+ border-color:rgba(245,158,11,.55)!important;
+ color:#fcd34d!important;
+ transform:translateY(-1px);
+ box-shadow:0 4px 14px rgba(245,158,11,.25)!important
+}
 .lead-action.whatsapp-action{
  border-color:#a9dbbd;
  background:#effaf3;
  color:#167744
 }
-
+html.dark-mode .lead-action.whatsapp-action{
+ background:rgba(34,197,94,.15)!important;
+ border:1px solid rgba(34,197,94,.35)!important;
+ color:#4ade80!important
+}
+html.dark-mode .lead-action.whatsapp-action:hover{
+ background:rgba(34,197,94,.25)!important;
+ border-color:rgba(34,197,94,.55)!important;
+ color:#86efac!important;
+ transform:translateY(-1px);
+ box-shadow:0 4px 14px rgba(34,197,94,.25)!important
+}
 .lead-action.is-disabled{
  opacity:.42;
  cursor:not-allowed;
  transform:none;
  box-shadow:none
 }
-
+html.dark-mode .lead-action.is-disabled{
+ background:rgba(255,255,255,.04)!important;
+ border:1px solid rgba(255,255,255,.08)!important;
+ color:#71717a!important;
+ opacity:.45!important;
+ cursor:not-allowed!important;
+ transform:none!important;
+ box-shadow:none!important
+}
 .lead-more{
  position:relative;
  flex:0 0 auto
 }
-
 .lead-more summary{
  width:36px;
  height:36px;
@@ -519,18 +731,26 @@ tbody tr:hover{
  font-weight:900;
  line-height:1
 }
-
 .lead-more summary::-webkit-details-marker{
  display:none
 }
-
 .lead-more summary:hover,
 .lead-more[open] summary{
  border-color:#d9a4ab;
  background:#fff4f5;
  color:var(--red)
 }
-
+html.dark-mode .lead-more summary{
+ background:rgba(255,255,255,.08)!important;
+ border:1px solid rgba(255,255,255,.14)!important;
+ color:#f4f4f5!important
+}
+html.dark-mode .lead-more summary:hover,
+html.dark-mode .lead-more[open] summary{
+ background:rgba(239,68,68,.15)!important;
+ border-color:rgba(239,68,68,.4)!important;
+ color:#f87171!important
+}
 .lead-menu{
  position:fixed;
  z-index:1000;
@@ -541,7 +761,11 @@ tbody tr:hover{
  background:#fff;
  box-shadow:0 17px 38px #17203328
 }
-
+html.dark-mode .lead-menu{
+ background:#18181b!important;
+ border:1px solid rgba(255,255,255,.12)!important;
+ box-shadow:0 20px 50px rgba(0,0,0,.7)!important
+}
 .lead-menu a,
 .lead-menu button{
  width:100%;
@@ -555,31 +779,44 @@ tbody tr:hover{
  background:transparent;
  color:#525e70;
  text-decoration:none;
- text-align:right;
+ text-align:start;
  font-size:12px;
  font-weight:900;
  cursor:pointer
 }
-
 .lead-menu a:hover,
 .lead-menu button:hover{
  background:#f4f5f7
 }
-
+html.dark-mode .lead-menu a,
+html.dark-mode .lead-menu button{
+ color:#f4f4f5!important
+}
+html.dark-mode .lead-menu a:hover,
+html.dark-mode .lead-menu button:hover{
+ background:rgba(255,255,255,.08)!important;
+ color:#ffffff!important
+}
 .lead-menu form{
  margin:4px 0 0;
  padding-top:4px;
  border-top:1px solid var(--line)
 }
-
+html.dark-mode .lead-menu form{
+ border-top:1px solid rgba(255,255,255,.08)!important
+}
 .lead-menu .delete-action{
  color:#c52233
 }
-
 .lead-menu .delete-action:hover{
  background:#fff0f2
 }
-
+html.dark-mode .lead-menu .delete-action{
+ color:#f87171!important
+}
+html.dark-mode .lead-menu .delete-action:hover{
+ background:rgba(239,68,68,.15)!important
+}
 .flash-success{
  display:flex;
  align-items:center;
@@ -716,7 +953,7 @@ tbody tr:hover{
  .shell{width:calc(100% - 12px);margin:0 6px;padding-top:10px}
  .topbar{align-items:flex-start;flex-wrap:wrap}
  .page-title{order:3;width:100%;flex-basis:100%;padding:12px 0 0;border:0;border-top:1px solid var(--line)}
- .top-actions{margin-right:auto}
+ .top-actions{margin-inline-start:auto}
  .user-chip{display:none}
  .hero{align-items:flex-start;flex-direction:column}
  .hero-count{width:100%;min-height:90px}
@@ -742,7 +979,6 @@ tbody tr:hover{
 .crm-app{
  display:flex;
  min-height:100vh;
- direction:rtl
 }
 .crm-side{
  position:sticky;
@@ -752,7 +988,7 @@ tbody tr:hover{
  height:100vh;
  overflow:auto;
  padding:24px 17px;
- border-left:1px solid var(--line);
+ border-inline-end:1px solid var(--line);
  background:#fff;
  z-index:80
 }
@@ -772,7 +1008,7 @@ tbody tr:hover{
 .crm-side-brand strong{
  display:block;
  color:var(--red);
- font:900 22px Arial
+ font:900 22px var(--font-primary)
 }
 .crm-side-brand small{
  display:block;
@@ -803,7 +1039,7 @@ tbody tr:hover{
  background:transparent;
  color:#566175;
  text-decoration:none;
- text-align:right;
+ text-align:start;
  cursor:pointer;
  transition:.2s
 }
@@ -847,7 +1083,7 @@ tbody tr:hover{
  border-radius:99px;
  background:#eef0f4;
  color:#7e8796;
- font:800 10px Arial
+ font:800 10px var(--font-primary)
 }
 .crm-toggle.active .crm-count{
  color:#fff;
@@ -880,8 +1116,8 @@ tbody tr:hover{
  display:grid;
  gap:2px;
  margin:3px 28px 7px 0;
- padding-right:14px;
- border-right:1px solid var(--line)
+ padding-inline-start:14px;
+ border-inline-start:1px solid var(--line)
 }
 .crm-sub a{
  padding:8px 10px;
@@ -900,10 +1136,9 @@ tbody tr:hover{
  background:#fff0f2
 }
 .crm-main{
- min-width:0;
  flex:1 1 auto;
  width:calc(100% - 288px);
- direction:rtl
+ min-width:0;
 }
 .crm-overlay{
  display:none
@@ -1296,7 +1531,7 @@ td{
    class="crm-menu-button"
    id="crmMenuButton"
    type="button"
-   aria-label="فتح القائمة الرئيسية"
+   aria-label="{{ __('crm.open_main_menu') }}"
    aria-controls="crmSidebar"
    aria-expanded="false"
   >
@@ -1310,64 +1545,57 @@ td{
    >
    <span class="brand-copy">
     <strong>SokratCRM</strong>
-    <small>نظام إدارة علاقات العملاء</small>
+    <small>{{ __('crm.crm_system') }}</small>
    </span>
   </a>
 
   <div class="page-title">
-   <h1>عرض العملاء</h1>
-   <p>إدارة ومتابعة العملاء المحتملين من قاعدة بيانات CRM الجديدة</p>
+   <h1>{{ __('crm.view_leads') }}</h1>
+   <p>{{ __('crm.leads_page_subtitle') }}</p>
   </div>
 
   <div class="top-actions">
+   @can('leads.create')
    <a class="btn" href="{{ route('v2.leads.create') }}">
-    ＋ إضافة عميل
+    ＋ {{ __('crm.add_lead') }}
    </a>
+   @endcan
   </div>
 
-  <div class="user-chip">
-   <span class="user-avatar">
-    {{ mb_substr((string) session('crm_v2_user', 'A'), 0, 1) }}
-   </span>
-   <span>
-    <strong>{{ session('crm_v2_user', 'admin') }}</strong>
-    <small>المستخدم الحالي</small>
-   </span>
-  </div>
+  @include('partials.profile-dropdown')
  </header>
 
  <section class="hero">
   <div>
-   <span class="eyebrow">إدارة العملاء المحتملين</span>
-   <h2>كل العملاء في مكان واحد</h2>
+   <span class="eyebrow">{{ __('crm.lead_management') }}</span>
+   <h2>{{ __('crm.all_leads_one_place') }}</h2>
    <p>
-    ابحث وفلتر العملاء حسب الحالة والمصدر والموظف وموعد المتابعة،
-    مع عرض المرحلة الحالية وبيانات التواصل الخاصة بكل عميل.
+    {{ __('ابحث وفلتر العملاء حسب الحالة والمصدر والموظف وموعد المتابعة، مع عرض المرحلة الحالية وبيانات التواصل الخاصة بكل عميل.') }}
    </p>
   </div>
 
   <div class="hero-count">
    <strong>{{ number_format($totalLeads) }}</strong>
-   <span>إجمالي العملاء</span>
+   <span>{{ __('crm.total_leads') }}</span>
   </div>
  </section>
 
  <section class="section">
   <header class="section-head">
    <div>
-    <h2>حالات العملاء</h2>
-    <p>اختر حالة لعرض العملاء الموجودين بداخلها</p>
+    <h2>{{ __('crm.lead_statuses') }}</h2>
+    <p>{{ __('crm.choose_status_to_view') }}</p>
    </div>
 
    <a
     class="all-statuses {{ $filters['status'] === '' ? 'active' : '' }}"
     href="{{ route('v2.leads', $queryWithoutStatus) }}"
    >
-    كل الحالات
+    {{ __('crm.all_states') }}
    </a>
   </header>
 
-  <div class="status-grid">
+  <div class="status-grid" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
    @foreach ($statuses as $status)
     @php
      $statusColor = preg_match(
@@ -1392,13 +1620,13 @@ td{
     >
      <span class="status-name">
       <i class="status-dot"></i>
-      <strong>{{ $status->name_ar }}</strong>
+      <strong>{{ __($status->name_ar) }}</strong>
      </span>
 
      <b>{{ number_format($status->leads_count) }}</b>
 
      <small>
-      {{ $status->stage?->name_ar ?? 'بدون مرحلة' }}
+      {{ $status->stage?->name_ar ? __($status->stage->name_ar) : __('بدون مرحلة') }}
      </small>
     </a>
    @endforeach
@@ -1409,24 +1637,25 @@ td{
   <form
    class="filters"
    id="leadFilters"
+   dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}"
    method="GET"
    action="{{ route('v2.leads') }}"
   >
    <div class="field">
-    <label for="leadSearch">البحث</label>
+    <label for="leadSearch">{{ __('البحث') }}</label>
     <input
      id="leadSearch"
      type="search"
      name="q"
      value="{{ $filters['q'] }}"
-     placeholder="الاسم، الشركة، الهاتف، البريد أو المصدر"
+     placeholder="{{ __('crm.lead_search_placeholder') }}"
     >
    </div>
 
    <div class="field">
-    <label for="leadStatus">الحالة</label>
+    <label for="leadStatus">{{ __('crm.status') }}</label>
     <select id="leadStatus" name="status">
-     <option value="">كل الحالات</option>
+     <option value="">{{ __('crm.all_states') }}</option>
 
      @foreach ($statuses as $status)
       <option
@@ -1440,9 +1669,9 @@ td{
    </div>
 
    <div class="field">
-    <label for="leadSource">المصدر</label>
+    <label for="leadSource">{{ __('crm.source') }}</label>
     <select id="leadSource" name="source">
-     <option value="">كل المصادر</option>
+     <option value="">{{ __('crm.all_sources') }}</option>
 
      @foreach ($sources as $source)
       <option
@@ -1456,9 +1685,9 @@ td{
    </div>
 
    <div class="field">
-    <label for="leadEmployee">الموظف</label>
+    <label for="leadEmployee">{{ __('الموظف') }}</label>
     <select id="leadEmployee" name="employee">
-     <option value="">كل الموظفين</option>
+     <option value="">{{ __('كل الموظفين') }}</option>
 
      @foreach ($employees as $employee)
       <option
@@ -1472,49 +1701,49 @@ td{
    </div>
 
    <div class="field">
-    <label for="leadFollowUp">المتابعة القادمة</label>
+    <label for="leadFollowUp">{{ __('crm.next_followup') }}</label>
     <select id="leadFollowUp" name="follow_up">
-     <option value="">كل المواعيد</option>
+     <option value="">{{ __('crm.all_appointments') }}</option>
      <option value="today" @selected($filters['follow_up'] === 'today')>
-      اليوم
+      {{ __('اليوم') }}
      </option>
      <option value="upcoming" @selected($filters['follow_up'] === 'upcoming')>
-      قادمة
+      {{ __('crm.upcoming') }}
      </option>
      <option value="overdue" @selected($filters['follow_up'] === 'overdue')>
-      متأخرة
+      {{ __('crm.overdue') }}
      </option>
      <option value="none" @selected($filters['follow_up'] === 'none')>
-      بدون موعد
+      {{ __('crm.no_date') }}
      </option>
     </select>
    </div>
 
    <div class="field">
-    <label for="leadSort">الترتيب</label>
+    <label for="leadSort">{{ __('crm.sort') }}</label>
     <select id="leadSort" name="sort">
      <option value="latest" @selected($filters['sort'] === 'latest')>
-      الأحدث أولًا
+      {{ __('crm.newest_first') }}
      </option>
      <option value="oldest" @selected($filters['sort'] === 'oldest')>
-      الأقدم أولًا
+      {{ __('crm.oldest_first') }}
      </option>
      <option value="name" @selected($filters['sort'] === 'name')>
-      حسب الاسم
+      {{ __('crm.by_name') }}
      </option>
      <option value="followup" @selected($filters['sort'] === 'followup')>
-      حسب المتابعة
+      {{ __('crm.by_followup') }}
      </option>
     </select>
    </div>
 
    <div class="filter-buttons">
     <button class="btn" type="submit">
-     تطبيق
+     {{ __('crm.apply') }}
     </button>
 
     <a class="btn secondary" href="{{ route('v2.leads') }}">
-     إعادة ضبط
+     {{ __('crm.reset') }}
     </a>
    </div>
   </form>
@@ -1532,14 +1761,14 @@ td{
 
   <header class="results-head">
    <div>
-    <h2>قائمة العملاء</h2>
+    <h2>{{ __('crm.lead_list') }}</h2>
     <p>
-     يتم عرض 20 عميلًا في الصفحة الواحدة
+     {{ __('crm.leads_per_page') }}
     </p>
    </div>
 
    <span class="result-count">
-    {{ number_format($leads->total()) }} نتيجة
+    {{ number_format($leads->total()) }} {{ __('نتيجة') }}
    </span>
   </header>
 
@@ -1548,29 +1777,32 @@ td{
     <span class="empty-icon">♙</span>
 
     <h3>
-     {{ $activeQuery === [] ? 'لا يوجد عملاء حتى الآن' : 'لا توجد نتائج مطابقة' }}
+     {{ $activeQuery === [] ? __('لا يوجد عملاء حتى الآن') : __('لا توجد نتائج مطابقة') }}
     </h3>
 
     <p>
      @if ($activeQuery === [])
-      لم تتم إضافة أي عميل إلى قاعدة CRM الجديدة حتى الآن.
-      استخدم زر إضافة عميل للبدء.
+      {{ __('لم تتم إضافة أي عميل إلى قاعدة CRM الجديدة حتى الآن.') }}
+      {{ __('استخدم زر إضافة عميل للبدء.') }}
      @else
-      جرّب تغيير كلمات البحث أو إزالة بعض الفلاتر الحالية.
+      {{ __('جرّب تغيير كلمات البحث أو إزالة بعض الفلاتر الحالية.') }}
      @endif
     </p>
 
     @if ($activeQuery === [])
-     <a class="btn" href="{{ route('v2.leads.create') }}">
-      ＋ إضافة أول عميل
-     </a>
+     @can('leads.create')
+      <a class="btn" href="{{ route('v2.leads.create') }}">
+       {{ __('crm.add_first_lead') }}
+      </a>
+     @endcan
     @else
      <a class="btn secondary" href="{{ route('v2.leads') }}">
-      مسح جميع الفلاتر
+      {{ __('crm.clear_all_filters') }}
      </a>
     @endif
    </div>
   @else
+   @can('leads.export')
    @if (
     $errors->has('lead_ids')
     || $errors->has('lead_ids.*')
@@ -1601,9 +1833,9 @@ td{
      </span>
 
      <span>
-      تم اختيار
+      {{ __('crm.selected') }}
       <strong id="selectedLeadsCount">0</strong>
-      عميل
+      {{ __('crm.lead_unit') }}
      </span>
     </div>
 
@@ -1613,7 +1845,7 @@ td{
       id="bulkClearSelection"
       type="button"
      >
-      إلغاء التحديد
+      {{ __('crm.deselect') }}
      </button>
 
      <button
@@ -1622,33 +1854,36 @@ td{
       type="submit"
       disabled
      >
-      ↓ تصدير Excel
+      {{ __('crm.export_excel') }}
      </button>
     </div>
    </form>
+   @endcan
 
    <div class="table-wrap">
     <table>
      <thead>
       <tr>
+       @can('leads.export')
        <th class="select-column">
         <input
          class="lead-select-all"
          id="selectAllLeads"
          type="checkbox"
-         aria-label="تحديد كل العملاء الظاهرين"
-         title="تحديد كل العملاء في الصفحة الحالية"
+         aria-label="{{ __('crm.select_visible_leads') }}"
+         title="{{ __('crm.select_all_current_page') }}"
         >
        </th>
+       @endcan
 
-       <th>العميل</th>
-       <th>بيانات التواصل</th>
-       <th>الشركة والمصدر</th>
-       <th>الحالة الحالية</th>
-       <th>الموظف المسؤول</th>
-       <th>المتابعة القادمة</th>
-       <th>تاريخ الإضافة</th>
-       <th>الإجراءات</th>
+       <th>{{ __('crm.client') }}</th>
+       <th>{{ __('crm.contact_data') }}</th>
+       <th>{{ __('crm.company_source') }}</th>
+       <th>{{ __('crm.current_status') }}</th>
+       <th>{{ __('crm.responsible_employee') }}</th>
+       <th>{{ __('crm.next_followup') }}</th>
+       <th>{{ __('crm.created_date') }}</th>
+       <th>{{ __('crm.actions') }}</th>
       </tr>
      </thead>
 
@@ -1719,6 +1954,7 @@ td{
         @endphp
 
        <tr class="lead-row">
+        @can('leads.export')
         <td class="select-column">
          <input
           class="lead-select-checkbox"
@@ -1726,10 +1962,11 @@ td{
           name="lead_ids[]"
           value="{{ $lead->id }}"
           form="bulkActionsBar"
-          aria-label="تحديد العميل {{ $lead->name }}"
+          aria-label="{{ __('تحديد العميل') }} {{ $lead->name }}"
           autocomplete="off"
          >
         </td>
+        @endcan
 
         <td>
          <a
@@ -1741,7 +1978,7 @@ td{
             ['lead' => $lead->id]
            )
           ) }}"
-          title="عرض بيانات العميل {{ $lead->name }}"
+          title="{{ __('عرض بيانات العميل') }} {{ $lead->name }}"
          >
           <span class="customer-avatar">
            {{ mb_substr((string) $lead->name, 0, 1) }}
@@ -1750,7 +1987,7 @@ td{
           <span>
            <strong>{{ $lead->name }}</strong>
            <small>
-            {{ $lead->email ?: 'لا يوجد بريد إلكتروني' }}
+            {{ $lead->email ?: __('crm.no_email') }}
            </small>
           </span>
          </a>
@@ -1763,7 +2000,7 @@ td{
             {{ $lead->phone }}
            </a>
           @else
-           <span class="muted">لا يوجد هاتف</span>
+           <span class="muted">{{ __('crm.no_phone') }}</span>
           @endif
 
           @if ($lead->email)
@@ -1776,10 +2013,10 @@ td{
 
         <td>
          <strong>
-          {{ $lead->company_name ?: 'بدون شركة' }}
+          {{ $lead->company_name ?: __('crm.no_company') }}
          </strong>
          <span class="stage-name">
-          المصدر: {{ $lead->source ?: 'غير محدد' }}
+          {{ __('المصدر:') }} {{ $lead->source ? __($lead->source) : __('غير محدد') }}
          </span>
         </td>
 
@@ -1789,16 +2026,16 @@ td{
           style="--status-color:{{ $leadStatusColor }}"
          >
           <i class="status-dot"></i>
-          {{ $lead->status?->name_ar ?? 'بدون حالة' }}
+          {{ $lead->status?->name_ar ? __($lead->status->name_ar) : __('crm.no_status') }}
          </span>
 
          <span class="stage-name">
-          {{ $lead->status?->stage?->name_ar ?? 'بدون مرحلة' }}
+          {{ $lead->status?->stage?->name_ar ? __($lead->status->stage->name_ar) : __('بدون مرحلة') }}
          </span>
         </td>
 
         <td>
-         {{ $lead->assigned_employee ?: 'غير مسند' }}
+         {{ $lead->assignedUser?->name ?? $lead->assigned_employee ?: __('crm.unassigned') }}
         </td>
 
         <td>
@@ -1807,7 +2044,7 @@ td{
            {{ $lead->next_follow_up_at->format('d/m/Y - h:i A') }}
           </span>
          @else
-          <span class="muted">بدون موعد</span>
+          <span class="muted">{{ __('crm.no_date') }}</span>
          @endif
         </td>
 
@@ -1829,17 +2066,17 @@ td{
             target="_blank"
             rel="noopener noreferrer"
             data-call-href="callto:{{ $callPhone }}"
-            title="فتح MicroSIP وصفحة تسجيل المتابعة"
+            title="{{ __('crm.open_microsip_followup') }}"
            >
-            ☎ اتصال
+            {{ __('crm.call_action') }}
            </a>
           @else
            <span
             class="lead-action call-action is-disabled"
             aria-disabled="true"
-            title="رقم الهاتف غير صالح للاتصال"
+            title="{{ __('crm.invalid_call_number') }}"
            >
-            ☎ اتصال
+            {{ __('crm.call_action') }}
            </span>
           @endif
 
@@ -1849,9 +2086,9 @@ td{
             'v2.leads.followups.index',
             $lead
            ) }}"
-           title="تسجيل متابعة جديدة للعميل"
+           title="{{ __('crm.new_followup_for_lead') }}"
           >
-           ◷ تسجيل متابعة
+           {{ __('crm.log_followup') }}
           </a>
 
           @if ($whatsappPhone)
@@ -1860,17 +2097,17 @@ td{
             href="https://wa.me/{{ $whatsappPhone }}"
             target="_blank"
             rel="noopener noreferrer"
-            title="فتح محادثة العميل على واتساب"
+            title="{{ __('crm.open_whatsapp') }}"
            >
-            ◉ واتساب
+            {{ __('crm.whatsapp') }}
            </a>
           @else
            <span
             class="lead-action whatsapp-action is-disabled"
             aria-disabled="true"
-            title="رقم الهاتف غير مناسب لواتساب"
+            title="{{ __('crm.invalid_whatsapp_number') }}"
            >
-            ◉ واتساب
+            {{ __('crm.whatsapp') }}
            </span>
           @endif
 
@@ -1937,7 +2174,7 @@ td{
            }
           @endphp
 
-          @if ($hasListQuotationFile)
+          @if ($hasListQuotationFile && auth()->user()->can('quotations.view'))
            <a
             class="lead-action quotation-action"
             href="{{ route(
@@ -1946,24 +2183,28 @@ td{
             ) }}"
             target="_blank"
             rel="noopener noreferrer"
-            title="معاينة عرض السعر الخاص بالعميل"
+            title="{{ __('crm.preview_lead_quotation') }}"
            >
-            👁 معاينة عرض السعر
+            👁 {{ __('معاينة عرض السعر') }}
            </a>
           @endif
 
+          @canany(['leads.update', 'leads.delete'])
           <details class="lead-more">
-           <summary title="المزيد من الإجراءات">
+           <summary title="{{ __('crm.more_actions') }}">
             ⋮
            </summary>
 
            <div class="lead-menu">
+            @can('leads.update')
             <a
              href="{{ route('v2.leads.edit', $lead) }}"
             >
-             ✎ تعديل
+             {{ __('crm.edit_short') }}
             </a>
+            @endcan
 
+            @can('leads.delete')
             <form
              class="js-delete-lead-form"
              method="POST"
@@ -1977,11 +2218,13 @@ td{
               class="delete-action"
               type="submit"
              >
-              ♲ حذف
+              {{ __('crm.delete_short') }}
              </button>
             </form>
+            @endcan
            </div>
           </details>
+          @endcanany
          </div>
         </td>
        </tr>
@@ -1991,22 +2234,22 @@ td{
    </div>
 
    @if ($leads->hasPages())
-    <nav class="pagination" aria-label="صفحات العملاء">
+    <nav class="pagination" aria-label="{{ __('crm.lead_pages') }}">
      @if ($leads->onFirstPage())
-      <span class="disabled">السابق</span>
+      <span class="disabled">{{ __('crm.previous') }}</span>
      @else
-      <a href="{{ $leads->previousPageUrl() }}">السابق</a>
+      <a href="{{ $leads->previousPageUrl() }}">{{ __('crm.previous') }}</a>
      @endif
 
      <span class="page-info">
-      صفحة {{ $leads->currentPage() }}
-      من {{ $leads->lastPage() }}
+      {{ __('صفحة') }} {{ $leads->currentPage() }}
+      {{ __('من') }} {{ $leads->lastPage() }}
      </span>
 
      @if ($leads->hasMorePages())
-      <a href="{{ $leads->nextPageUrl() }}">التالي</a>
+      <a href="{{ $leads->nextPageUrl() }}">{{ __('crm.next') }}</a>
      @else
-      <span class="disabled">التالي</span>
+      <span class="disabled">{{ __('crm.next') }}</span>
      @endif
     </nav>
    @endif
@@ -2165,12 +2408,12 @@ td{
      'click',
      () => {
       const leadName =
-       button.dataset.leadName || 'العميل';
+       button.dataset.leadName || '{{ __('العميل') }}';
 
       window.alert(
-       'سيتم تفعيل تسجيل المتابعة للعميل '
+       '{{ __('سيتم تفعيل تسجيل المتابعة للعميل ') }}'
        + leadName
-       + ' بعد تجهيز صفحة المتابعات.'
+       + '{{ __(' بعد تجهيز صفحة المتابعات.') }}'
       );
      }
     );
@@ -2183,13 +2426,13 @@ td{
      'submit',
      (event) => {
       const leadName =
-       form.dataset.leadName || 'هذا العميل';
+       form.dataset.leadName || '{{ __('هذا العميل') }}';
 
       const confirmed = window.confirm(
-       'هل أنت متأكد من حذف '
+       '{{ __('هل أنت متأكد من حذف ') }}'
        + leadName
-       + '؟\n\n'
-       + 'الحذف نهائي ولا يمكن التراجع عنه.'
+       + '?\n\n'
+       + '{{ __('الحذف نهائي ولا يمكن التراجع عنه.') }}'
       );
 
       if (!confirmed) {
@@ -2356,7 +2599,7 @@ td{
      event.preventDefault();
 
      window.alert(
-      'اختر عميلًا واحدًا على الأقل قبل التصدير.'
+      '{{ __('اختر عميلًا واحدًا على الأقل قبل التصدير.') }}'
      );
 
      updateBulkSelection();

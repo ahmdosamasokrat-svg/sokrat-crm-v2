@@ -1,9 +1,14 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SokratCRM — Kanban View</title>
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>SokratCRM — {{ __('crm.kanban_view') }}</title>
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <style>
 :root{
  --red:#dc2637;
@@ -21,7 +26,7 @@ body{
   radial-gradient(circle at 8% 0,#dc26370c,transparent 25rem),
   var(--bg);
  color:var(--dark);
- font-family:Tahoma,Arial,sans-serif
+ font-family:var(--font-primary)
 }
 a{color:inherit}
 .topbar{
@@ -52,7 +57,7 @@ a{color:inherit}
 .brand strong{
  display:block;
  color:var(--red);
- font:900 21px Arial
+ font:900 21px var(--font-primary)
 }
 .brand small{
  display:block;
@@ -61,7 +66,7 @@ a{color:inherit}
  font-size:10px
 }
 .top-actions{
- margin-right:auto;
+ margin-inline-start:auto;
  display:flex;
  align-items:center;
  gap:8px
@@ -122,9 +127,9 @@ main{
  font-weight:bold
 }
 .summary b{
- margin-right:5px;
+ margin-inline-start:5px;
  color:var(--dark);
- font:900 14px Arial
+ font:900 14px var(--font-primary)
 }
 .board-shell{
  overflow:hidden;
@@ -195,7 +200,7 @@ main{
  border-radius:9px;
  background:var(--column-color);
  color:#fff;
- font:900 12px Arial
+ font:900 12px var(--font-primary)
 }
 .column-body{
  display:grid;
@@ -340,9 +345,16 @@ main{
 }
 
 .kanban-card-row span{
+ display:inline-flex;
+ align-items:center;
+ gap:4px;
  color:#8b94a5;
  font-size:9px;
  font-weight:bold
+}
+.kanban-card-row span i{
+ font-size:11px;
+ color:#788294
 }
 
 .kanban-card-row strong{
@@ -350,7 +362,7 @@ main{
  overflow-wrap:anywhere;
  color:#536074;
  font-size:10px;
- text-align:left
+ text-align:end
 }
 
 .kanban-phone{
@@ -370,8 +382,16 @@ main{
 .kanban-card-actions .btn{
  min-height:34px;
  padding:6px 8px;
- font-size:9px;
- box-shadow:none
+ font-size:10px;
+ font-weight:900;
+ box-shadow:none;
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ gap:4px
+}
+.kanban-card-actions .btn i{
+ font-size:12px
 }
 
 .kanban-card-actions .call{
@@ -441,7 +461,7 @@ main{
 }
 
 .kanban-scope-btn b{
- font:900 14px Arial;
+ font:900 14px var(--font-primary);
  color:inherit
 }
 
@@ -813,7 +833,7 @@ main{
  border-radius:10px;
  background:#f8f9fb;
  color:#606b7e;
- font:900 20px Arial;
+ font:900 20px var(--font-primary);
  cursor:pointer
 }
 
@@ -925,7 +945,7 @@ body.kanban-modal-open{
  border-radius:999px;
  background:#7157cf;
  color:#fff;
- font:900 9px Arial
+ font:900 9px var(--font-primary)
 }
 
 .kanban-no-date:hover{
@@ -1025,15 +1045,17 @@ body.kanban-modal-open{
   <img src="{{ asset('images/sokrat-pro-tech.png') }}" alt="Sokrat PRO">
   <span>
    <strong>SokratCRM</strong>
-   <small>إدارة علاقات العملاء</small>
+   <small>{{ __('crm.crm_subtitle') }}</small>
   </span>
  </a>
 
  <div class="top-actions">
-  <a class="btn light" href="{{ route('dashboard') }}">← لوحة التحكم</a>
+  <a class="btn light" href="{{ route('dashboard') }}"><i class="bi bi-arrow-right"></i> {{ __('crm.dashboard') }}</a>
+  @can('leads.create')
   <a class="btn" href="{{ route('v2.leads.create') }}"
    data-kanban-create-popup
-   draggable="false">＋ إضافة عميل</a>
+   draggable="false"><i class="bi bi-plus-lg"></i> {{ __('crm.add_lead_short') }}</a>
+  @endcan
  </div>
 </header>
 
@@ -1042,21 +1064,20 @@ body.kanban-modal-open{
   <div>
    <h1>Kanban View</h1>
    <p>
-    متابعة العملاء حسب الحالة
-    وموعد المتابعة داخل كل عمود.
+    {{ __('crm.kanban_subtitle') }}
    </p>
   </div>
 
   <div class="summary">
    <span>
-    إجمالي العملاء
+    {{ __('crm.total_leads') }}
     <b>
      {{ number_format($totalLeads) }}
     </b>
    </span>
 
    <span>
-    عدد الحالات
+    {{ __('crm.status_count') }}
     <b>
      {{ count($kanbanColumns) }}
     </b>
@@ -1067,7 +1088,7 @@ body.kanban-modal-open{
  <section class="board-shell">
   <div
    class="board"
-   aria-label="لوحة كانبان حالات العملاء"
+   aria-label="{{ __('crm.kanban_board_title') }}"
   >
    @foreach (
     $kanbanColumns
@@ -1097,11 +1118,25 @@ body.kanban-modal-open{
        {{ $column['status_color'] }};
      "
     >
+     @php
+      $columnIconClass = match($column['code']) {
+          'new' => 'bi bi-person-plus-fill',
+          'no-answer', 'no_answer' => 'bi bi-telephone-x-fill',
+          'interested' => 'bi bi-heart-fill',
+          'not_interested', 'not-interested' => 'bi bi-x-circle-fill',
+          'meeting' => 'bi bi-calendar-event-fill',
+          'quotation' => 'bi bi-file-earmark-text-fill',
+          'discussion' => 'bi bi-chat-dots-fill',
+          'contract', 'contract-closing', 'contract_closing' => 'bi bi-file-earmark-check-fill',
+          'execution' => 'bi bi-gear-fill',
+          default => 'bi bi-app-indicator',
+      };
+     @endphp
+
      <header class="column-head">
       <span class="column-icon">
-       {{ $column['icon'] }}
+       <i class="{{ $columnIconClass }}"></i>
       </span>
-
       <h2 class="column-title">
        {{ $column['name'] }}
       </h2>
@@ -1112,7 +1147,7 @@ body.kanban-modal-open{
        data-kanban-total-count-value="{{
         $column['total_count']
        }}"
-       title="إجمالي العملاء في المرحلة"
+       title="{{ __('crm.all_leads_in_stage') }}"
       >
        {{
         number_format(
@@ -1123,10 +1158,9 @@ body.kanban-modal-open{
      </header>
 
      <div class="kanban-drag-hint">
-      اسحب كارت العميل إلى حالة أخرى،
-      ثم
-      <strong>احفظ المتابعة</strong>
-      لتأكيد النقل.
+      {{ __('crm.drag_hint_title') }}
+      <strong>{{ __('crm.confirm_transfer') }}</strong>
+      {{ __('crm.drag_hint_end') }}
      </div>
 
           @if (!$kanbanDirectStatus)
@@ -1139,11 +1173,11 @@ body.kanban-modal-open{
         data-count="{{
          $column['scope_counts']['today']
         }}"
-        data-label="يجب التواصل معهم اليوم"
+        data-label="{{ __('crm.today') }}"
         aria-pressed="true"
-        title="يجب التواصل معهم اليوم"
+        title="{{ __('crm.today') }}"
        >
-        <span>اليوم</span>
+        <span><i class="bi bi-calendar-check" style="margin-inline-end:3px"></i> {{ __('crm.today') }}</span>
         <b>
          {{
           number_format(
@@ -1162,11 +1196,11 @@ body.kanban-modal-open{
         data-count="{{
          $column['scope_counts']['overdue']
         }}"
-        data-label="المتابعات المتأخرة"
+        data-label="{{ __('crm.overdue') }}"
         aria-pressed="false"
-        title="المتابعات المتأخرة"
+        title="{{ __('crm.overdue') }}"
        >
-        <span>المتأخرة</span>
+        <span><i class="bi bi-exclamation-triangle" style="margin-inline-end:3px"></i> {{ __('crm.overdue') }}</span>
         <b>
          {{
           number_format(
@@ -1185,11 +1219,11 @@ body.kanban-modal-open{
         data-count="{{
          $column['scope_counts']['upcoming']
         }}"
-        data-label="المتابعات القادمة"
+        data-label="{{ __('crm.upcoming') }}"
         aria-pressed="false"
-        title="المتابعات القادمة"
+        title="{{ __('crm.upcoming') }}"
        >
-        <span>القادمة</span>
+        <span><i class="bi bi-calendar-week" style="margin-inline-end:3px"></i> {{ __('crm.upcoming') }}</span>
         <b>
          {{
           number_format(
@@ -1216,9 +1250,7 @@ body.kanban-modal-open{
          type="button"
          data-kanban-no-date-popup
          data-status-name="{{ $column['name'] }}"
-         data-count="{{
-          $column['no_date_count']
-         }}"
+         data-count="{{ $column['no_date_count'] }}"
          data-popup-url="{{
           route(
            'v2.leads',
@@ -1231,9 +1263,9 @@ body.kanban-modal-open{
            ]
           )
          }}"
-         title="عرض العملاء بدون موعد في هذه المرحلة"
+         title="{{ __('crm.no_date') }}"
         >
-         <span>بدون موعد</span>
+         <span><i class="bi bi-calendar-minus" style="margin-inline-end:3px"></i> {{ __('crm.no_date') }}</span>
 
          <b>
           {{
@@ -1250,11 +1282,11 @@ body.kanban-modal-open{
 
       <div class="kanban-followup-current">
        <strong data-kanban-scope-label>
-        يجب التواصل معهم اليوم
+        {{ __('crm.today') }}
        </strong>
 
        <span>
-        إجمالي الحالة:
+        {{ __('crm.total_status') }}:
         {{ number_format(
          $column['total_count']
         ) }}
@@ -1266,19 +1298,19 @@ body.kanban-modal-open{
      @endif
 
      <div class="column-body">
-      @foreach (
-       [
-        'today' =>
-         'يجب التواصل معهم اليوم',
+     @foreach (
+      [
+       'today' =>
+        __('crm.today'),
 
-        'overdue' =>
-         'المتابعات المتأخرة',
+       'overdue' =>
+        __('crm.overdue'),
 
-        'upcoming' =>
-         'المتابعات القادمة',
-       ]
-       as $scope => $scopeLabel
-      )
+       'upcoming' =>
+        __('crm.upcoming'),
+      ]
+      as $scope => $scopeLabel
+     )
        @php
         if ($kanbanDirectStatus) {
          if ($scope === 'today') {
@@ -1296,7 +1328,7 @@ body.kanban-modal-open{
             ->get();
 
           $scopeLabel =
-           'كل العملاء في المرحلة';
+           __('crm.all_leads_in_stage');
          } else {
           $scopeLeads =
            collect();
@@ -1322,7 +1354,7 @@ body.kanban-modal-open{
         )
          <article
           class="kanban-card"
-          draggable="true"
+          draggable="{{ auth()->user()->can('leads.followups.create') ? 'true' : 'false' }}"
           data-kanban-lead="{{ $lead->id }}"
           data-kanban-lead-name="{{ $lead->name }}"
           data-current-status-id="{{ $column['status_id'] }}"
@@ -1358,7 +1390,7 @@ body.kanban-modal-open{
 
           <div class="kanban-card-info">
            <div class="kanban-card-row">
-            <span>الهاتف</span>
+            <span><i class="bi bi-telephone"></i> {{ __('crm.phone') }}</span>
 
             <strong>
              @if ($lead->phone)
@@ -1375,36 +1407,37 @@ body.kanban-modal-open{
                {{ $lead->phone }}
               </a>
              @else
-              غير مسجل
+              {{ __('crm.not_registered') }}
              @endif
             </strong>
            </div>
 
            <div class="kanban-card-row">
-            <span>الشركة / المصدر</span>
+            <span><i class="bi bi-building"></i> {{ __('crm.company_or_source') }}</span>
 
             <strong>
              {{
               $lead->company_name
               ?: $lead->source
-              ?: 'غير محدد'
+              ?: __('crm.not_specified')
              }}
             </strong>
            </div>
 
            <div class="kanban-card-row">
-            <span>الموظف</span>
+            <span><i class="bi bi-person-badge"></i> {{ __('crm.employee') }}</span>
 
             <strong>
              {{
-              $lead->assigned_employee
-              ?: 'غير مسند'
+              $lead->assignedUser?->name
+              ?? $lead->assigned_employee
+              ?: __('crm.unassigned')
              }}
             </strong>
            </div>
 
            <div class="kanban-card-row">
-            <span>موعد المتابعة</span>
+            <span><i class="bi bi-clock-history"></i> {{ __('crm.followup_date') }}</span>
 
             <strong>
              {{
@@ -1413,7 +1446,7 @@ body.kanban-modal-open{
                ?->format(
                 'd/m/Y H:i'
                )
-              ?? 'بدون موعد'
+              ?? __('crm.no_date')
              }}
             </strong>
            </div>
@@ -1423,11 +1456,13 @@ body.kanban-modal-open{
            @if ($lead->phone)
             <a
              class="btn call"
+             @can('leads.followups.create')
              data-kanban-call-dial-popup
              data-followup-url="{{ route(
               'v2.leads.followups.index',
               $lead
              ) }}"
+             @endcan
              data-tel-href="tel:{{
               preg_replace(
                '/[^0-9+]/',
@@ -1445,7 +1480,7 @@ body.kanban-modal-open{
              draggable="false"
              title="اتصال وتسجيل متابعة"
             >
-             ☎ اتصال
+             <i class="bi bi-telephone-outbound-fill"></i> {{ __('crm.call') }}
             </a>
            @endif
 
@@ -1458,9 +1493,10 @@ body.kanban-modal-open{
            
              data-kanban-customer-popup
              draggable="false">
-            عرض العميل
+            <i class="bi bi-eye"></i> {{ __('crm.view_lead') }}
            </a>
 
+           @can('leads.followups.create')
            <a
             class="btn"
             href="{{ route(
@@ -1470,24 +1506,24 @@ body.kanban-modal-open{
            
              data-kanban-followup-popup
              draggable="false">
-            تسجيل متابعة
+            <i class="bi bi-plus-circle"></i> {{ __('crm.log_followup') }}
            </a>
+           @endcan
           </div>
          </article>
         @empty
          <div class="kanban-scope-empty">
-          <i>☷</i>
+          <i><i class="bi bi-inbox-fill"></i></i>
 
           <strong>
-           لا يوجد عملاء
+           {{ __('crm.no_leads_found') }}
           </strong>
 
           <p>
-           لا يوجد عملاء في
+           {{ __('crm.no_leads_in_column') }}
            {{ $column['name'] }}
-           ضمن
+           {{ __('crm.in_scope') }}
            {{ $scopeLabel }}.
-          </p>
          </div>
         @endforelse
        </div>
@@ -1527,8 +1563,8 @@ body.kanban-modal-open{
     class="kanban-followup-close"
     id="crmKanbanUtilityClose"
     type="button"
-    aria-label="إغلاق"
-    title="إغلاق"
+    aria-label="{{ __('crm.close') }}"
+    title="{{ __('crm.close') }}"
    >
     ×
    </button>
@@ -1558,11 +1594,11 @@ body.kanban-modal-open{
   <header class="kanban-followup-modal-head">
    <div class="kanban-followup-modal-title">
     <h3 id="crmKanbanActionTitle">
-     بيانات العميل
+     {{ __('crm.lead_data') }}
     </h3>
 
     <p id="crmKanbanActionDescription">
-     عرض البيانات داخل Kanban.
+     {{ __('crm.view_data_in_kanban') }}
     </p>
    </div>
 
@@ -1570,8 +1606,8 @@ body.kanban-modal-open{
     class="kanban-followup-close"
     id="crmKanbanActionClose"
     type="button"
-    aria-label="إغلاق"
-    title="إغلاق"
+    aria-label="{{ __('crm.close') }}"
+    title="{{ __('crm.close') }}"
    >
     ×
    </button>
@@ -1601,11 +1637,11 @@ body.kanban-modal-open{
   <header class="kanban-followup-modal-head">
    <div class="kanban-followup-modal-title">
     <h3 id="crmKanbanFollowupTitle">
-     تسجيل متابعة وتغيير الحالة
+     {{ __('crm.log_followup_and_change_status') }}
     </h3>
 
     <p id="crmKanbanFollowupDescription">
-     لن يتم تغيير حالة العميل إلا بعد حفظ المتابعة.
+     {{ __('crm.status_change_notice') }}
     </p>
    </div>
 
@@ -1613,8 +1649,8 @@ body.kanban-modal-open{
     class="kanban-followup-close"
     id="crmKanbanFollowupClose"
     type="button"
-    aria-label="إلغاء وإغلاق"
-    title="إلغاء"
+    aria-label="{{ __('crm.cancel_and_close') }}"
+    title="{{ __('crm.close') }}"
    >
     ×
    </button>

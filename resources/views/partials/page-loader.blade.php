@@ -2,7 +2,7 @@
 #crm-page-loader{
     position:fixed;
     inset:0;
-    z-index:99999;
+    z-index:999999;
     display:grid;
     place-items:center;
     overflow:hidden;
@@ -94,7 +94,7 @@
 .crm-loader-brand{
     margin-top:22px;
     color:#dc2637;
-    font:900 28px Arial,Tahoma,sans-serif;
+    font:900 28px var(--font-primary);
     letter-spacing:.3px;
     animation:crmLoaderText .55s ease .2s both
 }
@@ -102,7 +102,7 @@
 .crm-loader-subtitle{
     margin-top:7px;
     color:#778194;
-    font:700 12px Tahoma,Arial,sans-serif;
+    font:700 12px var(--font-primary);
     animation:crmLoaderText .55s ease .3s both
 }
 

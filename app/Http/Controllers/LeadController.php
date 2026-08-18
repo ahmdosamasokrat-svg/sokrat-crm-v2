@@ -5,34 +5,37 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
+use App\Models\Campaign;
+use App\Models\User;
+use App\Security\CrmPermission;
+use App\Security\LeadAssignment;
+use App\Support\CrmDatabaseGuard;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LeadController extends Controller
 {
     public function index(Request $request): View|RedirectResponse
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
-        $databaseName = (string) DB::connection()
-            ->getDatabaseName();
-
-        abort_unless(
-            $databaseName === 'sokrat_crm_v2',
-            500,
-            'CRM v2 database isolation check failed.'
-        );
+        $this->assertCrmV2Database();
+        $user = $request->user();
 
         $statuses = LeadStatus::query()
             ->with([
                 'stage:id,name_ar',
             ])
-            ->withCount('leads')
+            ->withCount([
+                'leads as leads_count' => static fn ($query) => $query
+                    ->accessibleTo($user),
+            ])
             ->orderBy('position')
             ->get();
 
@@ -75,7 +78,7 @@ class LeadController extends Controller
 
         if (
             $filters['status'] !== ''
-            && !in_array(
+            && ! in_array(
                 $filters['status'],
                 $statusCodes,
                 true
@@ -93,7 +96,7 @@ class LeadController extends Controller
         ];
 
         if (
-            !in_array(
+            ! in_array(
                 $filters['follow_up'],
                 $allowedFollowUpFilters,
                 true
@@ -110,7 +113,7 @@ class LeadController extends Controller
         ];
 
         if (
-            !in_array(
+            ! in_array(
                 $filters['sort'],
                 $allowedSorts,
                 true
@@ -119,14 +122,31 @@ class LeadController extends Controller
             $filters['sort'] = 'latest';
         }
 
-        $employees = Lead::query()
-            ->whereNotNull('assigned_employee')
-            ->where('assigned_employee', '<>', '')
+        $visibleAssignedUserIds = Lead::query()
+            ->accessibleTo($user)
+            ->whereNotNull('assigned_user_id')
             ->distinct()
-            ->orderBy('assigned_employee')
-            ->pluck('assigned_employee');
+            ->pluck('assigned_user_id');
+
+        $employees = User::query()
+            ->whereIn('id', $visibleAssignedUserIds)
+            ->orderBy('name')
+            ->pluck('name')
+            ->merge(
+                Lead::query()
+                    ->accessibleTo($user)
+                    ->whereNull('assigned_user_id')
+                    ->whereNotNull('assigned_employee')
+                    ->where('assigned_employee', '<>', '')
+                    ->pluck('assigned_employee')
+            )
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
 
         $sources = Lead::query()
+            ->accessibleTo($user)
             ->whereNotNull('source')
             ->where('source', '<>', '')
             ->distinct()
@@ -135,7 +155,7 @@ class LeadController extends Controller
 
         if (
             $filters['source'] !== ''
-            && !in_array(
+            && ! in_array(
                 $filters['source'],
                 $sources->all(),
                 true
@@ -145,8 +165,10 @@ class LeadController extends Controller
         }
 
         $query = Lead::query()
+            ->accessibleTo($user)
             ->with([
                 'status.stage:id,name_ar',
+                'assignedUser:id,name',
             ]);
 
         if ($filters['q'] !== '') {
@@ -178,8 +200,28 @@ class LeadController extends Controller
 
         if ($filters['employee'] !== '') {
             $query->where(
-                'assigned_employee',
-                $filters['employee']
+                function ($employeeQuery) use ($filters): void {
+                    $employeeQuery
+                        ->whereHas(
+                            'assignedUser',
+                            function ($userQuery) use ($filters): void {
+                                $userQuery->where(
+                                    'name',
+                                    $filters['employee']
+                                );
+                            }
+                        )
+                        ->orWhere(
+                            function ($legacyQuery) use ($filters): void {
+                                $legacyQuery
+                                    ->whereNull('assigned_user_id')
+                                    ->where(
+                                        'assigned_employee',
+                                        $filters['employee']
+                                    );
+                            }
+                        );
+                }
             );
         }
 
@@ -260,8 +302,7 @@ class LeadController extends Controller
 
         $activeQuery = array_filter(
             $filters,
-            static fn (string $value): bool =>
-                $value !== ''
+            static fn (string $value): bool => $value !== ''
                 && $value !== 'latest'
         );
 
@@ -284,23 +325,37 @@ class LeadController extends Controller
         );
     }
 
-    public function create(): View|RedirectResponse
+    public function create(Request $request): View|RedirectResponse
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
-        $assignedEmployee = trim(
-            (string) session('crm_v2_user', '')
-        );
+        $actor = $request->user();
+        $assignedEmployee = trim((string) $actor->name);
 
         abort_if(
             $assignedEmployee === '',
             403,
-            'Employee session is required.'
+            'Employee identity is required.'
         );
+
+        $canAssignLead = $actor->hasPermission(
+            CrmPermission::LEADS_ASSIGN
+        );
+        $assignableUsers = LeadAssignment::assignableUsers($actor);
+        $campaigns = Campaign::query()
+            ->with('users:id')
+            ->when(
+                ! $actor->isSuperAdmin(),
+                static fn ($query) => $actor->hasPermission(
+                    CrmPermission::CAMPAIGNS_CREATE,
+                )
+                    ? $query->where('created_by_user_id', $actor->id)
+                    : $query->whereRaw('1 = 0'),
+            )
+            ->orderByDesc('starts_at')
+            ->get(['id', 'name', 'starts_at']);
+        $campaign = $this->campaignForManualLead($request);
 
         $statuses = LeadStatus::query()
             ->orderBy('position')
@@ -311,13 +366,16 @@ class LeadController extends Controller
             ]);
 
         $sources = Lead::query()
+            ->accessibleTo($actor)
             ->whereNotNull('source')
             ->where('source', '<>', '')
             ->distinct()
             ->orderBy('source')
             ->pluck('source');
 
-        $totalLeads = Lead::query()->count();
+        $totalLeads = Lead::query()
+            ->accessibleTo($actor)
+            ->count();
 
         return view(
             'leads.create',
@@ -325,27 +383,28 @@ class LeadController extends Controller
                 'statuses',
                 'sources',
                 'assignedEmployee',
-                'totalLeads'
+                'canAssignLead',
+                'assignableUsers',
+                'totalLeads',
+                'campaign',
+                'campaigns'
             )
         );
     }
 
     public function store(Request $request): RedirectResponse
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
-        $assignedEmployee = trim(
-            (string) session('crm_v2_user', '')
-        );
+        $actor = $request->user();
+        $campaign = $this->campaignForManualLead($request);
+        $creatorName = trim((string) $actor->name);
 
         abort_if(
-            $assignedEmployee === '',
+            $creatorName === '',
             403,
-            'Employee session is required.'
+            'Employee identity is required.'
         );
 
         $statusInput = $request->validate(
@@ -357,10 +416,8 @@ class LeadController extends Controller
                 ],
             ],
             [
-                'lead_status_id.required' =>
-                    'حالة العميل مطلوبة.',
-                'lead_status_id.exists' =>
-                    'حالة العميل المختارة غير صحيحة.',
+                'lead_status_id.required' => 'حالة العميل مطلوبة.',
+                'lead_status_id.exists' => 'حالة العميل المختارة غير صحيحة.',
             ]
         );
 
@@ -387,7 +444,7 @@ class LeadController extends Controller
          * Required for every new customer status
          * except no_answer and not_interested.
          */
-        $requiresNextFollowUp = !in_array(
+        $requiresNextFollowUp = ! in_array(
             (string) $status->code,
             [
                 'new',
@@ -422,6 +479,11 @@ class LeadController extends Controller
                 'required',
                 'string',
                 'max:100',
+            ],
+            'assigned_user_id' => [
+                'nullable',
+                'integer',
+                'exists:users,id',
             ],
             'lead_status_id' => [
                 'required',
@@ -559,33 +621,50 @@ class LeadController extends Controller
         $validated = $request->validate(
             $rules,
             [
-                'first_name.required' =>
-                    'اسم العميل الأول مطلوب.',
-                'phone.required' =>
-                    'رقم الهاتف مطلوب.',
-                'source.required' =>
-                    'المصدر مطلوب.',
-                'next_follow_up_at.required' =>
-                    'حدد موعد المتابعة القادمة.',
-                'next_follow_up_at.date_format' =>
-                    'موعد المتابعة القادمة غير صحيح.',
-                'disinterest_reason.required' =>
-                    'سبب عدم الاهتمام مطلوب.',
-                'solution_type.required' =>
-                    'نوع النظام مطلوب.',
-                'lines_count.required' =>
-                    'عدد الخطوط مطلوب.',
-                'extensions.required' =>
-                    'الملحقات مطلوبة.',
-                'departments.required' =>
-                    'الأقسام مطلوبة.',
-                'quotation_file.required' =>
-                    'ملف عرض السعر مطلوب.',
-                'quotation_file.mimes' =>
-                    'صيغة ملف عرض السعر غير مدعومة.',
-                'quotation_file.max' =>
-                    'حجم ملف عرض السعر يجب ألا يتجاوز 2 ميجابايت.',
+                'first_name.required' => 'اسم العميل الأول مطلوب.',
+                'phone.required' => 'رقم الهاتف مطلوب.',
+                'source.required' => 'المصدر مطلوب.',
+                'next_follow_up_at.required' => 'حدد موعد المتابعة القادمة.',
+                'next_follow_up_at.date_format' => 'موعد المتابعة القادمة غير صحيح.',
+                'disinterest_reason.required' => 'سبب عدم الاهتمام مطلوب.',
+                'solution_type.required' => 'نوع النظام مطلوب.',
+                'lines_count.required' => 'عدد الخطوط مطلوب.',
+                'extensions.required' => 'الملحقات مطلوبة.',
+                'departments.required' => 'الأقسام مطلوبة.',
+                'quotation_file.required' => 'ملف عرض السعر مطلوب.',
+                'quotation_file.mimes' => 'صيغة ملف عرض السعر غير مدعومة.',
+                'quotation_file.max' => 'حجم ملف عرض السعر يجب ألا يتجاوز 2 ميجابايت.',
             ]
+        );
+        $assignee = $actor;
+
+        if (isset($validated['assigned_user_id'])) {
+            $assignee = User::query()->findOrFail(
+                (int) $validated['assigned_user_id']
+            );
+
+            abort_unless(
+                LeadAssignment::canAssignTo($actor, $assignee),
+                403,
+                'You cannot assign leads to this user.'
+            );
+        }
+
+        if ($campaign !== null) {
+            abort_unless(
+                $assignee->is($actor)
+                || $campaign->users()->whereKey($assignee->id)->exists(),
+                403,
+                'The assignee must belong to this campaign.'
+            );
+        }
+
+        $assignedEmployee = trim((string) $assignee->name);
+
+        abort_if(
+            $assignedEmployee === '',
+            403,
+            'Assignee identity is required.'
         );
 
         $nullableText = static function (
@@ -622,7 +701,7 @@ class LeadController extends Controller
                     'local'
                 );
 
-            if (!$quotationPath) {
+            if (! $quotationPath) {
                 throw new \RuntimeException(
                     'Quotation file could not be stored.'
                 );
@@ -647,7 +726,7 @@ class LeadController extends Controller
 
         if ($requiresNextFollowUp) {
             $nextFollowUpAt =
-                \Carbon\Carbon::createFromFormat(
+                Carbon::createFromFormat(
                     'Y-m-d\TH:i',
                     (string)
                         $validated[
@@ -671,9 +750,10 @@ class LeadController extends Controller
             'phone' => trim($validated['phone']),
             'source' => trim($validated['source']),
             'assigned_employee' => $assignedEmployee,
-            'created_by' => $assignedEmployee,
-            'quotation_sent' =>
-                $isQuotationStage,
+            'assigned_user_id' => $assignee->id,
+            'created_by' => $creatorName,
+            'created_by_user_id' => $actor->id,
+            'quotation_sent' => $isQuotationStage,
 
             'company_name' => $detailsEnabled
                 ? $nullableText(
@@ -721,8 +801,7 @@ class LeadController extends Controller
                 )
                 : null,
 
-            'disinterest_reason' =>
-                $status->code === 'not_interested'
+            'disinterest_reason' => $status->code === 'not_interested'
                     ? $nullableText(
                         $validated[
                             'disinterest_reason'
@@ -730,8 +809,7 @@ class LeadController extends Controller
                     )
                     : null,
 
-            'solution_type' =>
-                $isQuotationStage
+            'solution_type' => $isQuotationStage
                     ? $nullableText(
                         $validated['solution_type'] ?? null
                     )
@@ -765,18 +843,19 @@ class LeadController extends Controller
                 )
                 : null,
 
-            'next_follow_up_at' =>
-                $nextFollowUpAt,
+            'next_follow_up_at' => $nextFollowUpAt,
 
             'quotation_file_path' => $quotationPath,
         ];
 
-                try {
+        try {
             $createdLead = DB::transaction(
-                static function () use ($leadData): Lead {
-                    return Lead::query()->create(
-                        $leadData
-                    );
+                static function () use ($campaign, $leadData): Lead {
+                    $lead = Lead::query()->create($leadData);
+
+                    $campaign?->leads()->attach($lead->id);
+
+                    return $lead;
                 }
             );
         } catch (\Throwable $exception) {
@@ -805,6 +884,15 @@ class LeadController extends Controller
                 );
         }
 
+        if ($campaign !== null) {
+            return redirect()
+                ->route('v2.campaigns.show', [
+                    'campaign' => $campaign,
+                    'assigned_user_id' => $createdLead->assigned_user_id,
+                ])
+                ->with('success', 'تمت إضافة العميل إلى الحملة بنجاح.');
+        }
+
         return redirect()
             ->route('v2.leads')
             ->with(
@@ -813,29 +901,54 @@ class LeadController extends Controller
             );
     }
 
+    private function campaignForManualLead(Request $request): ?Campaign
+    {
+        $campaignId = $request->integer('campaign_id');
+
+        if ($campaignId <= 0) {
+            return null;
+        }
+
+        $campaign = Campaign::query()->findOrFail($campaignId);
+        $actor = $request->user();
+
+        abort_unless(
+            $actor->isSuperAdmin()
+            || (
+                (int) $campaign->created_by_user_id === (int) $actor->id
+                && $actor->hasPermission(CrmPermission::CAMPAIGNS_CREATE)
+            ),
+            403,
+        );
+
+        return $campaign;
+    }
+
     public function show(
         Request $request,
         string $lead
     ): View|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
         $leadRecord = Lead::query()
             ->with([
                 'status.stage',
+                'assignedUser:id,name',
             ])
             ->findOrFail(
                 (int) $lead
             );
+        Gate::authorize('view', $leadRecord);
 
-        $latestFollowups =
-            LeadFollowup::query()
+        $latestFollowups = $request->user()->can(
+            'leads.followups.view'
+        )
+            ? LeadFollowup::query()
                 ->with([
                     'fromStatus.stage',
                     'toStatus.stage',
+                    'user:id,name',
                 ])
                 ->where(
                     'lead_id',
@@ -846,7 +959,8 @@ class LeadController extends Controller
                 )
                 ->orderByDesc('id')
                 ->limit(5)
-                ->get();
+                ->get()
+            : collect();
 
         $followupCommunicationTypes = [
             'call' => 'اتصال هاتفي',
@@ -881,11 +995,11 @@ class LeadController extends Controller
                 $quotationPath,
                 $quotationPrefix
             )
-            && !str_contains(
+            && ! str_contains(
                 $quotationPath,
                 '..'
             )
-            && !str_starts_with(
+            && ! str_starts_with(
                 $quotationPath,
                 '/'
             )
@@ -1024,7 +1138,7 @@ class LeadController extends Controller
                 ''
             );
 
-            if (!is_scalar($rawValue)) {
+            if (! is_scalar($rawValue)) {
                 continue;
             }
 
@@ -1061,37 +1175,50 @@ class LeadController extends Controller
             'leads.show',
             [
                 'lead' => $leadRecord,
-                'latestFollowups' =>
-                    $latestFollowups,
-                'followupCommunicationTypes' =>
-                    $followupCommunicationTypes,
+                'latestFollowups' => $latestFollowups,
+                'followupCommunicationTypes' => $followupCommunicationTypes,
                 'statusColor' => $statusColor,
-                'hasQuotationFile' =>
-                    $hasQuotationFile,
-                'quotationFileName' =>
-                    $quotationFileName,
-                'solutionTypeLabel' =>
-                    $solutionTypeLabel,
+                'hasQuotationFile' => $hasQuotationFile,
+                'quotationFileName' => $quotationFileName,
+                'solutionTypeLabel' => $solutionTypeLabel,
                 'callPhone' => $callPhone,
-                'whatsappPhone' =>
-                    $whatsappPhone,
+                'whatsappPhone' => $whatsappPhone,
                 'backQuery' => $backQuery,
             ]
         );
     }
 
     public function edit(
+        Request $request,
         string $lead
     ): View|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
-        $leadRecord = Lead::query()->findOrFail(
-            (int) $lead
+        $leadRecord = Lead::query()
+            ->with('assignedUser:id,name,username')
+            ->findOrFail(
+                (int) $lead
+            );
+        Gate::authorize('update', $leadRecord);
+
+        $actor = $request->user();
+        $canAssignLead = $actor->hasPermission(
+            CrmPermission::LEADS_ASSIGN
         );
+        $assignableUsers = $canAssignLead
+            ? LeadAssignment::assignableUsers($actor)
+            : collect();
+        if (
+            $canAssignLead
+            && $leadRecord->assignedUser !== null
+            && ! $assignableUsers->contains(
+                'id',
+                $leadRecord->assignedUser->id
+            )
+        ) {
+            $assignableUsers->push($leadRecord->assignedUser);
+        }
 
         $statuses = LeadStatus::query()
             ->with('stage')
@@ -1100,6 +1227,7 @@ class LeadController extends Controller
             ->get();
 
         $sources = Lead::query()
+            ->accessibleTo($actor)
             ->whereNotNull('source')
             ->where('source', '<>', '')
             ->distinct()
@@ -1133,26 +1261,21 @@ class LeadController extends Controller
                 'lead' => $leadRecord,
                 'statuses' => $statuses,
                 'sources' => $sources,
-                'assignedEmployee' =>
-                    $leadRecord->assigned_employee
+                'canAssignLead' => $canAssignLead,
+                'assignableUsers' => $assignableUsers,
+                'assignedEmployee' => $leadRecord->assignedUser?->name
+                    ?? $leadRecord->assigned_employee
                     ?: 'غير مسند',
-                'hasQuotationFile' =>
-                    $hasQuotationFile,
-                'quotationFileName' =>
-                    $quotationFileName,
-                'quotationFileHelpText' =>
-                    $quotationFileHelpText,
+                'hasQuotationFile' => $hasQuotationFile,
+                'quotationFileName' => $quotationFileName,
+                'quotationFileHelpText' => $quotationFileHelpText,
             ]
         );
     }
 
-
     public function exportSelected(
         Request $request
-    ): \Symfony\Component\HttpFoundation\BinaryFileResponse|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
+    ): BinaryFileResponse|RedirectResponse {
 
         $this->assertCrmV2Database();
 
@@ -1175,27 +1298,20 @@ class LeadController extends Controller
                     'required',
                     'integer',
                     'distinct',
-                    \Illuminate\Validation\Rule::exists(
+                    Rule::exists(
                         'leads',
                         'id'
                     ),
                 ],
             ],
             [
-                'lead_ids.required' =>
-                    'اختر عميلًا واحدًا على الأقل.',
-                'lead_ids.array' =>
-                    'قائمة العملاء المختارة غير صحيحة.',
-                'lead_ids.min' =>
-                    'اختر عميلًا واحدًا على الأقل.',
-                'lead_ids.max' =>
-                    'لا يمكن تصدير أكثر من 1000 عميل مرة واحدة.',
-                'lead_ids.*.integer' =>
-                    'أحد العملاء المختارين غير صحيح.',
-                'lead_ids.*.distinct' =>
-                    'تم تكرار أحد العملاء المختارين.',
-                'lead_ids.*.exists' =>
-                    'أحد العملاء المختارين لم يعد موجودًا.',
+                'lead_ids.required' => 'اختر عميلًا واحدًا على الأقل.',
+                'lead_ids.array' => 'قائمة العملاء المختارة غير صحيحة.',
+                'lead_ids.min' => 'اختر عميلًا واحدًا على الأقل.',
+                'lead_ids.max' => 'لا يمكن تصدير أكثر من 1000 عميل مرة واحدة.',
+                'lead_ids.*.integer' => 'أحد العملاء المختارين غير صحيح.',
+                'lead_ids.*.distinct' => 'تم تكرار أحد العملاء المختارين.',
+                'lead_ids.*.exists' => 'أحد العملاء المختارين لم يعد موجودًا.',
             ]
         );
 
@@ -1203,15 +1319,16 @@ class LeadController extends Controller
             $validated['lead_ids']
         )
             ->map(
-                static fn (mixed $id): int =>
-                    (int) $id
+                static fn (mixed $id): int => (int) $id
             )
             ->unique()
             ->values();
 
         $leadsById = Lead::query()
+            ->accessibleTo($request->user())
             ->with([
                 'status.stage',
+                'assignedUser:id,name',
             ])
             ->whereIn(
                 'id',
@@ -1222,8 +1339,7 @@ class LeadController extends Controller
 
         $selectedLeads = $selectedIds
             ->map(
-                static fn (int $id): ?Lead =>
-                    $leadsById->get($id)
+                static fn (int $id): ?Lead => $leadsById->get($id)
             )
             ->filter()
             ->values();
@@ -1353,8 +1469,10 @@ class LeadController extends Controller
                             ?? ''
                         ),
 
-                        (string)
-                            $lead->assigned_employee,
+                        (string) (
+                            $lead->assignedUser?->name
+                            ?? $lead->assigned_employee
+                        ),
 
                         $formatDate(
                             $lead->next_follow_up_at
@@ -1401,7 +1519,7 @@ class LeadController extends Controller
         );
 
         if (
-            !is_string($temporaryFile)
+            ! is_string($temporaryFile)
             || $temporaryFile === ''
         ) {
             throw new \RuntimeException(
@@ -1426,14 +1544,10 @@ class LeadController extends Controller
                     $temporaryFile,
                     $downloadName,
                     [
-                        'Content-Type' =>
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        'Cache-Control' =>
-                            'private, no-store, max-age=0',
-                        'Pragma' =>
-                            'no-cache',
-                        'X-Content-Type-Options' =>
-                            'nosniff',
+                        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'Cache-Control' => 'private, no-store, max-age=0',
+                        'Pragma' => 'no-cache',
+                        'X-Content-Type-Options' => 'nosniff',
                     ]
                 )
                 ->deleteFileAfterSend(true);
@@ -1448,16 +1562,14 @@ class LeadController extends Controller
 
     public function quotationPreview(
         string $lead
-    ): \Symfony\Component\HttpFoundation\BinaryFileResponse|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
+    ): BinaryFileResponse|RedirectResponse {
 
         $this->assertCrmV2Database();
 
         $leadRecord = Lead::query()->findOrFail(
             (int) $lead
         );
+        Gate::authorize('viewQuotation', $leadRecord);
 
         $quotationPath = trim(
             (string) $leadRecord->quotation_file_path
@@ -1472,11 +1584,11 @@ class LeadController extends Controller
                 $quotationPath,
                 $expectedPrefix
             )
-            && !str_contains(
+            && ! str_contains(
                 $quotationPath,
                 '..'
             )
-            && !str_starts_with(
+            && ! str_starts_with(
                 $quotationPath,
                 '/'
             )
@@ -1559,7 +1671,7 @@ class LeadController extends Controller
         }
 
         if (
-            !is_string($mimeType)
+            ! is_string($mimeType)
             || trim($mimeType) === ''
         ) {
             $mimeType =
@@ -1572,17 +1684,14 @@ class LeadController extends Controller
             $absolutePath,
             [
                 'Content-Type' => $mimeType,
-                'Content-Disposition' =>
-                    'inline; filename="'
+                'Content-Disposition' => 'inline; filename="'
                     .addcslashes(
                         $fileName,
-                        "\"\\"
+                        '"\\'
                     )
                     .'"',
-                'X-Content-Type-Options' =>
-                    'nosniff',
-                'Cache-Control' =>
-                    'private, no-store, max-age=0',
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'private, no-store, max-age=0',
                 'Pragma' => 'no-cache',
             ]
         );
@@ -1592,15 +1701,14 @@ class LeadController extends Controller
         Request $request,
         string $lead
     ): RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
         $leadRecord = Lead::query()->findOrFail(
             (int) $lead
         );
+        Gate::authorize('update', $leadRecord);
+        $actor = $request->user();
 
         $status = LeadStatus::query()
             ->findOrFail(
@@ -1677,6 +1785,11 @@ class LeadController extends Controller
                     'string',
                     'max:100',
                 ],
+                'assigned_user_id' => [
+                    'nullable',
+                    'integer',
+                    'exists:users,id',
+                ],
                 'company_name' => [
                     'nullable',
                     'string',
@@ -1715,7 +1828,7 @@ class LeadController extends Controller
                     'max:150',
                 ],
                 'disinterest_reason' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $status->code ===
                             'not_interested'
                     ),
@@ -1724,17 +1837,17 @@ class LeadController extends Controller
                     'max:5000',
                 ],
                 'solution_type' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $isQuotationStage
                     ),
                     'nullable',
-                    \Illuminate\Validation\Rule::in([
+                    Rule::in([
                         'call_center',
                         'erp',
                     ]),
                 ],
                 'lines_count' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $isQuotationStage
                         && $solutionTypeInput ===
                             'call_center'
@@ -1745,7 +1858,7 @@ class LeadController extends Controller
                     'max:1000000',
                 ],
                 'extensions' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $isQuotationStage
                         && $solutionTypeInput ===
                             'call_center'
@@ -1755,7 +1868,7 @@ class LeadController extends Controller
                     'max:5000',
                 ],
                 'departments' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $isQuotationStage
                         && $solutionTypeInput === 'erp'
                     ),
@@ -1764,9 +1877,9 @@ class LeadController extends Controller
                     'max:5000',
                 ],
                 'quotation_file' => [
-                    \Illuminate\Validation\Rule::requiredIf(
+                    Rule::requiredIf(
                         $isQuotationStage
-                        && !$hasCurrentQuotationFile
+                        && ! $hasCurrentQuotationFile
                     ),
                     'nullable',
                     'file',
@@ -1775,35 +1888,43 @@ class LeadController extends Controller
                 ],
             ],
             [
-                'first_name.required' =>
-                    'اسم العميل الأول مطلوب.',
-                'phone.required' =>
-                    'رقم الهاتف مطلوب.',
-                'source.required' =>
-                    'المصدر مطلوب.',
-                'disinterest_reason.required' =>
-                    'سبب عدم الاهتمام مطلوب.',
-                'solution_type.required' =>
-                    'نوع النظام مطلوب.',
-                'lines_count.required' =>
-                    'عدد الخطوط مطلوب.',
-                'extensions.required' =>
-                    'تفاصيل الملحقات مطلوبة.',
-                'departments.required' =>
-                    'الأقسام المطلوبة مطلوبة.',
-                'quotation_file.required' =>
-                    'ملف عرض السعر مطلوب.',
-                'quotation_file.max' =>
-                    'الحد الأقصى لملف عرض السعر 2MB.',
-                'quotation_file.mimes' =>
-                    'صيغة ملف عرض السعر غير مدعومة.',
+                'first_name.required' => 'اسم العميل الأول مطلوب.',
+                'phone.required' => 'رقم الهاتف مطلوب.',
+                'source.required' => 'المصدر مطلوب.',
+                'disinterest_reason.required' => 'سبب عدم الاهتمام مطلوب.',
+                'solution_type.required' => 'نوع النظام مطلوب.',
+                'lines_count.required' => 'عدد الخطوط مطلوب.',
+                'extensions.required' => 'تفاصيل الملحقات مطلوبة.',
+                'departments.required' => 'الأقسام المطلوبة مطلوبة.',
+                'quotation_file.required' => 'ملف عرض السعر مطلوب.',
+                'quotation_file.max' => 'الحد الأقصى لملف عرض السعر 2MB.',
+                'quotation_file.mimes' => 'صيغة ملف عرض السعر غير مدعومة.',
             ]
         );
+        $assignmentChanged = false;
+        $assignee = null;
+
+        if (isset($validated['assigned_user_id'])) {
+            $assignee = User::query()->findOrFail(
+                (int) $validated['assigned_user_id']
+            );
+            $assignmentChanged = (int) $leadRecord->assigned_user_id
+                !== (int) $assignee->id;
+
+            if ($assignmentChanged) {
+                abort_unless(
+                    $actor->hasPermission(CrmPermission::LEADS_ASSIGN)
+                    && LeadAssignment::canAssignTo($actor, $assignee),
+                    403,
+                    'You cannot reassign this lead to the selected user.'
+                );
+            }
+        }
 
         $nullableText = static function (
             mixed $value
         ): ?string {
-            if (!is_string($value)) {
+            if (! is_string($value)) {
                 return null;
             }
 
@@ -1847,7 +1968,7 @@ class LeadController extends Controller
                 );
 
             if (
-                !is_string($storedPath)
+                ! is_string($storedPath)
                 || trim($storedPath) === ''
             ) {
                 throw new \RuntimeException(
@@ -1911,8 +2032,7 @@ class LeadController extends Controller
                 )
                 : null,
 
-            'disinterest_reason' =>
-                $status->code === 'not_interested'
+            'disinterest_reason' => $status->code === 'not_interested'
                     ? $nullableText(
                         $validated[
                             'disinterest_reason'
@@ -1954,17 +2074,27 @@ class LeadController extends Controller
                 )
                 : null,
 
-            'quotation_sent' =>
-                $isQuotationStage,
+            'quotation_sent' => $isQuotationStage,
 
-            'quotation_file_path' =>
-                $newQuotationPath
+            'quotation_file_path' => $newQuotationPath
                 ?? (
                     $hasCurrentQuotationFile
                         ? $currentQuotationPath
                         : null
                 ),
         ];
+        if ($assignmentChanged && $assignee !== null) {
+            $assignedEmployee = trim((string) $assignee->name);
+
+            abort_if(
+                $assignedEmployee === '',
+                403,
+                'Assignee identity is required.'
+            );
+
+            $leadData['assigned_user_id'] = $assignee->id;
+            $leadData['assigned_employee'] = $assignedEmployee;
+        }
 
         try {
             DB::transaction(
@@ -2012,15 +2142,13 @@ class LeadController extends Controller
     public function destroy(
         string $lead
     ): RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
         $leadRecord = Lead::query()->findOrFail(
             (int) $lead
         );
+        Gate::authorize('delete', $leadRecord);
 
         $leadName = trim(
             (string) $leadRecord->name
@@ -2076,7 +2204,7 @@ class LeadController extends Controller
 
         $lastRow = count($rows) + 1;
 
-        $worksheetWriter = new \XMLWriter();
+        $worksheetWriter = new \XMLWriter;
 
         $worksheetWriter->openMemory();
 
@@ -2269,8 +2397,7 @@ class LeadController extends Controller
             }
 
             foreach (
-                array_keys($headers)
-                as $columnIndex
+                array_keys($headers) as $columnIndex
             ) {
                 $cellReference =
                     $this->xlsxColumnName(
@@ -2299,7 +2426,7 @@ class LeadController extends Controller
                 );
 
                 if (
-                    !$isHeader
+                    ! $isHeader
                     && (
                         is_int($value)
                         || is_float($value)
@@ -2524,7 +2651,7 @@ XML;
             .'</dcterms:modified>'
             .'</cp:coreProperties>';
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
 
         $openResult = $zip->open(
             $path,
@@ -2544,7 +2671,7 @@ XML;
             string $contents
         ): void {
             if (
-                !$archive->addFromString(
+                ! $archive->addFromString(
                     $name,
                     $contents
                 )
@@ -2605,7 +2732,7 @@ XML;
                 $applicationProperties
             );
 
-            if (!$zip->close()) {
+            if (! $zip->close()) {
                 throw new \RuntimeException(
                     'Could not finalize the XLSX archive.'
                 );
@@ -2650,14 +2777,6 @@ XML;
 
     private function assertCrmV2Database(): void
     {
-        $databaseName = (string) DB::connection()
-            ->getDatabaseName();
-
-        abort_unless(
-            $databaseName === 'sokrat_crm_v2',
-            500,
-            'CRM v2 database isolation check failed.'
-        );
+        CrmDatabaseGuard::ensureConnected();
     }
-
 }

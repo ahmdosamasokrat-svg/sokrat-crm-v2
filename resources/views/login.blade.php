@@ -1,15 +1,19 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <title>SokratCRM - تسجيل الدخول</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+    @once
+    <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+    @endonce
     <style>
         * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: Arial, Tahoma, sans-serif;
+            font-family: var(--font-primary);
             background: #f3f5f9;
             color: #111827;
             display: grid;
@@ -94,11 +98,11 @@
             <div class="error">بيانات الدخول غير صحيحة</div>
         @endif
 
-        <label>اسم المستخدم</label>
-        <input name="username" autocomplete="username" autofocus>
+        <label for="username">{{ __('crm.username_label') }}</label>
+        <input id="username" name="username" value="{{ old('username') }}" autocomplete="username" required autofocus>
 
-        <label>كلمة المرور</label>
-        <input name="password" type="password" autocomplete="current-password">
+        <label for="password">كلمة المرور</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
 
         <button type="submit">تسجيل الدخول</button>
     </form>

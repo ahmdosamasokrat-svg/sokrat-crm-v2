@@ -148,6 +148,11 @@ class QuotationController extends Controller
                     'string',
                 ],
 
+                'financialNote' => [
+                    'nullable',
+                    'string',
+                ],
+
                 'includeProducts' => [
                     'required',
                     'boolean',
@@ -252,13 +257,47 @@ class QuotationController extends Controller
                     'string',
                 ],
 
+                'items.*.inFinancial' => [
+                    'nullable',
+                    'boolean',
+                ],
+
                 'items.*.showProduct' => [
                     'required',
                     'boolean',
                 ],
+
+                'adjustments' => [
+                    'nullable',
+                    'array',
+                    'max:100',
+                ],
+
+                'adjustments.*.label' => [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+
+                'adjustments.*.operation' => [
+                    'required',
+                    'in:add,subtract',
+                ],
+
+                'adjustments.*.mode' => [
+                    'required',
+                    'in:amount,percent',
+                ],
+
+                'adjustments.*.value' => [
+                    'required',
+                    'numeric',
+                    'min:0',
+                    'max:999999999.99',
+                ],
             ]);
 
-        $grandTotal = 0.0;
+        $subtotal = 0.0;
 
         foreach (
             $validated['items']
@@ -272,12 +311,53 @@ class QuotationController extends Controller
                 (float)
                 $item['price'];
 
-            $grandTotal +=
-                $item['qty']
-                * $item['price'];
+            $item['inFinancial'] =
+                array_key_exists(
+                    'inFinancial',
+                    $item
+                )
+                    ? (bool) $item['inFinancial']
+                    : true;
+
+            if ($item['inFinancial']) {
+                $subtotal +=
+                    $item['qty']
+                    * $item['price'];
+            }
         }
 
         unset($item);
+
+        $validated['adjustments'] =
+            $validated['adjustments'] ?? [];
+
+        $adjustmentTotal = 0.0;
+
+        foreach (
+            $validated['adjustments']
+            as &$adjustment
+        ) {
+            $adjustment['value'] =
+                (float)
+                $adjustment['value'];
+
+            $amount =
+                $adjustment['mode'] === 'percent'
+                    ? $subtotal * $adjustment['value'] / 100
+                    : $adjustment['value'];
+
+            $adjustmentTotal +=
+                $adjustment['operation'] === 'subtract'
+                    ? -$amount
+                    : $amount;
+        }
+
+        unset($adjustment);
+
+        $grandTotal = max(
+            0,
+            $subtotal + $adjustmentTotal
+        );
 
         $quotation =
             Quotation::create([
@@ -321,9 +401,9 @@ class QuotationController extends Controller
                     $validated,
 
                 'created_by' =>
-                    session(
-                        'crm_v2_user'
-                    ),
+                    auth()->user()->name,
+                'created_by_user_id' =>
+                    $request->user()->id,
             ]);
 
         return response()->json(

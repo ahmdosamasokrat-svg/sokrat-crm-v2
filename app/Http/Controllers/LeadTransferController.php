@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Campaign;
 use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
-use Carbon\Carbon;
+use App\Models\User;
+use App\Security\CrmPermission;
+use App\Security\LeadAssignment;
+use App\Support\CrmDatabaseGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use XMLWriter;
@@ -25,28 +30,29 @@ class LeadTransferController extends Controller
 
     private const PREVIEW_LIFETIME_SECONDS = 7200;
 
-    public function importIndex(): View|RedirectResponse
-    {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
+    public function importIndex(
+        Request $request
+    ): View|RedirectResponse {
 
         $this->assertCrmV2Database();
+
+        $campaign = $this->campaignFromRequest(
+            $request,
+            $request->query('campaign')
+        );
 
         return view(
             'leads.import',
             [
                 'statuses' => $this->statuses(),
                 'preview' => null,
+                'campaign' => $campaign,
             ]
         );
     }
 
     public function importTemplate(): BinaryFileResponse|RedirectResponse
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
         $this->assertXlsxSupport();
@@ -63,28 +69,41 @@ class LeadTransferController extends Controller
     public function importPreview(
         Request $request
     ): View|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
-        $request->validate(
+        $validator = Validator::make(
+            $request->all(),
             [
                 'import_file' => [
                     'required',
                     'file',
                     'max:5120',
                 ],
+                'campaign_id' => [
+                    'nullable',
+                    'integer',
+                    'exists:campaigns,id',
+                ],
             ],
             [
-                'import_file.required' =>
-                    'اختر ملف العملاء أولًا.',
-                'import_file.file' =>
-                    'ملف الاستيراد غير صحيح.',
-                'import_file.max' =>
-                    'الحد الأقصى لملف الاستيراد 5MB.',
+                'import_file.required' => 'اختر ملف العملاء أولًا.',
+                'import_file.file' => 'ملف الاستيراد غير صحيح.',
+                'import_file.max' => 'الحد الأقصى لملف الاستيراد 5MB.',
             ]
+        );
+
+        if ($validator->fails()) {
+            return $this->importPageRedirect($request)
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $validator->validated();
+
+        $campaign = $this->campaignFromRequest(
+            $request,
+            $validated['campaign_id'] ?? null
         );
 
         $file = $request->file(
@@ -92,10 +111,9 @@ class LeadTransferController extends Controller
         );
 
         if ($file === null) {
-            return back()->withErrors(
+            return $this->importPageRedirect($request)->withErrors(
                 [
-                    'import_file' =>
-                        'تعذر قراءة ملف الاستيراد.',
+                    'import_file' => 'تعذر قراءة ملف الاستيراد.',
                 ]
             );
         }
@@ -109,7 +127,7 @@ class LeadTransferController extends Controller
         );
 
         if (
-            !in_array(
+            ! in_array(
                 $extension,
                 [
                     'xlsx',
@@ -118,10 +136,9 @@ class LeadTransferController extends Controller
                 true
             )
         ) {
-            return back()->withErrors(
+            return $this->importPageRedirect($request)->withErrors(
                 [
-                    'import_file' =>
-                        'الملفات المدعومة هي XLSX و CSV فقط.',
+                    'import_file' => 'الملفات المدعومة هي XLSX و CSV فقط.',
                 ]
             );
         }
@@ -134,14 +151,14 @@ class LeadTransferController extends Controller
 
             $preview =
                 $this->buildImportPreview(
-                    $rows
+                    $rows,
+                    $campaign?->id
                 );
         } catch (\Throwable $exception) {
-            return back()
+            return $this->importPageRedirect($request)
                 ->withErrors(
                     [
-                        'import_file' =>
-                            $exception->getMessage(),
+                        'import_file' => $exception->getMessage(),
                     ]
                 );
         }
@@ -151,16 +168,31 @@ class LeadTransferController extends Controller
             [
                 'statuses' => $this->statuses(),
                 'preview' => $preview,
+                'campaign' => $campaign,
             ]
+        );
+    }
+
+    private function importPageRedirect(
+        Request $request
+    ): RedirectResponse {
+        $campaignId = filter_var(
+            $request->input('campaign_id'),
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 1]],
+        );
+
+        return redirect()->route(
+            'v2.leads.import',
+            $campaignId === false
+                ? []
+                : ['campaign' => $campaignId],
         );
     }
 
     public function importConfirm(
         Request $request
     ): RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
@@ -173,10 +205,8 @@ class LeadTransferController extends Controller
                 ],
             ],
             [
-                'preview_token.required' =>
-                    'جلسة المعاينة غير موجودة.',
-                'preview_token.regex' =>
-                    'جلسة المعاينة غير صحيحة.',
+                'preview_token.required' => 'جلسة المعاينة غير موجودة.',
+                'preview_token.regex' => 'جلسة المعاينة غير صحيحة.',
             ]
         );
 
@@ -187,13 +217,12 @@ class LeadTransferController extends Controller
             $token
         );
 
-        if (!is_file($path)) {
+        if (! is_file($path)) {
             return redirect()
                 ->route('v2.leads.import')
                 ->withErrors(
                     [
-                        'import_file' =>
-                            'انتهت جلسة المعاينة. '
+                        'import_file' => 'انتهت جلسة المعاينة. '
                             .'ارفع الملف من جديد.',
                     ]
                 );
@@ -211,25 +240,27 @@ class LeadTransferController extends Controller
                 ->route('v2.leads.import')
                 ->withErrors(
                     [
-                        'import_file' =>
-                            'تعذر قراءة جلسة المعاينة. '
+                        'import_file' => 'تعذر قراءة جلسة المعاينة. '
                             .'ارفع الملف من جديد.',
                     ]
                 );
         }
 
         if (
-            !is_array($payload)
+            ! is_array($payload)
             || ($payload['version'] ?? null) !== 1
-            || ($payload['session_id'] ?? '')
-                !== session()->getId()
+            || (
+                ($payload['session_id'] ?? '')
+                    !== session()->getId()
+                && (int) ($payload['user_id'] ?? 0)
+                    !== (int) $request->user()->id
+            )
         ) {
             return redirect()
                 ->route('v2.leads.import')
                 ->withErrors(
                     [
-                        'import_file' =>
-                            'جلسة المعاينة لا تخص '
+                        'import_file' => 'جلسة المعاينة لا تخص '
                             .'جلسة المستخدم الحالية.',
                     ]
                 );
@@ -250,36 +281,43 @@ class LeadTransferController extends Controller
                 ->route('v2.leads.import')
                 ->withErrors(
                     [
-                        'import_file' =>
-                            'انتهت صلاحية المعاينة. '
+                        'import_file' => 'انتهت صلاحية المعاينة. '
                             .'ارفع الملف من جديد.',
                     ]
                 );
         }
 
+        $campaign = $this->campaignFromRequest(
+            $request,
+            $payload['campaign_id'] ?? null
+        );
+
         $rows = $payload['rows'] ?? [];
 
         if (
-            !is_array($rows)
+            ! is_array($rows)
             || $rows === []
         ) {
             return redirect()
                 ->route('v2.leads.import')
                 ->withErrors(
                     [
-                        'import_file' =>
-                            'لا توجد صفوف صالحة للاستيراد.',
+                        'import_file' => 'لا توجد صفوف صالحة للاستيراد.',
                     ]
                 );
         }
 
+        $actor = $request->user();
         $result = DB::transaction(
-            function () use ($rows): array {
+            function () use (
+                $rows,
+                $actor,
+                $campaign
+            ): array {
                 $statusIds = LeadStatus::query()
                     ->pluck('id')
                     ->map(
-                        static fn ($id): int =>
-                            (int) $id
+                        static fn ($id): int => (int) $id
                     )
                     ->flip();
 
@@ -293,8 +331,7 @@ class LeadTransferController extends Controller
                     ]);
 
                 foreach (
-                    $existingLeads
-                    as $existingLead
+                    $existingLeads as $existingLead
                 ) {
                     $phone = $this
                         ->normalizePhone(
@@ -314,9 +351,9 @@ class LeadTransferController extends Controller
 
                 foreach ($rows as $row) {
                     if (
-                        !is_array($row)
-                        || !isset($row['data'])
-                        || !is_array($row['data'])
+                        ! is_array($row)
+                        || ! isset($row['data'])
+                        || ! is_array($row['data'])
                     ) {
                         continue;
                     }
@@ -328,7 +365,7 @@ class LeadTransferController extends Controller
 
                     if (
                         $statusId <= 0
-                        || !$statusIds->has(
+                        || ! $statusIds->has(
                             $statusId
                         )
                     ) {
@@ -337,6 +374,26 @@ class LeadTransferController extends Controller
                             .'في المعاينة لم تعد متاحة.'
                         );
                     }
+                    $assigneeId = (int) (
+                        $data['assigned_user_id'] ?? 0
+                    );
+                    $assignee = User::query()
+                        ->with('groups:id')
+                        ->find($assigneeId);
+
+                    if (
+                        $assignee === null
+                        || ! LeadAssignment::canAssignTo($actor, $assignee)
+                    ) {
+                        throw new \RuntimeException(
+                            'لم تعد تملك صلاحية إسناد أحد العملاء إلى الموظف المحدد.'
+                        );
+                    }
+
+                    $data['assigned_user_id'] = $assignee->id;
+                    $data['assigned_employee'] = $assignee->name;
+                    $data['created_by_user_id'] = $actor->id;
+                    $data['created_by'] = $actor->name;
 
                     $phone = $this
                         ->normalizePhone(
@@ -353,12 +410,19 @@ class LeadTransferController extends Controller
                         )
                     ) {
                         $skipped++;
+
                         continue;
                     }
 
-                    Lead::query()->create(
+                    $lead = Lead::query()->create(
                         $data
                     );
+
+                    if ($campaign !== null) {
+                        $campaign->leads()->attach(
+                            $lead->id
+                        );
+                    }
 
                     $existingPhones[
                         $phone
@@ -389,61 +453,67 @@ class LeadTransferController extends Controller
                 .'أصبح موجودًا بالفعل.';
         }
 
-        return redirect()
-            ->route('v2.leads.import')
+        $redirect = $campaign !== null
+            ? route('v2.campaigns.show', $campaign)
+            : route('v2.leads.import');
+
+        return redirect($redirect)
             ->with(
                 'success',
                 $message
             );
     }
 
-    public function exportIndex(): View|RedirectResponse
+    public function exportIndex(Request $request): View|RedirectResponse
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
+        $user = $request->user();
 
         $sources = Lead::query()
+            ->accessibleTo($user)
             ->whereNotNull('source')
             ->where('source', '<>', '')
             ->distinct()
             ->orderBy('source')
             ->pluck('source');
 
-        $employees = Lead::query()
-            ->whereNotNull(
-                'assigned_employee'
-            )
-            ->where(
-                'assigned_employee',
-                '<>',
-                ''
-            )
+        $visibleAssignedUserIds = Lead::query()
+            ->accessibleTo($user)
+            ->whereNotNull('assigned_user_id')
             ->distinct()
-            ->orderBy(
-                'assigned_employee'
+            ->pluck('assigned_user_id');
+
+        $employees = User::query()
+            ->whereIn('id', $visibleAssignedUserIds)
+            ->orderBy('name')
+            ->pluck('name')
+            ->merge(
+                Lead::query()
+                    ->accessibleTo($user)
+                    ->whereNull('assigned_user_id')
+                    ->whereNotNull('assigned_employee')
+                    ->where('assigned_employee', '<>', '')
+                    ->pluck('assigned_employee')
             )
-            ->pluck(
-                'assigned_employee'
-            );
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
 
         return view(
             'leads.export',
             [
-                'statuses' =>
-                    $this->statuses(),
-                'stages' =>
-                    PipelineStage::query()
-                        ->orderBy('position')
-                        ->get(),
+                'statuses' => $this->statuses(),
+                'stages' => PipelineStage::query()
+                    ->orderBy('position')
+                    ->get(),
                 'sources' => $sources,
                 'employees' => $employees,
-                'columns' =>
-                    $this->exportColumns(),
-                'totalLeads' =>
-                    Lead::query()->count(),
+                'columns' => $this->exportColumns(),
+                'totalLeads' => Lead::query()
+                    ->accessibleTo($user)
+                    ->count(),
             ]
         );
     }
@@ -451,9 +521,6 @@ class LeadTransferController extends Controller
     public function exportDownload(
         Request $request
     ): BinaryFileResponse|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
         $this->assertXlsxSupport();
@@ -521,29 +588,25 @@ class LeadTransferController extends Controller
                 ],
             ],
             [
-                'columns.required' =>
-                    'اختر عمودًا واحدًا على الأقل.',
-                'columns.min' =>
-                    'اختر عمودًا واحدًا على الأقل.',
-                'columns.*.in' =>
-                    'أحد أعمدة التصدير غير صحيح.',
-                'date_from.date_format' =>
-                    'تاريخ البداية غير صحيح.',
-                'date_to.date_format' =>
-                    'تاريخ النهاية غير صحيح.',
-                'date_to.after_or_equal' =>
-                    'تاريخ النهاية يجب أن يكون '
+                'columns.required' => 'اختر عمودًا واحدًا على الأقل.',
+                'columns.min' => 'اختر عمودًا واحدًا على الأقل.',
+                'columns.*.in' => 'أحد أعمدة التصدير غير صحيح.',
+                'date_from.date_format' => 'تاريخ البداية غير صحيح.',
+                'date_to.date_format' => 'تاريخ النهاية غير صحيح.',
+                'date_to.after_or_equal' => 'تاريخ النهاية يجب أن يكون '
                     .'بعد أو مساويًا لتاريخ البداية.',
             ]
         );
 
         $query = Lead::query()
+            ->accessibleTo($request->user())
             ->with([
                 'status.stage',
+                'assignedUser:id,name',
             ]);
 
         if (
-            !empty(
+            ! empty(
                 $validated['status_id']
             )
         ) {
@@ -555,7 +618,7 @@ class LeadTransferController extends Controller
         }
 
         if (
-            !empty(
+            ! empty(
                 $validated['stage_id']
             )
         ) {
@@ -576,23 +639,32 @@ class LeadTransferController extends Controller
         }
 
         if (
-            !empty(
+            ! empty(
                 $validated['employee']
             )
         ) {
+            $employee = trim(
+                (string) $validated['employee']
+            );
+
             $query->where(
-                'assigned_employee',
-                trim(
-                    (string)
-                        $validated[
-                            'employee'
-                        ]
-                )
+                function ($employeeQuery) use ($employee): void {
+                    $employeeQuery
+                        ->whereHas(
+                            'assignedUser',
+                            static fn ($userQuery) => $userQuery->where('name', $employee)
+                        )
+                        ->orWhere(
+                            static fn ($legacyQuery) => $legacyQuery
+                                ->whereNull('assigned_user_id')
+                                ->where('assigned_employee', $employee)
+                        );
+                }
             );
         }
 
         if (
-            !empty(
+            ! empty(
                 $validated['source']
             )
         ) {
@@ -608,7 +680,7 @@ class LeadTransferController extends Controller
         }
 
         if (
-            !empty(
+            ! empty(
                 $validated['date_from']
             )
         ) {
@@ -623,7 +695,7 @@ class LeadTransferController extends Controller
         }
 
         if (
-            !empty(
+            ! empty(
                 $validated['date_to']
             )
         ) {
@@ -645,8 +717,7 @@ class LeadTransferController extends Controller
                 ->withInput()
                 ->withErrors(
                     [
-                        'export' =>
-                            'لا توجد عملاء مطابقون '
+                        'export' => 'لا توجد عملاء مطابقون '
                             .'للفلاتر المختارة.',
                     ]
                 );
@@ -660,8 +731,7 @@ class LeadTransferController extends Controller
                 ->withInput()
                 ->withErrors(
                     [
-                        'export' =>
-                            'عدد العملاء المطابقين '
+                        'export' => 'عدد العملاء المطابقين '
                             .'أكبر من '
                             .self::MAX_EXPORT_ROWS
                             .'. قلل النطاق باستخدام '
@@ -676,8 +746,7 @@ class LeadTransferController extends Controller
             );
 
         $headers = array_map(
-            static fn (string $key): string =>
-                $columns[$key],
+            static fn (string $key): string => $columns[$key],
             $selectedColumns
         );
 
@@ -691,8 +760,7 @@ class LeadTransferController extends Controller
             $row = [];
 
             foreach (
-                $selectedColumns
-                as $column
+                $selectedColumns as $column
             ) {
                 $row[] =
                     $this->exportValue(
@@ -726,48 +794,26 @@ class LeadTransferController extends Controller
     private function importColumns(): array
     {
         return [
-            'first_name' =>
-                'اسم العميل الأول',
-            'last_name' =>
-                'اسم العميل الأخير',
-            'phone' =>
-                'الهاتف',
-            'email' =>
-                'البريد الإلكتروني',
-            'company_name' =>
-                'اسم الشركة',
-            'activity' =>
-                'النشاط',
-            'governorate' =>
-                'المحافظة',
-            'address' =>
-                'العنوان',
-            'users_count' =>
-                'عدد المستخدمين',
-            'branches_count' =>
-                'عدد الفروع',
-            'job_title' =>
-                'المنصب',
-            'source' =>
-                'المصدر',
-            'status' =>
-                'الحالة',
-            'next_follow_up_at' =>
-                'موعد المتابعة القادمة',
-            'solution_type' =>
-                'نوع النظام',
-            'lines_count' =>
-                'عدد الخطوط',
-            'extensions' =>
-                'الملحقات',
-            'departments' =>
-                'الأقسام',
-            'disinterest_reason' =>
-                'سبب عدم الاهتمام',
-            'assigned_employee' =>
-                'الموظف المسؤول',
-            'notes' =>
-                'ملاحظات',
+            'first_name' => 'اسم العميل الأول',
+            'last_name' => 'اسم العميل الأخير',
+            'phone' => 'الهاتف',
+            'email' => 'البريد الإلكتروني',
+            'company_name' => 'اسم الشركة',
+            'activity' => 'النشاط',
+            'governorate' => 'المحافظة',
+            'address' => 'العنوان',
+            'users_count' => 'عدد المستخدمين',
+            'branches_count' => 'عدد الفروع',
+            'job_title' => 'المنصب',
+            'source' => 'المصدر',
+            'status' => 'الحالة',
+            'solution_type' => 'نوع النظام',
+            'lines_count' => 'عدد الخطوط',
+            'extensions' => 'الملحقات',
+            'departments' => 'الأقسام',
+            'disinterest_reason' => 'سبب عدم الاهتمام',
+            'assigned_employee' => 'الموظف المسؤول',
+            'notes' => 'ملاحظات',
         ];
     }
 
@@ -855,13 +901,6 @@ class LeadTransferController extends Controller
                 'status code',
             ],
 
-            'next_follow_up_at' => [
-                'موعد المتابعة القادمة',
-                'المتابعة القادمة',
-                'next_follow_up_at',
-                'next follow up',
-            ],
-
             'solution_type' => [
                 'نوع النظام',
                 'solution_type',
@@ -906,8 +945,7 @@ class LeadTransferController extends Controller
         $map = [];
 
         foreach (
-            $aliases
-            as $key => $values
+            $aliases as $key => $values
         ) {
             foreach ($values as $value) {
                 $map[
@@ -922,7 +960,8 @@ class LeadTransferController extends Controller
     }
 
     private function buildImportPreview(
-        array $rows
+        array $rows,
+        ?int $campaignId = null
     ): array {
         if ($rows === []) {
             throw new \RuntimeException(
@@ -960,8 +999,7 @@ class LeadTransferController extends Controller
         $ignoredHeaders = [];
 
         foreach (
-            $headerRow
-            as $columnIndex => $header
+            $headerRow as $columnIndex => $header
         ) {
             $headerText = trim(
                 (string) $header
@@ -977,7 +1015,7 @@ class LeadTransferController extends Controller
                 );
 
             if (
-                !isset(
+                ! isset(
                     $aliasMap[
                         $normalized
                     ]
@@ -985,6 +1023,7 @@ class LeadTransferController extends Controller
             ) {
                 $ignoredHeaders[] =
                     $headerText;
+
                 continue;
             }
 
@@ -1013,7 +1052,7 @@ class LeadTransferController extends Controller
             ] as $requiredHeader
         ) {
             if (
-                !isset(
+                ! isset(
                     $indexes[
                         $requiredHeader
                     ]
@@ -1052,25 +1091,66 @@ class LeadTransferController extends Controller
         foreach ($statuses as $status) {
             $statusMap[
                 $this->normalizeToken(
-                    (string)
-                        $status->code
+                    (string) $status->code
                 )
             ] = $status;
 
             $statusMap[
                 $this->normalizeToken(
-                    (string)
-                        $status->name_ar
+                    (string) $status->name_ar
                 )
             ] = $status;
+        }
+
+        $actor = auth()->user();
+        $userIdMap = [];
+
+        $assignableUsers =
+            LeadAssignment::assignableUsers($actor);
+
+        if ($campaignId !== null) {
+            $campaignUserIds = Campaign::query()
+                ->findOrFail($campaignId)
+                ->users()
+                ->pluck('users.id')
+                ->push($actor->id)
+                ->map(
+                    static fn ($id): int => (int) $id
+                )
+                ->unique();
+
+            $assignableUsers = $assignableUsers
+                ->whereIn('id', $campaignUserIds);
+        }
+
+        foreach (
+            $assignableUsers as $user
+        ) {
+            foreach (
+                [
+                    $user->name,
+                    $user->username,
+                ] as $identity
+            ) {
+                $token = $this->normalizeToken(
+                    (string) $identity
+                );
+
+                if (
+                    $token !== ''
+                    && ! isset($userIdMap[$token])
+                ) {
+                    $userIdMap[$token] =
+                        (int) $user->id;
+                }
+            }
         }
 
         $existingPhones = [];
 
         foreach (
             Lead::query()
-                ->pluck('phone')
-            as $phone
+                ->pluck('phone') as $phone
         ) {
             $normalized =
                 $this->normalizePhone(
@@ -1094,11 +1174,10 @@ class LeadTransferController extends Controller
         $duplicateCount = 0;
 
         foreach (
-            $dataRows
-            as $offset => $row
+            $dataRows as $offset => $row
         ) {
             if (
-                !$this->rowHasContent(
+                ! $this->rowHasContent(
                     $row
                 )
             ) {
@@ -1117,7 +1196,7 @@ class LeadTransferController extends Controller
                 $indexes
             ): string {
                 if (
-                    !isset(
+                    ! isset(
                         $indexes[$key]
                     )
                 ) {
@@ -1271,14 +1350,6 @@ class LeadTransferController extends Controller
                     $errors
                 );
 
-            $nextFollowUpAt =
-                $this->parseDate(
-                    $value(
-                        'next_follow_up_at'
-                    ),
-                    $errors
-                );
-
             $solutionType =
                 $this->parseSolutionType(
                     $value(
@@ -1338,7 +1409,6 @@ class LeadTransferController extends Controller
                         'disinterest_reason'
                     )
                 );
-
             $assignedEmployee =
                 $this->nullableText(
                     $value(
@@ -1347,6 +1417,15 @@ class LeadTransferController extends Controller
                 )
                 ?? $this
                     ->currentEmployeeName();
+
+            $assignedUserId = $userIdMap[
+                $this->normalizeToken($assignedEmployee)
+            ] ?? null;
+
+            if ($assignedUserId === null) {
+                $errors[] =
+                    'لا تملك صلاحية الإسناد إلى الموظف المسؤول المحدد.';
+            }
 
             $notes =
                 $this->nullableText(
@@ -1524,137 +1603,99 @@ class LeadTransferController extends Controller
 
             if ($state === 'valid') {
                 $leadData = [
-                    'lead_status_id' =>
-                        (int) $status->id,
+                    'lead_status_id' => (int) $status->id,
 
-                    'name' =>
-                        $fullName,
+                    'name' => $fullName,
 
-                    'first_name' =>
-                        $firstName,
+                    'first_name' => $firstName,
 
-                    'last_name' =>
-                        $lastName,
+                    'last_name' => $lastName,
 
-                    'company_name' =>
-                        $companyName,
+                    'company_name' => $companyName,
 
-                    'activity' =>
-                        $activity,
+                    'activity' => $activity,
 
-                    'governorate' =>
-                        $governorate,
+                    'governorate' => $governorate,
 
-                    'address' =>
-                        $address,
+                    'address' => $address,
 
-                    'users_count' =>
-                        $usersCount,
+                    'users_count' => $usersCount,
 
-                    'branches_count' =>
-                        $branchesCount,
+                    'branches_count' => $branchesCount,
 
-                    'job_title' =>
-                        $jobTitle,
+                    'job_title' => $jobTitle,
 
-                    'disinterest_reason' =>
-                        $disinterestReason,
+                    'disinterest_reason' => $disinterestReason,
 
-                    'solution_type' =>
-                        $solutionType,
+                    'solution_type' => $solutionType,
 
-                    'lines_count' =>
-                        $solutionType
+                    'lines_count' => $solutionType
                             === 'call_center'
                             ? $linesCount
                             : null,
 
-                    'extensions' =>
-                        $solutionType
+                    'extensions' => $solutionType
                             === 'call_center'
                             ? $extensions
                             : null,
 
-                    'departments' =>
-                        $solutionType
+                    'departments' => $solutionType
                             === 'erp'
                             ? $departments
                             : null,
 
-                    'quotation_file_path' =>
-                        null,
+                    'quotation_file_path' => null,
 
-                    'phone' =>
-                        $phone,
+                    'phone' => $phone,
 
-                    'email' =>
-                        $email,
+                    'email' => $email,
 
-                    'source' =>
-                        $source,
+                    'source' => $source,
 
-                    'quotation_sent' =>
-                        false,
+                    'quotation_sent' => false,
 
-                    'assigned_employee' =>
-                        $assignedEmployee,
+                    'assigned_employee' => $assignedEmployee,
 
-                    'created_by' =>
-                        $this
-                            ->currentEmployeeName(),
+                    'assigned_user_id' => $assignedUserId,
 
-                    'notes' =>
-                        $notes,
+                    'created_by' => $actor->name,
 
-                    'next_follow_up_at' =>
-                        $nextFollowUpAt,
+                    'created_by_user_id' => (int) $actor->id,
+
+                    'notes' => $notes,
                 ];
 
                 $validPayloadRows[] = [
-                    'row_number' =>
-                        $excelRowNumber,
+                    'row_number' => $excelRowNumber,
                     'data' => $leadData,
                 ];
             }
 
             $previewRows[] = [
-                'row_number' =>
-                    $excelRowNumber,
+                'row_number' => $excelRowNumber,
 
-                'name' =>
-                    $fullName !== ''
+                'name' => $fullName !== ''
                         ? $fullName
                         : '----',
 
-                'phone' =>
-                    $phone !== ''
+                'phone' => $phone !== ''
                         ? $phone
                         : '----',
 
-                'status' =>
-                    $status?->name_ar
+                'status' => $status?->name_ar
                     ?? $statusInput,
 
-                'stage' =>
-                    $status?->stage
-                        ?->name_ar
+                'stage' => $status?->stage
+                    ?->name_ar
                     ?? '----',
 
-                'next_follow_up_at' =>
-                    $nextFollowUpAt
-                        ?? '----',
+                'state' => $state,
 
-                'state' =>
-                    $state,
+                'duplicate_reason' => $duplicateReason,
 
-                'duplicate_reason' =>
-                    $duplicateReason,
+                'errors' => $errors,
 
-                'errors' =>
-                    $errors,
-
-                'warnings' =>
-                    $warnings,
+                'warnings' => $warnings,
             ];
         }
 
@@ -1670,27 +1711,23 @@ class LeadTransferController extends Controller
         if ($validPayloadRows !== []) {
             $token =
                 $this->writePreviewPayload(
-                    $validPayloadRows
+                    $validPayloadRows,
+                    $campaignId
                 );
         }
 
         return [
             'token' => $token,
             'rows' => $previewRows,
-            'total_count' =>
-                count($previewRows),
-            'valid_count' =>
-                $validCount,
-            'error_count' =>
-                $errorCount,
-            'duplicate_count' =>
-                $duplicateCount,
-            'ignored_headers' =>
-                array_values(
-                    array_unique(
-                        $ignoredHeaders
-                    )
-                ),
+            'total_count' => count($previewRows),
+            'valid_count' => $validCount,
+            'error_count' => $errorCount,
+            'duplicate_count' => $duplicateCount,
+            'ignored_headers' => array_values(
+                array_unique(
+                    $ignoredHeaders
+                )
+            ),
         ];
     }
 
@@ -1699,16 +1736,13 @@ class LeadTransferController extends Controller
         string $extension
     ): array {
         return match ($extension) {
-            'csv' =>
-                $this->parseCsv($path),
+            'csv' => $this->parseCsv($path),
 
-            'xlsx' =>
-                $this->parseXlsx($path),
+            'xlsx' => $this->parseXlsx($path),
 
-            default =>
-                throw new \RuntimeException(
-                    'صيغة الملف غير مدعومة.'
-                ),
+            default => throw new \RuntimeException(
+                'صيغة الملف غير مدعومة.'
+            ),
         };
     }
 
@@ -1759,8 +1793,7 @@ class LeadTransferController extends Controller
             preg_split(
                 '/\R/u',
                 $content
-            ) ?: []
-            as $line
+            ) ?: [] as $line
         ) {
             if (trim($line) !== '') {
                 $firstLine = $line;
@@ -1825,10 +1858,9 @@ class LeadTransferController extends Controller
             ) !== false
         ) {
             $rows[] = array_map(
-                static fn ($value): string =>
-                    trim(
-                        (string) $value
-                    ),
+                static fn ($value): string => trim(
+                    (string) $value
+                ),
                 $row
             );
 
@@ -1851,7 +1883,7 @@ class LeadTransferController extends Controller
     ): array {
         $this->assertXlsxSupport();
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         $opened = $zip->open($path);
 
@@ -1913,7 +1945,7 @@ class LeadTransferController extends Controller
                 );
 
             if (
-                !is_string($sheetXml)
+                ! is_string($sheetXml)
                 || $sheetXml === ''
             ) {
                 throw new \RuntimeException(
@@ -1950,8 +1982,7 @@ class LeadTransferController extends Controller
             $rows = [];
 
             foreach (
-                $main->sheetData->row
-                as $rowNode
+                $main->sheetData->row as $rowNode
             ) {
                 $cells = [];
                 $maxColumn = -1;
@@ -1959,8 +1990,7 @@ class LeadTransferController extends Controller
                 foreach (
                     $rowNode->children(
                         $mainNamespace
-                    )->c
-                    as $cell
+                    )->c as $cell
                 ) {
                     $attributes =
                         $cell->attributes();
@@ -1969,7 +1999,7 @@ class LeadTransferController extends Controller
                         ($attributes['r'] ?? '');
 
                     if (
-                        !preg_match(
+                        ! preg_match(
                             '/^([A-Z]+)\d+$/',
                             $reference,
                             $match
@@ -2041,6 +2071,7 @@ class LeadTransferController extends Controller
 
                 if ($maxColumn < 0) {
                     $rows[] = [];
+
                     continue;
                 }
 
@@ -2082,7 +2113,7 @@ class LeadTransferController extends Controller
             );
 
         if (
-            !is_string($xmlContent)
+            ! is_string($xmlContent)
             || $xmlContent === ''
         ) {
             return [];
@@ -2155,7 +2186,8 @@ class LeadTransferController extends Controller
     }
 
     private function writePreviewPayload(
-        array $rows
+        array $rows,
+        ?int $campaignId = null
     ): string {
         $directory =
             $this->previewDirectory();
@@ -2165,8 +2197,7 @@ class LeadTransferController extends Controller
         );
 
         foreach (
-            File::files($directory)
-            as $file
+            File::files($directory) as $file
         ) {
             if (
                 $file->getMTime()
@@ -2185,11 +2216,11 @@ class LeadTransferController extends Controller
         $payload = [
             'version' => 1,
             'created_at' => time(),
-            'session_id' =>
-                session()->getId(),
-            'employee' =>
-                $this
-                    ->currentEmployeeName(),
+            'session_id' => session()->getId(),
+            'user_id' => auth()->id(),
+            'employee' => $this
+                ->currentEmployeeName(),
+            'campaign_id' => $campaignId,
             'rows' => $rows,
         ];
 
@@ -2206,6 +2237,34 @@ class LeadTransferController extends Controller
         );
 
         return $token;
+    }
+
+    private function campaignFromRequest(
+        Request $request,
+        mixed $campaignId
+    ): ?Campaign {
+        $campaignId = (int) $campaignId;
+
+        if ($campaignId <= 0) {
+            return null;
+        }
+
+        $campaign = Campaign::query()
+            ->findOrFail($campaignId);
+        $actor = $request->user();
+
+        abort_unless(
+            $actor->isSuperAdmin()
+            || (
+                (int) $campaign->created_by_user_id === (int) $actor->id
+                && $actor->hasPermission(
+                    CrmPermission::CAMPAIGNS_CREATE
+                )
+            ),
+            403
+        );
+
+        return $campaign;
     }
 
     private function previewDirectory(): string
@@ -2242,7 +2301,7 @@ class LeadTransferController extends Controller
         }
 
         if (
-            !preg_match(
+            ! preg_match(
                 '/^\d+$/',
                 $value
             )
@@ -2274,79 +2333,6 @@ class LeadTransferController extends Controller
         return $number;
     }
 
-    private function parseDate(
-        string $value,
-        array &$errors
-    ): ?string {
-        $value = trim(
-            $this->normalizeDigits(
-                $value
-            )
-        );
-
-        if ($value === '') {
-            return null;
-        }
-
-        $timezone =
-            new \DateTimeZone(
-                (string)
-                    config(
-                        'app.timezone',
-                        'UTC'
-                    )
-            );
-
-        $formats = [
-            'Y-m-d H:i',
-            'Y-m-d H:i:s',
-            'Y-m-d\TH:i',
-            'd/m/Y H:i',
-            'd/m/Y H:i:s',
-        ];
-
-        foreach ($formats as $format) {
-            $date =
-                \DateTimeImmutable
-                    ::createFromFormat(
-                        '!'.$format,
-                        $value,
-                        $timezone
-                    );
-
-            $dateErrors =
-                \DateTimeImmutable
-                    ::getLastErrors();
-
-            $validErrors = (
-                $dateErrors === false
-                || (
-                    $dateErrors[
-                        'warning_count'
-                    ] === 0
-                    && $dateErrors[
-                        'error_count'
-                    ] === 0
-                )
-            );
-
-            if (
-                $date !== false
-                && $validErrors
-            ) {
-                return $date->format(
-                    'Y-m-d H:i:s'
-                );
-            }
-        }
-
-        $errors[] =
-            'موعد المتابعة القادمة غير صحيح. '
-            .'استخدم مثلًا: 2026-08-10 14:00';
-
-        return null;
-    }
-
     private function parseSolutionType(
         string $value,
         array &$errors
@@ -2361,19 +2347,14 @@ class LeadTransferController extends Controller
         }
 
         $map = [
-            'call_center' =>
-                'call_center',
-            'call center' =>
-                'call_center',
-            'callcenter' =>
-                'call_center',
-            'كول سنتر' =>
-                'call_center',
-            'erp' =>
-                'erp',
+            'call_center' => 'call_center',
+            'call center' => 'call_center',
+            'callcenter' => 'call_center',
+            'كول سنتر' => 'call_center',
+            'erp' => 'erp',
         ];
 
-        if (!isset($map[$value])) {
+        if (! isset($map[$value])) {
             $errors[] =
                 'نوع النظام يجب أن يكون '
                 .'Call Center أو ERP.';
@@ -2526,64 +2507,35 @@ class LeadTransferController extends Controller
     private function exportColumns(): array
     {
         return [
-            'id' =>
-                'رقم العميل',
-            'name' =>
-                'اسم العميل',
-            'first_name' =>
-                'الاسم الأول',
-            'last_name' =>
-                'الاسم الأخير',
-            'phone' =>
-                'الهاتف',
-            'email' =>
-                'البريد الإلكتروني',
-            'company_name' =>
-                'الشركة',
-            'activity' =>
-                'النشاط',
-            'governorate' =>
-                'المحافظة',
-            'address' =>
-                'العنوان',
-            'users_count' =>
-                'عدد المستخدمين',
-            'branches_count' =>
-                'عدد الفروع',
-            'job_title' =>
-                'المنصب',
-            'source' =>
-                'المصدر',
-            'status' =>
-                'الحالة',
-            'stage' =>
-                'المرحلة',
-            'assigned_employee' =>
-                'الموظف المسؤول',
-            'next_follow_up_at' =>
-                'المتابعة القادمة',
-            'solution_type' =>
-                'نوع النظام',
-            'lines_count' =>
-                'عدد الخطوط',
-            'extensions' =>
-                'الملحقات',
-            'departments' =>
-                'الأقسام',
-            'quotation_sent' =>
-                'عرض السعر مرسل',
-            'quotation_file' =>
-                'ملف عرض السعر',
-            'disinterest_reason' =>
-                'سبب عدم الاهتمام',
-            'notes' =>
-                'ملاحظات',
-            'created_by' =>
-                'أنشأ بواسطة',
-            'created_at' =>
-                'تاريخ الإضافة',
-            'updated_at' =>
-                'آخر تحديث',
+            'id' => 'رقم العميل',
+            'name' => 'اسم العميل',
+            'first_name' => 'الاسم الأول',
+            'last_name' => 'الاسم الأخير',
+            'phone' => 'الهاتف',
+            'email' => 'البريد الإلكتروني',
+            'company_name' => 'الشركة',
+            'activity' => 'النشاط',
+            'governorate' => 'المحافظة',
+            'address' => 'العنوان',
+            'users_count' => 'عدد المستخدمين',
+            'branches_count' => 'عدد الفروع',
+            'job_title' => 'المنصب',
+            'source' => 'المصدر',
+            'status' => 'الحالة',
+            'stage' => 'المرحلة',
+            'assigned_employee' => 'الموظف المسؤول',
+            'next_follow_up_at' => 'المتابعة القادمة',
+            'solution_type' => 'نوع النظام',
+            'lines_count' => 'عدد الخطوط',
+            'extensions' => 'الملحقات',
+            'departments' => 'الأقسام',
+            'quotation_sent' => 'عرض السعر مرسل',
+            'quotation_file' => 'ملف عرض السعر',
+            'disinterest_reason' => 'سبب عدم الاهتمام',
+            'notes' => 'ملاحظات',
+            'created_by' => 'أنشأ بواسطة',
+            'created_at' => 'تاريخ الإضافة',
+            'updated_at' => 'آخر تحديث',
         ];
     }
 
@@ -2592,149 +2544,118 @@ class LeadTransferController extends Controller
         string $column
     ): string {
         return match ($column) {
-            'id' =>
-                (string) $lead->id,
+            'id' => (string) $lead->id,
 
-            'name' =>
-                (string) $lead->name,
+            'name' => (string) $lead->name,
 
-            'first_name' =>
-                (string)
+            'first_name' => (string)
                     $lead->first_name,
 
-            'last_name' =>
-                (string)
+            'last_name' => (string)
                     $lead->last_name,
 
-            'phone' =>
-                (string) $lead->phone,
+            'phone' => (string) $lead->phone,
 
-            'email' =>
-                (string) $lead->email,
+            'email' => (string) $lead->email,
 
-            'company_name' =>
-                (string)
+            'company_name' => (string)
                     $lead->company_name,
 
-            'activity' =>
-                (string)
+            'activity' => (string)
                     $lead->activity,
 
-            'governorate' =>
-                (string)
+            'governorate' => (string)
                     $lead->governorate,
 
-            'address' =>
-                (string)
+            'address' => (string)
                     $lead->address,
 
-            'users_count' =>
-                $lead->users_count === null
+            'users_count' => $lead->users_count === null
                     ? ''
                     : (string)
                         $lead->users_count,
 
-            'branches_count' =>
-                $lead->branches_count === null
+            'branches_count' => $lead->branches_count === null
                     ? ''
                     : (string)
                         $lead->branches_count,
 
-            'job_title' =>
-                (string)
+            'job_title' => (string)
                     $lead->job_title,
 
-            'source' =>
-                (string)
+            'source' => (string)
                     $lead->source,
 
-            'status' =>
-                (string) (
-                    $lead->status
-                        ?->name_ar
-                    ?? ''
-                ),
+            'status' => (string) (
+                $lead->status
+                    ?->name_ar
+                ?? ''
+            ),
 
-            'stage' =>
-                (string) (
-                    $lead->status
-                        ?->stage
-                        ?->name_ar
-                    ?? ''
-                ),
+            'stage' => (string) (
+                $lead->status
+                    ?->stage
+                    ?->name_ar
+                ?? ''
+            ),
 
-            'assigned_employee' =>
+            'assigned_employee' => (string) (
+                $lead->assignedUser?->name
+                ?? $lead->assigned_employee
+            ),
+
+            'next_follow_up_at' => $this->formatDate(
+                $lead
+                    ->next_follow_up_at
+            ),
+
+            'solution_type' => match (
                 (string)
-                    $lead
-                        ->assigned_employee,
+                    $lead->solution_type
+            ) {
+                'call_center' => 'Call Center',
+                'erp' => 'ERP',
+                default => (string)
+                        $lead
+                            ->solution_type,
+            },
 
-            'next_follow_up_at' =>
-                $this->formatDate(
-                    $lead
-                        ->next_follow_up_at
-                ),
-
-            'solution_type' =>
-                match (
-                    (string)
-                        $lead->solution_type
-                ) {
-                    'call_center' =>
-                        'Call Center',
-                    'erp' =>
-                        'ERP',
-                    default =>
-                        (string)
-                            $lead
-                                ->solution_type,
-                },
-
-            'lines_count' =>
-                $lead->lines_count === null
+            'lines_count' => $lead->lines_count === null
                     ? ''
                     : (string)
                         $lead->lines_count,
 
-            'extensions' =>
-                (string)
+            'extensions' => (string)
                     $lead->extensions,
 
-            'departments' =>
-                (string)
+            'departments' => (string)
                     $lead->departments,
 
-            'quotation_sent' =>
-                $lead->quotation_sent
+            'quotation_sent' => $lead->quotation_sent
                     ? 'نعم'
                     : 'لا',
 
-            'quotation_file' =>
-                $this
-                    ->quotationFileLabel(
-                        $lead
-                    ),
+            'quotation_file' => $this
+                ->quotationFileLabel(
+                    $lead
+                ),
 
-            'disinterest_reason' =>
-                (string)
+            'disinterest_reason' => (string)
                     $lead
                         ->disinterest_reason,
 
-            'notes' =>
-                (string) $lead->notes,
+            'notes' => (string) $lead->notes,
 
-            'created_by' =>
-                (string)
+            'created_by' => (string)
                     $lead->created_by,
 
-            'created_at' =>
-                $this->formatDate(
-                    $lead->created_at
-                ),
+            'created_at' => $this->formatDate(
+                $lead->created_at
+            ),
 
-            'updated_at' =>
-                $this->formatDate(
-                    $lead->updated_at
-                ),
+            'updated_at' => $this->formatDate(
+                $lead->updated_at
+            ),
 
             default => '',
         };
@@ -2760,8 +2681,7 @@ class LeadTransferController extends Controller
                 return basename($path);
             }
 
-            return
-                'المسار مسجل والملف غير موجود';
+            return 'المسار مسجل والملف غير موجود';
         } catch (\Throwable) {
             return 'تعذر التحقق من الملف';
         }
@@ -2797,7 +2717,7 @@ class LeadTransferController extends Controller
         );
 
         if (
-            !is_string($temporaryFile)
+            ! is_string($temporaryFile)
             || $temporaryFile === ''
         ) {
             throw new \RuntimeException(
@@ -2817,17 +2737,13 @@ class LeadTransferController extends Controller
                     $temporaryFile,
                     $downloadName,
                     [
-                        'Content-Type' =>
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 
-                        'Cache-Control' =>
-                            'private, no-store, max-age=0',
+                        'Cache-Control' => 'private, no-store, max-age=0',
 
-                        'Pragma' =>
-                            'no-cache',
+                        'Pragma' => 'no-cache',
 
-                        'X-Content-Type-Options' =>
-                            'nosniff',
+                        'X-Content-Type-Options' => 'nosniff',
                     ]
                 )
                 ->deleteFileAfterSend(
@@ -2853,7 +2769,7 @@ class LeadTransferController extends Controller
             );
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         $result = $zip->open(
             $path,
@@ -2913,7 +2829,7 @@ XML
 XML
             );
 
-            $writer = new XMLWriter();
+            $writer = new XMLWriter;
 
             $writer->openMemory();
 
@@ -2965,8 +2881,7 @@ XML
             );
 
             foreach (
-                $allRows
-                as $rowIndex => $row
+                $allRows as $rowIndex => $row
             ) {
                 $excelRow =
                     $rowIndex + 1;
@@ -2982,8 +2897,7 @@ XML
                 );
 
                 foreach (
-                    array_values($row)
-                    as $columnIndex => $value
+                    array_values($row) as $columnIndex => $value
                 ) {
                     $cellReference =
                         $this
@@ -3034,7 +2948,7 @@ XML
                 $writer->outputMemory();
 
             if (
-                !is_string($sheetXml)
+                ! is_string($sheetXml)
                 || $sheetXml === ''
             ) {
                 throw new \RuntimeException(
@@ -3051,7 +2965,7 @@ XML
         }
 
         if (
-            !is_file($path)
+            ! is_file($path)
             || filesize($path) === 0
         ) {
             throw new \RuntimeException(
@@ -3095,8 +3009,7 @@ XML
         $number = 0;
 
         foreach (
-            str_split($letters)
-            as $letter
+            str_split($letters) as $letter
         ) {
             $number =
                 ($number * 26)
@@ -3116,10 +3029,7 @@ XML
     {
         $name = trim(
             (string)
-                session(
-                    'crm_v2_user',
-                    ''
-                )
+                auth()->user()->name
         );
 
         return $name !== ''
@@ -3130,13 +3040,13 @@ XML
     private function assertXlsxSupport(): void
     {
         if (
-            !class_exists(
+            ! class_exists(
                 ZipArchive::class
             )
-            || !class_exists(
+            || ! class_exists(
                 XMLWriter::class
             )
-            || !class_exists(
+            || ! class_exists(
                 \SimpleXMLElement::class
             )
         ) {
@@ -3149,28 +3059,6 @@ XML
 
     private function assertCrmV2Database(): void
     {
-        $database = (string)
-            DB::connection()
-                ->getDatabaseName();
-
-        $host = (string)
-            config(
-                'database.connections.mysql.host'
-            );
-
-        $user = (string)
-            config(
-                'database.connections.mysql.username'
-            );
-
-        if (
-            $database !== 'sokrat_crm_v2'
-            || $host !== '127.0.0.1'
-            || $user !== 'sokrat_crm_v2_app'
-        ) {
-            throw new \RuntimeException(
-                'CRM v2 database isolation failed.'
-            );
-        }
+        CrmDatabaseGuard::ensureConnected();
     }
 }

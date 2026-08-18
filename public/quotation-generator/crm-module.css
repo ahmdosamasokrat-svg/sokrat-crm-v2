@@ -31,7 +31,7 @@
  direction:rtl;
  background:#f4f6f9;
  color:#20283a;
- font-family:Arial,Tahoma,sans-serif
+ font-family:var(--font-primary)
 }
 
 /*
@@ -157,7 +157,7 @@
 }
 
 .crm-qmoney{
- font:900 12px Arial
+ font:900 12px var(--font-primary)
 }
 
 .crm-qempty{

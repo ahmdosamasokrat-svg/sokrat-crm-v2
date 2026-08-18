@@ -11,11 +11,20 @@ return new class extends Migration
     {
         $database = (string) DB::connection()
             ->getDatabaseName();
+        $environment = app()->environment();
+        $allowedDatabases = [
+            'production' => 'sokrat_crm_v2',
+            'testing' => 'sokrat_crm_v2_testing',
+        ];
+        $expectedDatabase = $allowedDatabases[$environment]
+            ?? null;
 
-        if ($database !== 'sokrat_crm_v2') {
-            throw new \RuntimeException(
-                'Refusing migration outside sokrat_crm_v2.'
-            );
+        if ($database !== $expectedDatabase) {
+            throw new RuntimeException(sprintf(
+                'Refusing migration for environment %s on database %s.',
+                $environment,
+                $database,
+            ));
         }
     }
 
@@ -42,7 +51,7 @@ return new class extends Migration
 
         foreach ($columns as $column) {
             if (Schema::hasColumn('leads', $column)) {
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     "leads.{$column} already exists."
                 );
             }
@@ -148,8 +157,7 @@ return new class extends Migration
         $existing = array_values(
             array_filter(
                 $columns,
-                static fn (string $column): bool =>
-                    Schema::hasColumn('leads', $column)
+                static fn (string $column): bool => Schema::hasColumn('leads', $column)
             )
         );
 

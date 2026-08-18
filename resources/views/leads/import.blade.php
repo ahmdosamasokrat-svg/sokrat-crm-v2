@@ -1,56 +1,74 @@
 @extends('leads.transfer-layout')
 
-@section('title', 'استيراد العملاء')
-@section('page-title', 'استيراد العملاء')
+@section(
+ 'title',
+ isset($campaign)
+  ? __('استيراد عملاء - ').$campaign->name
+  : __('crm.import_leads')
+)
+@section(
+ 'page-title',
+ isset($campaign)
+  ? __('استيراد عملاء حملة ').$campaign->name
+  : __('crm.import_leads')
+)
 @section(
  'page-description',
- 'ارفع Excel أو CSV، راجع المعاينة، ثم أكد الاستيراد.'
+ isset($campaign)
+  ? __('ارفع ملف الحملة وفق قواعد استيراد العملاء، ثم راجع المعاينة وأكدها.')
+  : __('ارفع Excel أو CSV، راجع المعاينة، ثم أكد الاستيراد.')
 )
 
 @section('top-actions')
+ @isset($campaign)
+  <a
+   class="btn soft"
+   href="{{ route('v2.campaigns.show', $campaign) }}"
+  >
+   {{ __('العودة للحملة') }}
+  </a>
+ @endisset
+
+ @can('leads.export')
  <a
   class="btn soft"
   href="{{ route('v2.leads.export') }}"
  >
-  ↓ تصدير العملاء
+  {{ __('↓ تصدير العملاء') }}
  </a>
+ @endcan
 
  <a
   class="btn soft"
   href="{{ route('v2.leads') }}"
  >
-  عرض العملاء
+  {{ __('crm.view_leads') }}
  </a>
 @endsection
 
 @section('content')
 
- <article class="transfer-card">
+ <article class="transfer-card" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
   <div class="transfer-hero">
-   <small>استيراد آمن</small>
+   <small>{{ __('crm.safe_import') }}</small>
 
    <h2>
-    إضافة العملاء من Excel أو CSV
+    {{ __('crm.add_leads_from_file') }}
    </h2>
 
    <p>
-    لن يتم إضافة أي عميل بمجرد رفع الملف.
-    ستظهر معاينة كاملة أولًا، ويتم الاستيراد
-    فقط بعد الضغط على تأكيد الاستيراد.
-    رقم الهاتف هو معيار منع التكرار.
+    {{ __('لن يتم إضافة أي عميل بمجرد رفع الملف. ستظهر معاينة كاملة أولًا، ويتم الاستيراد فقط بعد الضغط على تأكيد الاستيراد. رقم الهاتف هو معيار منع التكرار.') }}
    </p>
   </div>
 
   <div class="card-body">
    <div class="notice info">
-    الحالة في الملف هي الحالة الابتدائية للعميل،
-    ومنها يحدد النظام مرحلة المتابعة تلقائيًا.
-    يمكن أيضًا كتابة موعد المتابعة القادمة.
-    لا يتم إنشاء متابعة وهمية في سجل المتابعات.
+    {{ __('الحالة في الملف هي الحالة الابتدائية للعميل، ومنها يحدد النظام مرحلة المتابعة تلقائيًا. لا يتم إنشاء متابعة وهمية في سجل المتابعات.') }}
    </div>
 
    <form
     id="leadImportForm"
+    dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}"
     method="POST"
     action="{{ route(
      'v2.leads.import.preview'
@@ -59,10 +77,18 @@
    >
     @csrf
 
+    @isset($campaign)
+     <input
+      type="hidden"
+      name="campaign_id"
+      value="{{ $campaign->id }}"
+     >
+    @endisset
+
     <div class="grid">
      <div class="field">
       <label for="importFile">
-       ملف العملاء
+       {{ __('crm.lead_file') }}
       </label>
 
       <input
@@ -75,14 +101,13 @@
       >
 
       <span class="help">
-       XLSX أو CSV بحد أقصى 5MB،
-       وحتى 1000 صف في العملية الواحدة.
+       {{ __('XLSX أو CSV بحد أقصى 5MB، وحتى 1000 صف في العملية الواحدة.') }}
       </span>
      </div>
 
      <div class="field">
       <label>
-       النموذج الجاهز
+       {{ __('crm.ready_template') }}
       </label>
 
       <a
@@ -91,12 +116,11 @@
         'v2.leads.import.template'
        ) }}"
       >
-       ↓ تنزيل نموذج Excel
+       {{ __('crm.download_template') }}
       </a>
 
       <span class="help">
-       استخدم النموذج للحفاظ على أسماء
-       الأعمدة وصيغة رقم الهاتف كنص.
+       {{ __('استخدم النموذج للحفاظ على أسماء الأعمدة وصيغة رقم الهاتف كنص.') }}
       </span>
      </div>
     </div>
@@ -106,22 +130,22 @@
       class="btn primary"
       type="submit"
      >
-      معاينة الملف قبل الاستيراد
+      {{ __('crm.preview_before_import') }}
      </button>
     </div>
    </form>
   </div>
  </article>
 
- <article class="transfer-card">
+ <article class="transfer-card" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
   <div class="card-head">
    <div>
     <h3>
-     الحالات المتاحة في عمود الحالة
+     {{ __('crm.available_statuses') }}
     </h3>
 
     <p>
-     يمكنك كتابة الاسم العربي أو كود الحالة.
+     {{ __('يمكنك كتابة الاسم العربي أو كود الحالة.') }}
     </p>
    </div>
   </div>
@@ -135,10 +159,10 @@
       </strong>
 
       <small>
-       المرحلة:
-       {{ $status->stage?->name_ar ?? '----' }}
+       {{ __('المرحلة:') }}
+       {{ $status->stage?->name_ar ? __($status->stage->name_ar) : '----' }}
        ·
-       الكود:
+       {{ __('الكود:') }}
        {{ $status->code }}
       </small>
      </div>
@@ -149,10 +173,8 @@
     class="notice info"
     style="margin-top:16px;margin-bottom:0"
    >
-    لو خانة الحالة فارغة، سيتم اعتبار العميل
-    بحالة <strong>جديد</strong>.
-    صيغة موعد المتابعة المفضلة:
-    <strong>2026-08-10 14:00</strong>.
+    {{ __('لو خانة الحالة فارغة، سيتم اعتبار العميل بحالة') }}
+    <strong>{{ __('جديد') }}</strong>.
    </div>
   </div>
  </article>
@@ -165,12 +187,11 @@
    <div class="card-head">
     <div>
      <h3>
-      معاينة الاستيراد
+      {{ __('crm.import_preview') }}
      </h3>
 
      <p>
-      راجع الصفوف قبل أي كتابة
-      في قاعدة البيانات.
+      {{ __('راجع الصفوف قبل أي كتابة في قاعدة البيانات.') }}
      </p>
     </div>
    </div>
@@ -178,28 +199,28 @@
    <div class="card-body">
     <div class="stat-grid">
      <div class="stat">
-      <span>إجمالي الصفوف</span>
+      <span>{{ __('crm.total_rows') }}</span>
       <strong>
        {{ $preview['total_count'] }}
       </strong>
      </div>
 
      <div class="stat">
-      <span>صالحة للاستيراد</span>
+      <span>{{ __('crm.valid_for_import') }}</span>
       <strong>
        {{ $preview['valid_count'] }}
       </strong>
      </div>
 
      <div class="stat">
-      <span>صفوف بها أخطاء</span>
+      <span>{{ __('crm.rows_with_errors') }}</span>
       <strong>
        {{ $preview['error_count'] }}
       </strong>
      </div>
 
      <div class="stat">
-      <span>أرقام مكررة</span>
+      <span>{{ __('crm.duplicate_numbers') }}</span>
       <strong>
        {{ $preview['duplicate_count'] }}
       </strong>
@@ -212,10 +233,10 @@
      )
     )
      <div class="notice info">
-      تم تجاهل الأعمدة غير المعروفة:
+      {{ __('تم تجاهل الأعمدة غير المعروفة:') }}
       {{
        implode(
-        '، ',
+        app()->getLocale() == 'ar' ? '، ' : ', ',
         $preview['ignored_headers']
        )
       }}
@@ -226,14 +247,13 @@
      <table>
       <thead>
        <tr>
-        <th>الصف</th>
-        <th>العميل</th>
-        <th>الهاتف</th>
-        <th>الحالة</th>
-        <th>المرحلة</th>
-        <th>المتابعة القادمة</th>
-        <th>النتيجة</th>
-        <th>التفاصيل</th>
+        <th>{{ __('crm.row') }}</th>
+        <th>{{ __('crm.client') }}</th>
+        <th>{{ __('crm.phone') }}</th>
+        <th>{{ __('crm.status') }}</th>
+        <th>{{ __('المرحلة') }}</th>
+        <th>{{ __('crm.result') }}</th>
+        <th>{{ __('crm.details') }}</th>
        </tr>
       </thead>
 
@@ -264,24 +284,20 @@
          </td>
 
          <td>
-          {{ $row['next_follow_up_at'] }}
-         </td>
-
-         <td>
           @if ($row['state'] === 'valid')
            <span class="badge valid">
-            صالح
+            {{ __('crm.valid') }}
            </span>
           @elseif (
            $row['state']
            === 'duplicate'
           )
            <span class="badge duplicate">
-            مكرر
+            {{ __('crm.duplicate') }}
            </span>
           @else
            <span class="badge error">
-            خطأ
+            {{ __('crm.error') }}
            </span>
           @endif
          </td>
@@ -355,9 +371,9 @@
         class="btn success"
         type="submit"
        >
-        ✓ تأكيد استيراد
+        ✓ {{ __('تأكيد استيراد') }}
         {{ $preview['valid_count'] }}
-        عميل
+        {{ __('عميل') }}
        </button>
       </div>
      </form>
@@ -366,8 +382,7 @@
       class="notice error"
       style="margin-top:16px;margin-bottom:0"
      >
-      لا توجد صفوف صالحة للاستيراد.
-      صحح الملف ثم ارفعه من جديد.
+      {{ __('لا توجد صفوف صالحة للاستيراد. صحح الملف ثم ارفعه من جديد.') }}
      </div>
     @endif
    </div>
@@ -389,11 +404,7 @@
    (event) => {
     const confirmed =
      window.confirm(
-      'سيتم الآن إضافة العملاء '
-      + 'الصالحة فقط إلى CRM. '
-      + 'العملاء المكررة أو الصفوف '
-      + 'التي بها أخطاء لن تتم إضافتها. '
-      + 'هل تريد المتابعة؟'
+      '{{ __('سيتم الآن إضافة العملاء الصالحة فقط إلى CRM. العملاء المكررة أو الصفوف التي بها أخطاء لن تتم إضافتها. هل تريد المتابعة؟') }}'
      );
 
     if (!confirmed) {

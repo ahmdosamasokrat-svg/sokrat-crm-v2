@@ -1,14 +1,18 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <title>SokratCRM</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+    @once
+    <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+    @endonce
     <style>
         * { box-sizing: border-box; }
         body {
             margin: 0;
-            font-family: Arial, Tahoma, sans-serif;
+            font-family: var(--font-primary);
             background: #f3f6fb;
             color: #111827;
         }
@@ -21,7 +25,7 @@
             width: 260px;
             min-width: 260px;
             background: #fff;
-            border-left: 1px solid #e5e7eb;
+            border-inline-end: 1px solid #e5e7eb;
             padding: 24px 18px;
         }
         .brand { text-align: center; margin-bottom: 28px; }
@@ -105,10 +109,10 @@ aside.sidebar .side-submenu a,
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    direction: rtl !important;
+    !important;
     min-height: 54px !important;
-    padding-right: 58px !important;
-    padding-left: 70px !important;
+    padding-inline-start: 58px !important;
+    padding-inline-end: 70px !important;
     gap: 0 !important;
 }
 
@@ -168,8 +172,8 @@ aside.sidebar .dropdown-arrow,
 aside.sidebar .side-submenu a,
 .sidebar .side-submenu a {
     min-height: 48px !important;
-    padding-right: 54px !important;
-    padding-left: 28px !important;
+    padding-inline-start: 54px !important;
+    padding-inline-end: 28px !important;
 }
 </style>
 <!-- CODEX V2 SIDEBAR ICON RIGHT TEXT CENTER NUMBER LEFT END -->

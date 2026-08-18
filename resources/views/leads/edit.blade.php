@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
- <meta charset="utf-8">
- <meta name="viewport" content="width=device-width,initial-scale=1">
- <title>تعديل بيانات العميل | CRM v2</title>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>SokratCRM — {{ __('crm.leads') }}</title>
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
  <style>
   :root{
    --red:#dc2637;
@@ -16,6 +20,16 @@
    --shadow:0 15px 42px #17203310
   }
 
+  html.dark-mode{
+   --dark:#f4f4f5;
+   --text:#a1a1aa;
+   --muted:#a1a1aa;
+   --line:rgba(255,255,255,.08);
+   --bg:#121214;
+   --card:rgba(24,24,27,.75);
+   --shadow:0 10px 30px rgba(0,0,0,.5)
+  }
+
   *{box-sizing:border-box}
 
   body{
@@ -25,7 +39,7 @@
     radial-gradient(circle at 8% 0,#dc26370d,transparent 28rem),
     var(--bg);
    color:var(--dark);
-   font-family:Tahoma,Arial,sans-serif;
+   font-family:var(--font-primary);
    font-size:15px
   }
 
@@ -34,8 +48,7 @@
 
   .crm-app{
    display:flex;
-   min-height:100vh;
-   direction:rtl
+   min-height:100vh
   }
 
   .crm-side{
@@ -46,7 +59,7 @@
    height:100vh;
    overflow:auto;
    padding:24px 17px;
-   border-left:1px solid var(--line);
+   border-inline-end:1px solid var(--line);
    background:#fff;
    z-index:80
   }
@@ -71,7 +84,7 @@
   .crm-side-brand strong{
    display:block;
    color:var(--red);
-   font:900 22px Arial
+   font:900 22px var(--font-primary)
   }
 
   .crm-side-brand small{
@@ -106,7 +119,7 @@
    background:transparent;
    color:#566175;
    text-decoration:none;
-   text-align:right;
+   text-align:start;
    cursor:pointer;
    transition:.2s
   }
@@ -156,7 +169,7 @@
    border-radius:99px;
    background:#eef0f4;
    color:#7e8796;
-   font:800 11px Arial
+   font:800 11px var(--font-primary)
   }
 
   .crm-toggle.active .crm-count{
@@ -190,8 +203,8 @@
    display:grid;
    gap:2px;
    margin:3px 28px 7px 0;
-   padding-right:14px;
-   border-right:1px solid var(--line)
+   padding-inline-start:14px;
+   border-inline-start:1px solid var(--line)
   }
 
   .crm-sub a{
@@ -247,7 +260,7 @@
   }
 
   .optional{
-   margin-right:5px;
+   margin-inline-start:5px;
    color:var(--muted);
    font-size:11px;
    font-weight:normal
@@ -280,7 +293,7 @@
    border-radius:13px;
    background:transparent;
    color:inherit;
-   text-align:right;
+   text-align:start;
    cursor:pointer;
    transition:.2s
   }
@@ -367,11 +380,23 @@
    background:var(--card);
    box-shadow:var(--shadow)
   }
+  html.dark-mode .form-card{
+   background:var(--bg-card,rgba(24,24,27,.75))!important;
+   backdrop-filter:var(--glass-blur,blur(16px))!important;
+   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
+   box-shadow:var(--shadow-card,0 10px 30px rgba(0,0,0,.5))!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
 
   .form-hero{
    padding:26px;
    background:linear-gradient(120deg,#171f31,#30394c);
    color:#fff
+  }
+  html.dark-mode .form-hero{
+   background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important
   }
 
   .form-hero-head{
@@ -403,16 +428,29 @@
    background:#fff5f6;
    color:var(--red)
   }
+  html.dark-mode .form-hero-back{
+   background:rgba(255,255,255,.08)!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:#f4f4f5!important;
+   font-weight:700!important
+  }
+  html.dark-mode .form-hero-back:hover{
+   background:rgba(239,68,68,.15)!important;
+   border-color:rgba(239,68,68,.4)!important;
+   color:#f87171!important
+  }
 
   .form-hero small{
    color:#f2a3ac;
    font-weight:bold
   }
+  html.dark-mode .form-hero small{color:#f87171!important}
 
   .form-hero h2{
    margin:9px 0 6px;
    font-size:26px
   }
+  html.dark-mode .form-hero h2{color:#ffffff!important}
 
   .form-hero p{
    max-width:760px;
@@ -421,6 +459,7 @@
    line-height:1.8;
    font-size:13px
   }
+  html.dark-mode .form-hero p{color:#d4d4d8!important}
 
   .form-body{
    display:grid;
@@ -434,6 +473,11 @@
    border-radius:16px;
    background:#fff
   }
+  html.dark-mode .form-section{
+   background:rgba(255,255,255,.03)!important;
+   border:1px solid rgba(255,255,255,.07)!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
 
   .section-head{
    margin-bottom:15px
@@ -443,11 +487,18 @@
    margin:0;
    font-size:18px
   }
+  html.dark-mode .section-head h3{
+   color:#f4f4f5!important;
+   font-weight:800!important
+  }
 
   .section-head p{
    margin:5px 0 0;
    color:var(--muted);
    font-size:12px
+  }
+  html.dark-mode .section-head p{
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .fields{
@@ -466,8 +517,14 @@
    font-size:13px;
    font-weight:bold
   }
+  html.dark-mode .field label{
+   color:#e4e4e7!important;
+   font-weight:700!important
+  }
 
   .required{color:var(--red)}
+  html.dark-mode .required{color:#ef4444!important}
+  html.dark-mode .optional{color:var(--text-muted,#a1a1aa)!important}
 
   .field input,
   .field select,
@@ -478,6 +535,13 @@
    background:#fafbfc;
    color:#404b5e;
    outline:none
+  }
+  html.dark-mode .field input,
+  html.dark-mode .field select,
+  html.dark-mode .field textarea{
+   background:var(--bg-input,rgba(39,39,42,.65))!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:#f4f4f5!important
   }
 
   .field input,
@@ -500,10 +564,27 @@
    background:#fff;
    box-shadow:0 0 0 4px #dc263710
   }
+  html.dark-mode .field input:focus,
+  html.dark-mode .field select:focus,
+  html.dark-mode .field textarea:focus{
+   border-color:rgba(239,68,68,.6)!important;
+   background:rgba(39,39,42,.95)!important;
+   box-shadow:0 0 0 3px rgba(239,68,68,.2)!important;
+   outline:none!important
+  }
+  html.dark-mode .field select option{
+   background:#18181b!important;
+   color:#f4f4f5!important
+  }
 
   .field input[readonly]{
    background:#f0f2f5;
    cursor:not-allowed
+  }
+  html.dark-mode .field input[readonly]{
+   background:rgba(255,255,255,.04)!important;
+   border-color:rgba(255,255,255,.08)!important;
+   color:#a1a1aa!important
   }
 
   .help{
@@ -513,10 +594,17 @@
    font-size:11px;
    line-height:1.6
   }
+  html.dark-mode .help{
+   color:var(--text-muted,#a1a1aa)!important
+  }
 
   .conditional{
    border-color:#f0c8cd;
    background:#fffafb
+  }
+  html.dark-mode .conditional{
+   background:rgba(239,68,68,.05)!important;
+   border-color:rgba(239,68,68,.2)!important
   }
 
   .reveal-panel:not(.is-hidden){
@@ -552,6 +640,10 @@
     linear-gradient(145deg,#fff,#fff8f9);
    box-shadow:0 18px 42px #dc263710
   }
+  html.dark-mode .quotation-card{
+   background:radial-gradient(circle at 8% 5%,rgba(239,68,68,.08),transparent 18rem),rgba(24,24,27,.8)!important;
+   border-color:rgba(239,68,68,.3)!important
+  }
 
   .quotation-card::before{
    content:"";
@@ -576,6 +668,10 @@
    border-radius:14px;
    background:#fff
   }
+  html.dark-mode .quotation-section-head{
+   background:rgba(255,255,255,.04)!important;
+   border-color:rgba(239,68,68,.25)!important
+  }
 
   .quotation-section-head::before{
    content:"▣";
@@ -598,11 +694,19 @@
   .quotation-section-head h3{
    color:#9f2331
   }
+  html.dark-mode .quotation-section-head h3{
+   color:#f87171!important
+  }
 
   .quotation-select{
    border-color:#e7bcc2!important;
    background:#fff!important;
    font-weight:800
+  }
+  html.dark-mode .quotation-select{
+   background:rgba(39,39,42,.65)!important;
+   border-color:rgba(239,68,68,.35)!important;
+   color:#f4f4f5!important
   }
 
   .quotation-file{
@@ -613,16 +717,25 @@
    background:#fff8f9!important;
    cursor:pointer
   }
-
   .quotation-file:hover,
   .quotation-file:focus{
    border-color:var(--red)!important;
    background:#fff1f3!important
   }
+  html.dark-mode .quotation-file{
+   background:rgba(239,68,68,.06)!important;
+   border-color:rgba(239,68,68,.35)!important;
+   color:#f4f4f5!important
+  }
+  html.dark-mode .quotation-file:hover,
+  html.dark-mode .quotation-file:focus{
+   border-color:#ef4444!important;
+   background:rgba(239,68,68,.12)!important
+  }
 
   .quotation-file::file-selector-button{
    min-height:43px;
-   margin-left:12px;
+   margin-inline-end:12px;
    padding:8px 15px;
    border:0;
    border-radius:9px;
@@ -643,11 +756,18 @@
    background:#fff;
    color:#7b8595
   }
-
+  html.dark-mode .quotation-file-help{
+   background:rgba(255,255,255,.04)!important;
+   color:var(--text-muted,#a1a1aa)!important
+  }
   .quotation-file-help.has-file{
    background:#edf9f2;
    color:#28784c;
    font-weight:800
+  }
+  html.dark-mode .quotation-file-help.has-file{
+   background:rgba(34,197,94,.15)!important;
+   color:#4ade80!important
   }
 
   .quotation-detail-panel{
@@ -658,11 +778,9 @@
    background:#fff;
    box-shadow:0 8px 22px #17203308
   }
-
-  @media(prefers-reduced-motion:reduce){
-   .reveal-panel:not(.is-hidden){
-    animation:none
-   }
+  html.dark-mode .quotation-detail-panel{
+   background:rgba(255,255,255,.03)!important;
+   border-color:rgba(255,255,255,.08)!important
   }
 
   .future-action{
@@ -675,15 +793,23 @@
    border-radius:13px;
    background:#fff7f8
   }
-
+  html.dark-mode .future-action{
+   background:rgba(239,68,68,.06)!important;
+   border-color:rgba(239,68,68,.3)!important
+  }
   .future-action strong{
    display:block;
    margin-bottom:5px
   }
-
+  html.dark-mode .future-action strong{
+   color:#f4f4f5!important
+  }
   .future-action span{
    color:var(--muted);
    font-size:12px
+  }
+  html.dark-mode .future-action span{
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .btn{
@@ -709,12 +835,32 @@
    color:#657083;
    box-shadow:none
   }
+  html.dark-mode .btn.secondary{
+   background:rgba(255,255,255,.08)!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:#f4f4f5!important;
+   font-weight:700!important
+  }
+  html.dark-mode .btn.secondary:hover{
+   background:rgba(255,255,255,.16)!important;
+   border-color:rgba(255,255,255,.25)!important;
+   color:#ffffff!important
+  }
 
   .btn.future{
    border-color:#efb8bf;
    background:#fff;
    color:var(--red);
    box-shadow:none
+  }
+  html.dark-mode .btn.future{
+   background:rgba(239,68,68,.15)!important;
+   border-color:rgba(239,68,68,.4)!important;
+   color:#f87171!important
+  }
+  html.dark-mode .btn.future:hover{
+   background:rgba(239,68,68,.25)!important;
+   color:#fca5a5!important
   }
 
   .form-actions{
@@ -730,16 +876,10 @@
    background:#fff3f4;
    color:#9b2431
   }
-
-  .error-summary strong{
-   display:block;
-   margin-bottom:7px
-  }
-
-  .error-summary ul{
-   margin:0;
-   padding-right:20px;
-   line-height:1.8
+  html.dark-mode .error-summary{
+   background:rgba(239,68,68,.12)!important;
+   border-color:rgba(239,68,68,.35)!important;
+   color:#fca5a5!important
   }
 
   .is-hidden{display:none!important}
@@ -864,7 +1004,7 @@
  class="crm-overlay"
  id="crmSidebarOverlay"
  type="button"
- aria-label="إغلاق القائمة"
+ aria-label="{{ __('crm.close_menu') }}"
 ></button>
 
 <div class="crm-app">
@@ -886,45 +1026,11 @@
     <div class="page-title">
      <h1>تعديل بيانات العميل</h1>
      <p>
-      أدخل البيانات الأساسية ثم اختر حالة العميل.
+      {{ __('crm.enter_lead_basics') }}
      </p>
     </div>
 
-    <div class="user-menu">
-     <button
-      class="user-chip"
-      id="userMenuButton"
-      type="button"
-      aria-controls="userMenuDropdown"
-      aria-expanded="false"
-     >
-      <span class="avatar">
-       {{ mb_substr((string) session('crm_v2_user', 'A'), 0, 1) }}
-      </span>
-
-      <span class="user-details">
-       <strong>{{ session('crm_v2_user', 'admin') }}</strong>
-       <small>الموظف المسؤول</small>
-      </span>
-     </button>
-
-     <div
-      class="user-dropdown"
-      id="userMenuDropdown"
-      hidden
-     >
-      <form method="POST" action="{{ route('logout') }}">
-       @csrf
-
-       <button
-        class="user-dropdown-action"
-        type="submit"
-       >
-        تسجيل الخروج
-       </button>
-      </form>
-     </div>
-    </div>
+    @include('partials.profile-dropdown')
    </header>
 
    <article class="form-card">
@@ -942,7 +1048,7 @@
        class="btn form-hero-back"
        href="{{ route('v2.leads') }}"
       >
-       ← رجوع لصفحة عرض العملاء
+       {{ __('crm.back_to_leads') }}
       </a>
      </div>
     </div>
@@ -958,7 +1064,7 @@
 
      @if ($errors->any())
       <div class="error-summary">
-       <strong>يرجى مراجعة البيانات التالية:</strong>
+       <strong>{{ __('crm.review_errors') }}</strong>
 
        <ul>
         @foreach ($errors->all() as $error)
@@ -970,14 +1076,14 @@
 
      <section class="form-section">
       <div class="section-head">
-       <h3>البيانات الأساسية</h3>
-       <p>هذه البيانات مطلوبة لكل العملاء.</p>
+       <h3>{{ __('crm.basic_data') }}</h3>
+       <p>{{ __('crm.basic_data_required') }}</p>
       </div>
 
       <div class="fields">
        <div class="field">
         <label for="firstName">
-         اسم العميل الأول
+         {{ __('crm.first_name') }}
          <span class="required">*</span>
         </label>
 
@@ -993,8 +1099,8 @@
 
        <div class="field">
         <label for="lastName">
-         اسم العميل الأخير
-         <span class="optional">(اختياري)</span>
+         {{ __('crm.last_name') }}
+         <span class="optional">{{ __('crm.optional') }}</span>
         </label>
 
         <input
@@ -1008,7 +1114,7 @@
 
        <div class="field">
         <label for="phone">
-         رقم الهاتف
+         {{ __('crm.phone_number') }}
          <span class="required">*</span>
         </label>
 
@@ -1024,7 +1130,7 @@
 
        <div class="field">
         <label for="source">
-         المصدر
+         {{ __('crm.source') }}
          <span class="required">*</span>
         </label>
 
@@ -1046,21 +1152,57 @@
        </div>
 
        <div class="field">
-        <label for="assignedEmployee">
-         الموظف المسؤول
+        <label for="assignedUserId">
+         {{ __('crm.responsible_employee') }}
          <span class="required">*</span>
         </label>
 
-        <input
-         id="assignedEmployee"
-         type="text"
-         value="{{ $assignedEmployee }}"
-         readonly
-        >
+        @if ($canAssignLead)
+         <select
+          id="assignedUserId"
+          name="assigned_user_id"
+         >
+          @if ($lead->assigned_user_id === null)
+           <option
+            value=""
+            @selected(old('assigned_user_id', '') === '')
+           >
+            غير مسند (بدون تغيير)
+           </option>
+          @endif
+          @foreach ($assignableUsers as $assignableUser)
+           <option
+            value="{{ $assignableUser->id }}"
+            @selected(
+             (int) old(
+              'assigned_user_id',
+              $lead->assigned_user_id
+             ) === (int) $assignableUser->id
+            )
+           >
+            {{ $assignableUser->name }}
+            @if ($assignableUser->username)
+             ({{ $assignableUser->username }})
+            @endif
+           </option>
+          @endforeach
+         </select>
 
-        <span class="help">
-         يتم تسجيله تلقائيًا من جلسة الدخول.
-        </span>
+         <span class="help">
+          تظهر فقط حسابات المجموعات المسموح لك بالإسناد إليها.
+         </span>
+        @else
+         <input
+          id="assignedUserId"
+          type="text"
+          value="{{ $assignedEmployee }}"
+          readonly
+         >
+
+         <span class="help">
+          تحتاج إلى صلاحية الإسناد لتغيير الموظف المسؤول.
+         </span>
+        @endif
        </div>
 
        <div class="field">
@@ -1076,7 +1218,7 @@
          aria-disabled="true"
          required
         >
-         <option value="">اختر حالة العميل</option>
+         <option value="">{{ __('crm.select_lead_status') }}</option>
 
          @foreach ($statuses as $status)
           <option
@@ -1102,7 +1244,7 @@
       id="businessDetailsSection"
      >
       <div class="section-head">
-       <h3>بيانات الشركة والعميل</h3>
+       <h3>{{ __('crm.company_lead_data') }}</h3>
        <p>
         تظهر في حالات مهتم، لم يرد، مقابلة، عرض سعر،
         مناقشة، تقفيل عقد وتنفيذ.
@@ -1111,7 +1253,7 @@
 
       <div class="fields">
        <div class="field">
-        <label for="companyName">اسم الشركة</label>
+        <label for="companyName">{{ __('crm.company_name') }}</label>
         <input
          id="companyName"
          type="text"
@@ -1122,7 +1264,7 @@
        </div>
 
        <div class="field">
-        <label for="activity">النشاط</label>
+        <label for="activity">{{ __('crm.activity') }}</label>
         <input
          id="activity"
          type="text"
@@ -1133,7 +1275,7 @@
        </div>
 
        <div class="field">
-        <label for="governorate">المحافظة</label>
+        <label for="governorate">{{ __('crm.governorate') }}</label>
         <input
          id="governorate"
          type="text"
@@ -1144,7 +1286,7 @@
        </div>
 
        <div class="field full">
-        <label for="address">العنوان</label>
+        <label for="address">{{ __('crm.address') }}</label>
         <input
          id="address"
          type="text"
@@ -1155,7 +1297,7 @@
        </div>
 
        <div class="field">
-        <label for="usersCount">عدد المستخدمين</label>
+        <label for="usersCount">{{ __('crm.user_count') }}</label>
         <input
          id="usersCount"
          type="number"
@@ -1167,7 +1309,7 @@
        </div>
 
        <div class="field">
-        <label for="branchesCount">عدد الفروع</label>
+        <label for="branchesCount">{{ __('crm.branch_count') }}</label>
         <input
          id="branchesCount"
          type="number"
@@ -1179,7 +1321,7 @@
        </div>
 
        <div class="field">
-        <label for="jobTitle">المنصب</label>
+        <label for="jobTitle">{{ __('crm.job_title') }}</label>
         <input
          id="jobTitle"
          type="text"
@@ -1197,7 +1339,7 @@
      >
       <div class="future-action">
        <div>
-        <strong>تسجيل متابعة</strong>
+        <strong>{{ __('crm.record_followup') }}</strong>
         <span>
          سيتم ربط الزر بنظام المتابعات في المرحلة القادمة.
         </span>
@@ -1218,13 +1360,13 @@
       id="notInterestedSection"
      >
       <div class="section-head">
-       <h3>سبب عدم الاهتمام</h3>
-       <p>يجب تسجيل السبب عند اختيار غير مهتم.</p>
+       <h3>{{ __('crm.not_interested_reason') }}</h3>
+       <p>{{ __('crm.reason_required') }}</p>
       </div>
 
       <div class="field">
        <label for="disinterestReason">
-        سبب عدم الاهتمام
+        {{ __('crm.not_interested_reason') }}
         <span class="required">*</span>
        </label>
 
@@ -1241,7 +1383,7 @@
       id="quotationSection"
      >
       <div class="section-head quotation-section-head">
-       <h3>بيانات عرض السعر</h3>
+       <h3>{{ __('crm.quotation_data') }}</h3>
        <p>
         تظهر هذه البيانات في مراحل عرض سعر، مناقشة،
         تقفيل عقد وتنفيذ.
@@ -1251,7 +1393,7 @@
       <div class="fields">
        <div class="field">
         <label for="solutionType">
-         نوع النظام
+         {{ __('crm.system_type') }}
          <span class="required">*</span>
         </label>
 
@@ -1260,7 +1402,7 @@
          id="solutionType"
          name="solution_type"
         >
-         <option value="">اختر نوع النظام</option>
+         <option value="">{{ __('crm.select_system_type') }}</option>
 
          <option
           value="call_center"
@@ -1316,7 +1458,7 @@
           title="معاينة ملف عرض السعر: {{ $quotationFileName }}"
          >
           <span aria-hidden="true">👁</span>
-          معاينة عرض السعر
+          {{ __('crm.preview_quotation') }}
          </a>
         @endif
        </div>
@@ -1328,7 +1470,7 @@
       >
        <div class="field">
         <label for="linesCount">
-         عدد الخطوط
+         {{ __('crm.line_count') }}
          <span class="required">*</span>
         </label>
 
@@ -1344,7 +1486,7 @@
 
        <div class="field full">
         <label for="extensions">
-         الملحقات
+         {{ __('crm.accessories') }}
          <span class="required">*</span>
         </label>
 
@@ -1352,7 +1494,7 @@
          id="extensions"
          name="extensions"
          maxlength="5000"
-         placeholder="اكتب تفاصيل الملحقات"
+         placeholder="{{ __('crm.accessories_placeholder') }}"
         >{{ old('extensions', $lead->extensions) }}</textarea>
        </div>
       </div>
@@ -1363,7 +1505,7 @@
       >
        <div class="field full">
         <label for="departments">
-         الأقسام
+         {{ __('crm.departments') }}
          <span class="required">*</span>
         </label>
 
@@ -1371,7 +1513,7 @@
          id="departments"
          name="departments"
          maxlength="5000"
-         placeholder="اكتب الأقسام المطلوبة"
+         placeholder="{{ __('crm.departments_placeholder') }}"
         >{{ old('departments', $lead->departments) }}</textarea>
        </div>
       </div>
@@ -1382,11 +1524,11 @@
        class="btn secondary"
        href="{{ route('v2.leads') }}"
       >
-       إلغاء
+       {{ __('crm.cancel') }}
       </a>
 
       <button class="btn" type="submit">
-       حفظ التعديلات
+       {{ __('crm.save_changes') }}
       </button>
      </div>
     </form>

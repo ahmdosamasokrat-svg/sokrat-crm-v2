@@ -1,51 +1,50 @@
 @extends('leads.transfer-layout')
 
-@section('title', 'تصدير العملاء')
-@section('page-title', 'تصدير العملاء')
+@section('title', __('crm.export_leads'))
+@section('page-title', __('crm.export_leads'))
 @section(
  'page-description',
- 'حدد نطاق العملاء والأعمدة ثم نزّل ملف Excel.'
+ __('حدد نطاق العملاء والأعمدة ثم نزّل ملف Excel.')
 )
 
 @section('top-actions')
+ @can('leads.import')
  <a
   class="btn soft"
   href="{{ route('v2.leads.import') }}"
  >
-  ↑ استيراد العملاء
+  {{ __('crm.import_leads') }}
  </a>
+ @endcan
 
  <a
   class="btn soft"
   href="{{ route('v2.leads') }}"
  >
-  عرض العملاء
+  {{ __('crm.view_leads') }}
  </a>
 @endsection
 
 @section('content')
 
- <article class="transfer-card">
+ <article class="transfer-card" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
   <div class="transfer-hero">
-   <small>تصدير Excel</small>
+   <small>{{ __('crm.export_excel_title') }}</small>
 
    <h2>
-    تجهيز ملف العملاء
+    {{ __('crm.prepare_leads_file') }}
    </h2>
 
    <p>
-    اختر الفلاتر المطلوبة والأعمدة التي تريد
-    ظهورها في الملف. تصدير العملاء المحددين
-    من شاشة العملاء سيظل يعمل كما هو.
+    {{ __('اختر الفلاتر المطلوبة والأعمدة التي تريد ظهورها في الملف. تصدير العملاء المحددين من شاشة العملاء سيظل يعمل كما هو.') }}
    </p>
   </div>
 
   <div class="card-body">
    <div class="notice info">
-    إجمالي العملاء حاليًا:
+    {{ __('إجمالي العملاء حاليًا:') }}
     <strong>{{ $totalLeads }}</strong>.
-    الحد الأقصى للتصدير من هذه الشاشة
-    هو 5000 عميل في العملية الواحدة.
+    {{ __('الحد الأقصى للتصدير من هذه الشاشة هو 5000 عميل في العملية الواحدة.') }}
    </div>
 
    @if ($errors->has('export'))
@@ -56,6 +55,7 @@
 
    <form
     id="leadExportForm"
+    dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}"
     method="POST"
     action="{{ route(
      'v2.leads.export.download'
@@ -66,7 +66,7 @@
     <div class="grid three">
      <div class="field">
       <label for="stageId">
-       المرحلة
+       {{ __('المرحلة') }}
       </label>
 
       <select
@@ -75,7 +75,7 @@
        name="stage_id"
       >
        <option value="">
-        كل المراحل
+        {{ __('كل المراحل') }}
        </option>
 
        @foreach ($stages as $stage)
@@ -86,7 +86,7 @@
           === (string) $stage->id
          )
         >
-         {{ $stage->name_ar }}
+         {{ __($stage->name_ar) }}
         </option>
        @endforeach
       </select>
@@ -94,7 +94,7 @@
 
      <div class="field">
       <label for="statusId">
-       الحالة
+       {{ __('crm.status') }}
       </label>
 
       <select
@@ -103,7 +103,7 @@
        name="status_id"
       >
        <option value="">
-        كل الحالات
+        {{ __('crm.all_states') }}
        </option>
 
        @foreach ($statuses as $status)
@@ -116,10 +116,11 @@
         >
          {{
           $status->stage?->name_ar
-          ?? '----'
+          ? __($status->stage->name_ar)
+          : '----'
          }}
          —
-         {{ $status->name_ar }}
+         {{ __($status->name_ar) }}
         </option>
        @endforeach
       </select>
@@ -127,7 +128,7 @@
 
      <div class="field">
       <label for="employee">
-       الموظف المسؤول
+       {{ __('crm.responsible_employee') }}
       </label>
 
       <select
@@ -136,7 +137,7 @@
        name="employee"
       >
        <option value="">
-        كل الموظفين
+        {{ __('كل الموظفين') }}
        </option>
 
        @foreach (
@@ -158,7 +159,7 @@
 
      <div class="field">
       <label for="source">
-       المصدر
+       {{ __('crm.source') }}
       </label>
 
       <select
@@ -167,7 +168,7 @@
        name="source"
       >
        <option value="">
-        كل المصادر
+        {{ __('كل المصادر') }}
        </option>
 
        @foreach ($sources as $source)
@@ -186,7 +187,7 @@
 
      <div class="field">
       <label for="dateFrom">
-       تاريخ الإضافة من
+       {{ __('تاريخ الإضافة من') }}
       </label>
 
       <input
@@ -200,7 +201,7 @@
 
      <div class="field">
       <label for="dateTo">
-       تاريخ الإضافة إلى
+       {{ __('تاريخ الإضافة إلى') }}
       </label>
 
       <input
@@ -224,11 +225,11 @@
           style="padding:0 0 14px;border:0">
       <div>
        <h3>
-        أعمدة ملف Excel
+        {{ __('crm.excel_columns') }}
        </h3>
 
        <p>
-        اختر البيانات التي تريد ظهورها.
+        {{ __('crm.choose_export_data') }}
        </p>
       </div>
 
@@ -238,7 +239,7 @@
         id="selectAllColumns"
         type="button"
        >
-        تحديد الكل
+        {{ __('crm.select_all') }}
        </button>
 
        <button
@@ -246,7 +247,7 @@
         id="clearColumns"
         type="button"
        >
-        إلغاء الكل
+        {{ __('crm.deselect_all') }}
        </button>
       </div>
      </div>
@@ -271,7 +272,7 @@
           )
          )
         >
-        <span>{{ $label }}</span>
+        <span>{{ __($label) }}</span>
        </label>
       @endforeach
      </div>
@@ -282,7 +283,7 @@
       class="btn success"
       type="submit"
      >
-      ↓ تنزيل ملف Excel
+      ↓ {{ __('تنزيل ملف Excel') }}
      </button>
     </div>
    </form>
@@ -345,7 +346,7 @@
       event.preventDefault();
 
       window.alert(
-       'اختر عمودًا واحدًا على الأقل.'
+       '{{ __('اختر عمودًا واحدًا على الأقل.') }}'
       );
      }
     }

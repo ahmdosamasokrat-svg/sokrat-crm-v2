@@ -1,16 +1,21 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\Campaign;
 use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
 use App\Models\LeadStatusHistory;
+use App\Models\User;
+use App\Security\CrmPermission;
+use App\Security\LeadAssignment;
+use App\Support\CrmDatabaseGuard;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -20,19 +25,19 @@ class LeadFollowupController extends Controller
         Request $request,
         string $lead
     ): View|RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
         $leadRecord = Lead::query()
             ->with([
                 'status.stage',
+                'assignedUser:id,name',
+                'campaigns:id,name',
             ])
             ->findOrFail(
                 (int) $lead
             );
+        Gate::authorize('viewFollowups', $leadRecord);
 
         $statuses = LeadStatus::query()
             ->with('stage')
@@ -55,8 +60,7 @@ class LeadFollowupController extends Controller
             $statuses->contains(
                 static fn (
                     LeadStatus $status
-                ): bool =>
-                    (int) $status->id
+                ): bool => (int) $status->id
                     === $requestedStatusId
             )
                 ? $requestedStatusId
@@ -67,11 +71,10 @@ class LeadFollowupController extends Controller
         $statusGroups = $statuses->groupBy(
             static fn (
                 LeadStatus $status
-            ): string =>
-                trim(
-                    (string)
-                        $status->stage?->name_ar
-                ) !== ''
+            ): string => trim(
+                (string)
+                    $status->stage?->name_ar
+            ) !== ''
                     ? (string)
                         $status->stage?->name_ar
                     : 'بدون مرحلة'
@@ -100,6 +103,7 @@ class LeadFollowupController extends Controller
             ->with([
                 'fromStatus.stage',
                 'toStatus.stage',
+                'user:id,name',
             ])
             ->where(
                 'lead_id',
@@ -141,32 +145,67 @@ class LeadFollowupController extends Controller
                     .'لاستبداله.'
                 : 'الملفات المدعومة: PDF, Word, '
                     .'Excel والصور. الحد الأقصى 2MB.';
-
-        $totalLeads =
-            Lead::query()->count();
+        $totalLeads = Lead::query()
+            ->accessibleTo($request->user())
+            ->count();
+        $actor = $request->user();
+        $manageableCampaigns = Campaign::query()
+            ->with([
+                'users' => static fn ($query) => $query
+                    ->where('is_active', true)
+                    ->orderBy('name'),
+            ])
+            ->when(
+                ! $actor->isSuperAdmin(),
+                static fn ($query) => $actor->hasPermission(
+                    CrmPermission::CAMPAIGNS_CREATE,
+                )
+                    ? $query->where('created_by_user_id', $actor->id)
+                    : $query->whereRaw('1 = 0'),
+            )
+            ->orderBy('name')
+            ->get()
+            ->each(function (Campaign $campaign) use ($actor): void {
+                $campaign->setRelation(
+                    'users',
+                    $campaign->users
+                        ->filter(
+                            static fn (User $target): bool => LeadAssignment::canAssignTo(
+                                $actor,
+                                $target,
+                            ),
+                        )
+                        ->values(),
+                );
+            });
+        $campaignAssignees = $manageableCampaigns
+            ->flatMap->users
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+        $currentCampaign = $leadRecord->campaigns->first(
+            static fn (Campaign $campaign): bool => $manageableCampaigns
+                ->contains('id', $campaign->id),
+        );
 
         return view(
             'leads.followups.index',
             [
                 'lead' => $leadRecord,
                 'statusGroups' => $statusGroups,
-                'communicationTypes' =>
-                    $communicationTypes,
-                'defaultCommunicationType' =>
-                    $defaultCommunicationType,
+                'communicationTypes' => $communicationTypes,
+                'defaultCommunicationType' => $defaultCommunicationType,
                 'followups' => $followups,
-                'currentEmployee' =>
-                    $currentEmployee,
+                'currentEmployee' => $currentEmployee,
                 'callPhone' => $callPhone,
-                'hasQuotationFile' =>
-                    $hasQuotationFile,
-                'quotationFileName' =>
-                    $quotationFileName,
-                'quotationFileHelpText' =>
-                    $quotationFileHelpText,
-                'defaultStatusId' =>
-                    $defaultStatusId,
+                'hasQuotationFile' => $hasQuotationFile,
+                'quotationFileName' => $quotationFileName,
+                'quotationFileHelpText' => $quotationFileHelpText,
+                'defaultStatusId' => $defaultStatusId,
                 'totalLeads' => $totalLeads,
+                'manageableCampaigns' => $manageableCampaigns,
+                'campaignAssignees' => $campaignAssignees,
+                'currentCampaign' => $currentCampaign,
             ]
         );
     }
@@ -175,9 +214,6 @@ class LeadFollowupController extends Controller
         Request $request,
         string $lead
     ): RedirectResponse {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmV2Database();
 
@@ -188,6 +224,35 @@ class LeadFollowupController extends Controller
             ->findOrFail(
                 (int) $lead
             );
+        Gate::authorize('createFollowup', $leadRecord);
+        $campaign = null;
+        $targetUser = null;
+
+        if ($request->filled('campaign_id') || $request->filled('assigned_user_id')) {
+            $campaign = Campaign::query()->findOrFail(
+                $request->integer('campaign_id'),
+            );
+            $actor = $request->user();
+
+            abort_unless(
+                $actor->isSuperAdmin()
+                || (
+                    (int) $campaign->created_by_user_id === (int) $actor->id
+                    && $actor->hasPermission(CrmPermission::CAMPAIGNS_CREATE)
+                ),
+                403,
+            );
+
+            $targetUser = User::query()->findOrFail(
+                $request->integer('assigned_user_id'),
+            );
+
+            abort_unless(
+                $campaign->users()->whereKey($targetUser->id)->exists()
+                && LeadAssignment::canAssignTo($actor, $targetUser),
+                403,
+            );
+        }
 
         $statusInput = $request->validate(
             [
@@ -201,10 +266,8 @@ class LeadFollowupController extends Controller
                 ],
             ],
             [
-                'lead_status_id.required' =>
-                    'اختر الحالة التي تمت عليها المتابعة.',
-                'lead_status_id.exists' =>
-                    'الحالة المختارة غير موجودة.',
+                'lead_status_id.required' => 'اختر الحالة التي تمت عليها المتابعة.',
+                'lead_status_id.exists' => 'الحالة المختارة غير موجودة.',
             ]
         );
 
@@ -293,7 +356,7 @@ class LeadFollowupController extends Controller
          * new, not_interested or execution.
          */
         $requiresNextFollowUp =
-            !in_array(
+            ! in_array(
                 $followupStatusCode,
                 [
                     'new',
@@ -441,59 +504,55 @@ class LeadFollowupController extends Controller
                 'quotation_file' => [
                     Rule::requiredIf(
                         $isQuotationStage
-                        && !$hasCurrentQuotationFile
+                        && ! $hasCurrentQuotationFile
                     ),
                     'nullable',
                     'file',
                     'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
                     'max:2048',
                 ],
+                'campaign_id' => [
+                    'nullable',
+                    'integer',
+                    'exists:campaigns,id',
+                ],
+                'assigned_user_id' => [
+                    Rule::requiredIf($campaign !== null),
+                    'nullable',
+                    'integer',
+                    'exists:users,id',
+                ],
             ],
             [
-                'lead_status_id.required' =>
-                    'اختر الحالة التي تمت عليها المتابعة.',
-                'lead_status_id.exists' =>
-                    'الحالة المختارة غير موجودة.',
+                'lead_status_id.required' => 'اختر الحالة التي تمت عليها المتابعة.',
+                'lead_status_id.exists' => 'الحالة المختارة غير موجودة.',
 
-                'communication_type.required' =>
-                    'اختر نوع التواصل.',
-                'communication_type.in' =>
-                    'نوع التواصل المختار غير صحيح.',
-                'outcome.max' =>
-                    'نتيجة المتابعة لا يمكن أن '
+                'communication_type.required' => 'اختر نوع التواصل.',
+                'communication_type.in' => 'نوع التواصل المختار غير صحيح.',
+                'outcome.max' => 'نتيجة المتابعة لا يمكن أن '
                     .'تتجاوز 5000 حرف.',
 
-                'next_follow_up_at.required' =>
-                    'حدد موعد المتابعة القادمة. '
+                'next_follow_up_at.required' => 'حدد موعد المتابعة القادمة. '
                     .'الموعد اختياري فقط في حالة '
                     .'غير مهتم.',
-                'next_follow_up_at.date_format' =>
-                    'موعد المتابعة القادمة غير صحيح.',
+                'next_follow_up_at.date_format' => 'موعد المتابعة القادمة غير صحيح.',
 
-                'disinterest_reason.required' =>
-                    'سبب عدم الاهتمام مطلوب.',
+                'disinterest_reason.required' => 'سبب عدم الاهتمام مطلوب.',
 
-                'solution_type.required' =>
-                    'نوع النظام مطلوب.',
+                'solution_type.required' => 'نوع النظام مطلوب.',
 
-                'lines_count.required' =>
-                    'عدد الخطوط مطلوب.',
+                'lines_count.required' => 'عدد الخطوط مطلوب.',
 
-                'extensions.required' =>
-                    'تفاصيل الملحقات مطلوبة.',
+                'extensions.required' => 'تفاصيل الملحقات مطلوبة.',
 
-                'departments.required' =>
-                    'الأقسام المطلوبة مطلوبة.',
+                'departments.required' => 'الأقسام المطلوبة مطلوبة.',
 
-                'quotation_file.required' =>
-                    'ملف عرض السعر مطلوب.',
+                'quotation_file.required' => 'ملف عرض السعر مطلوب.',
 
-                'quotation_file.max' =>
-                    'الحد الأقصى لملف عرض '
+                'quotation_file.max' => 'الحد الأقصى لملف عرض '
                     .'السعر 2MB.',
 
-                'quotation_file.mimes' =>
-                    'صيغة ملف عرض السعر '
+                'quotation_file.mimes' => 'صيغة ملف عرض السعر '
                     .'غير مدعومة.',
             ]
         );
@@ -501,7 +560,7 @@ class LeadFollowupController extends Controller
         $nullableText = static function (
             mixed $value
         ): ?string {
-            if (!is_string($value)) {
+            if (! is_string($value)) {
                 return null;
             }
 
@@ -527,6 +586,7 @@ class LeadFollowupController extends Controller
 
         $employeeName =
             $this->currentEmployeeName();
+        $currentUserId = (int) $request->user()->id;
 
         $outcome = trim(
             (string) (
@@ -575,7 +635,7 @@ class LeadFollowupController extends Controller
          * CRM NEW EXECUTION NO FOLLOWUP V7
          * SERVER ENFORCEMENT
          */
-        if (!$requiresNextFollowUp) {
+        if (! $requiresNextFollowUp) {
             $nextFollowUpAt = null;
         }
 
@@ -609,7 +669,7 @@ class LeadFollowupController extends Controller
                 );
 
             if (
-                !is_string($storedPath)
+                ! is_string($storedPath)
                 || trim($storedPath) === ''
             ) {
                 throw new \RuntimeException(
@@ -622,8 +682,7 @@ class LeadFollowupController extends Controller
         }
 
         $stageData = [
-            'company_name' =>
-                $hasBusinessDetails
+            'company_name' => $hasBusinessDetails
                     ? $nullableText(
                         $validated[
                             'company_name'
@@ -631,8 +690,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'activity' =>
-                $hasBusinessDetails
+            'activity' => $hasBusinessDetails
                     ? $nullableText(
                         $validated[
                             'activity'
@@ -640,8 +698,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'governorate' =>
-                $hasBusinessDetails
+            'governorate' => $hasBusinessDetails
                     ? $nullableText(
                         $validated[
                             'governorate'
@@ -649,8 +706,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'address' =>
-                $hasBusinessDetails
+            'address' => $hasBusinessDetails
                     ? $nullableText(
                         $validated[
                             'address'
@@ -658,8 +714,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'users_count' =>
-                $hasBusinessDetails
+            'users_count' => $hasBusinessDetails
                     ? $integerOrNull(
                         $validated[
                             'users_count'
@@ -667,8 +722,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'branches_count' =>
-                $hasBusinessDetails
+            'branches_count' => $hasBusinessDetails
                     ? $integerOrNull(
                         $validated[
                             'branches_count'
@@ -676,8 +730,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'job_title' =>
-                $hasBusinessDetails
+            'job_title' => $hasBusinessDetails
                     ? $nullableText(
                         $validated[
                             'job_title'
@@ -685,8 +738,7 @@ class LeadFollowupController extends Controller
                     )
                     : null,
 
-            'disinterest_reason' =>
-                $status->code
+            'disinterest_reason' => $status->code
                     === 'not_interested'
                         ? $nullableText(
                             $validated[
@@ -695,8 +747,7 @@ class LeadFollowupController extends Controller
                         )
                         : null,
 
-            'solution_type' =>
-                $isQuotationStage
+            'solution_type' => $isQuotationStage
                     ? $nullableText(
                         $validated[
                             'solution_type'
@@ -748,11 +799,9 @@ class LeadFollowupController extends Controller
                 )
                 : null,
 
-            'quotation_sent' =>
-                $isQuotationStage,
+            'quotation_sent' => $isQuotationStage,
 
-            'quotation_file_path' =>
-                $newQuotationPath
+            'quotation_file_path' => $newQuotationPath
                     ?? (
                         $hasCurrentQuotationFile
                             ? $currentQuotationPath
@@ -761,32 +810,19 @@ class LeadFollowupController extends Controller
         ];
 
         $fieldLabels = [
-            'company_name' =>
-                'اسم الشركة',
-            'activity' =>
-                'النشاط',
-            'governorate' =>
-                'المحافظة',
-            'address' =>
-                'العنوان',
-            'users_count' =>
-                'عدد المستخدمين',
-            'branches_count' =>
-                'عدد الفروع',
-            'job_title' =>
-                'المنصب',
-            'disinterest_reason' =>
-                'سبب عدم الاهتمام',
-            'solution_type' =>
-                'نوع النظام',
-            'lines_count' =>
-                'عدد الخطوط',
-            'extensions' =>
-                'الملحقات',
-            'departments' =>
-                'الأقسام',
-            'quotation_file_path' =>
-                'ملف عرض السعر',
+            'company_name' => 'اسم الشركة',
+            'activity' => 'النشاط',
+            'governorate' => 'المحافظة',
+            'address' => 'العنوان',
+            'users_count' => 'عدد المستخدمين',
+            'branches_count' => 'عدد الفروع',
+            'job_title' => 'المنصب',
+            'disinterest_reason' => 'سبب عدم الاهتمام',
+            'solution_type' => 'نوع النظام',
+            'lines_count' => 'عدد الخطوط',
+            'extensions' => 'الملحقات',
+            'departments' => 'الأقسام',
+            'quotation_file_path' => 'ملف عرض السعر',
         ];
 
         $formatChangeValue =
@@ -808,12 +844,9 @@ class LeadFollowupController extends Controller
                     return match (
                         (string) $value
                     ) {
-                        'call_center' =>
-                            'Call Center',
-                        'erp' =>
-                            'ERP',
-                        default =>
-                            (string) $value,
+                        'call_center' => 'Call Center',
+                        'erp' => 'ERP',
+                        default => (string) $value,
                     };
                 }
 
@@ -835,9 +868,9 @@ class LeadFollowupController extends Controller
             $leadRecord = DB::transaction(
                 function () use (
                     $lead,
-                    $validated,
                     $status,
                     $employeeName,
+                    $currentUserId,
                     $communicationType,
                     $communicationTypes,
                     $outcome,
@@ -845,7 +878,9 @@ class LeadFollowupController extends Controller
                     $stageData,
                     $fieldLabels,
                     $formatChangeValue,
-                    $uploadedQuotationName
+                    $uploadedQuotationName,
+                    $campaign,
+                    $targetUser
                 ): Lead {
                     $lockedLead =
                         Lead::query()
@@ -864,9 +899,34 @@ class LeadFollowupController extends Controller
 
                     $fieldChanges = [];
 
+                    if ($campaign !== null && $targetUser !== null) {
+                        $oldCampaignName = $lockedLead->campaigns()
+                            ->value('campaigns.name') ?? 'بدون حملة';
+                        $oldAssigneeName = $lockedLead->assignedUser?->name
+                            ?? $lockedLead->assigned_employee
+                            ?? 'غير مسند';
+
+                        if ($oldCampaignName !== $campaign->name) {
+                            $fieldChanges[] = [
+                                'field' => 'campaign_id',
+                                'label' => 'الحملة',
+                                'old' => $oldCampaignName,
+                                'new' => $campaign->name,
+                            ];
+                        }
+
+                        if ((int) $lockedLead->assigned_user_id !== (int) $targetUser->id) {
+                            $fieldChanges[] = [
+                                'field' => 'assigned_user_id',
+                                'label' => 'الموظف المسؤول',
+                                'old' => $oldAssigneeName,
+                                'new' => $targetUser->name,
+                            ];
+                        }
+                    }
+
                     foreach (
-                        $fieldLabels
-                        as $field => $label
+                        $fieldLabels as $field => $label
                     ) {
                         $oldRaw =
                             $lockedLead
@@ -934,34 +994,26 @@ class LeadFollowupController extends Controller
                     LeadFollowup::query()
                         ->create(
                             [
-                                'lead_id' =>
-                                    $lockedLead->id,
+                                'lead_id' => $lockedLead->id,
 
-                                'from_status_id' =>
-                                    $oldStatusId,
+                                'from_status_id' => $oldStatusId,
 
-                                'to_status_id' =>
-                                    $newStatusId,
+                                'to_status_id' => $newStatusId,
 
-                                'employee_name' =>
-                                    $employeeName,
+                                'employee_name' => $employeeName,
+                                'user_id' => $currentUserId,
 
-                                'communication_type' =>
-                                    $communicationType,
+                                'communication_type' => $communicationType,
 
-                                'outcome' =>
-                                    $outcome,
+                                'outcome' => $outcome,
 
-                                'field_changes' =>
-                                    $fieldChanges === []
+                                'field_changes' => $fieldChanges === []
                                         ? null
                                         : $fieldChanges,
 
-                                'next_follow_up_at' =>
-                                    $nextFollowUpAt,
+                                'next_follow_up_at' => $nextFollowUpAt,
 
-                                'followed_up_at' =>
-                                    now(),
+                                'followed_up_at' => now(),
                             ]
                         );
 
@@ -972,29 +1024,24 @@ class LeadFollowupController extends Controller
                         LeadStatusHistory::query()
                             ->create(
                                 [
-                                    'lead_id' =>
-                                        $lockedLead
-                                            ->id,
+                                    'lead_id' => $lockedLead
+                                        ->id,
 
-                                    'from_status_id' =>
-                                        $oldStatusId,
+                                    'from_status_id' => $oldStatusId,
 
-                                    'to_status_id' =>
-                                        $newStatusId,
+                                    'to_status_id' => $newStatusId,
 
-                                    'changed_by' =>
-                                        $employeeName,
+                                    'changed_by' => $employeeName,
+                                    'changed_by_user_id' => $currentUserId,
 
-                                    'note' =>
-                                        'متابعة - '
+                                    'note' => 'متابعة - '
                                         .$communicationTypes[
                                             $communicationType
                                         ]
                                         .': '
                                         .$outcome,
 
-                                    'changed_at' =>
-                                        now(),
+                                    'changed_at' => now(),
                                 ]
                             );
                     }
@@ -1003,14 +1050,20 @@ class LeadFollowupController extends Controller
                         array_merge(
                             $stageData,
                             [
-                                'lead_status_id' =>
-                                    $newStatusId,
+                                'lead_status_id' => $newStatusId,
 
-                                'next_follow_up_at' =>
-                                    $nextFollowUpAt,
+                                'next_follow_up_at' => $nextFollowUpAt,
+                                'assigned_user_id' => $targetUser?->id
+                                    ?? $lockedLead->assigned_user_id,
+                                'assigned_employee' => $targetUser?->name
+                                    ?? $lockedLead->assigned_employee,
                             ]
                         )
                     );
+
+                    if ($campaign !== null) {
+                        $lockedLead->campaigns()->sync([$campaign->id]);
+                    }
 
                     return $lockedLead;
                 }
@@ -1048,14 +1101,11 @@ class LeadFollowupController extends Controller
                 'kanban_popup'
             )
                 ? [
-                    'lead' =>
-                        $leadRecord->id,
+                    'lead' => $leadRecord->id,
 
-                    'kanban_popup' =>
-                        1,
+                    'kanban_popup' => 1,
 
-                    'saved' =>
-                        1,
+                    'saved' => 1,
                 ]
                 : $leadRecord;
 
@@ -1089,10 +1139,7 @@ class LeadFollowupController extends Controller
         $employeeName = mb_substr(
             trim(
                 (string)
-                    session(
-                        'crm_v2_user',
-                        ''
-                    )
+                    auth()->user()->name
             ),
             0,
             150
@@ -1122,26 +1169,6 @@ class LeadFollowupController extends Controller
 
     private function assertCrmV2Database(): void
     {
-        $database = (string)
-            DB::connection()
-                ->getDatabaseName();
-
-        $host = (string)
-            config(
-                'database.connections.mysql.host'
-            );
-
-        $user = (string)
-            config(
-                'database.connections.mysql.username'
-            );
-
-        abort_unless(
-            $database === 'sokrat_crm_v2'
-            && $host === '127.0.0.1'
-            && $user === 'sokrat_crm_v2_app',
-            500,
-            'CRM v2 database isolation check failed.'
-        );
+        CrmDatabaseGuard::ensureConnected();
     }
 }

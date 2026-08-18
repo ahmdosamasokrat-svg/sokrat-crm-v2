@@ -8,10 +8,11 @@ use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
+use App\Models\User;
+use App\Services\VoipService;
+use App\Support\CrmDatabaseGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -82,11 +83,9 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmDatabase();
+        $user = $request->user();
 
         $filters = $this->resolveFilters(
             $request
@@ -103,7 +102,8 @@ class DashboardController extends Controller
             ->orderBy('position')
             ->get();
 
-        $leadBase = Lead::query();
+        $leadBase = Lead::query()
+            ->accessibleTo($user);
 
         $this->applyLeadFilters(
             $leadBase,
@@ -200,14 +200,10 @@ class DashboardController extends Controller
                 'class' => match (
                     $stage->code
                 ) {
-                    'interest' =>
-                        'interest',
-                    'negotiation' =>
-                        'negotiation',
-                    'closing_execution' =>
-                        'closing',
-                    default =>
-                        'start',
+                    'interest' => 'interest',
+                    'negotiation' => 'negotiation',
+                    'closing_execution' => 'closing',
+                    default => 'start',
                 },
             ];
         }
@@ -354,17 +350,18 @@ class DashboardController extends Controller
                 ->with([
                     'lead.status',
                     'toStatus',
+                    'user:id,name',
                 ])
                 ->whereHas(
                     'lead',
                     function (
                         Builder $query
-                    ) use ($filters): void {
-                        $this
-                            ->applyLeadFilters(
-                                $query,
-                                $filters
-                            );
+                    ) use ($filters, $user): void {
+                        $query->accessibleTo($user);
+                        $this->applyLeadFilters(
+                            $query,
+                            $filters
+                        );
                     }
                 )
                 ->orderByDesc(
@@ -374,22 +371,28 @@ class DashboardController extends Controller
                 ->limit(8)
                 ->get();
 
-        $employees = Lead::query()
-            ->whereNotNull(
-                'assigned_employee'
-            )
-            ->where(
-                'assigned_employee',
-                '<>',
-                ''
-            )
+        $visibleAssignedUserIds = Lead::query()
+            ->accessibleTo($user)
+            ->whereNotNull('assigned_user_id')
             ->distinct()
-            ->orderBy(
-                'assigned_employee'
+            ->pluck('assigned_user_id');
+
+        $employees = User::query()
+            ->whereIn('id', $visibleAssignedUserIds)
+            ->orderBy('name')
+            ->pluck('name')
+            ->merge(
+                Lead::query()
+                    ->accessibleTo($user)
+                    ->whereNull('assigned_user_id')
+                    ->whereNotNull('assigned_employee')
+                    ->where('assigned_employee', '<>', '')
+                    ->pluck('assigned_employee')
             )
-            ->pluck(
-                'assigned_employee'
-            );
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
 
         $distribution = [];
 
@@ -406,64 +409,57 @@ class DashboardController extends Controller
 
             $distribution[] =
                 $card + [
-                    'percentage' =>
-                        $percentage,
+                    'percentage' => $percentage,
                 ];
         }
 
-        $alertCount =
-            $followupCounts['today']
-            + $followupCounts['overdue'];
+        $voipStatus = null;
+        if ($user->hasPermission('voip.view')) {
+            try {
+                $voip = app(VoipService::class);
+                if ($voip->isConfigured()) {
+                    $voipStatus = $voip->health();
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
 
         return view(
             'dashboard',
             [
-                'totalLeads' =>
-                    $totalLeads,
+                'totalLeads' => $totalLeads,
 
-                'statusCards' =>
-                    $statusCards,
+                'statusCards' => $statusCards,
 
-                'stageCards' =>
-                    $stageCards,
+                'stageCards' => $stageCards,
 
-                'distribution' =>
-                    $distribution,
+                'distribution' => $distribution,
 
-                'contractRate' =>
-                    $contractRate,
+                'contractRate' => $contractRate,
 
-                'followupCounts' =>
-                    $followupCounts,
+                'followupCounts' => $followupCounts,
 
-                'meetingCounts' =>
-                    $meetingCounts,
+                'meetingCounts' => $meetingCounts,
 
-                'latestFollowups' =>
-                    $latestFollowups,
+                'latestFollowups' => $latestFollowups,
 
-                'communicationLabels' =>
-                    self::COMMUNICATION_LABELS,
+                'communicationLabels' => self::COMMUNICATION_LABELS,
 
-                'employees' =>
-                    $employees,
+                'employees' => $employees,
 
-                'filters' =>
-                    $filters,
+                'filters' => $filters,
 
-                'alertCount' =>
-                    $alertCount,
+                'voipStatus' => $voipStatus,
             ]
         );
     }
 
-    public function kanban()
+    public function kanban(Request $request)
     {
-        if (!session('crm_v2_logged_in')) {
-            return redirect()->route('login');
-        }
 
         $this->assertCrmDatabase();
+        $user = $request->user();
 
         $todayStart = now()
             ->startOfDay();
@@ -496,6 +492,8 @@ class DashboardController extends Controller
              * today / overdue / upcoming.
              */
             $leads = Lead::query()
+                ->accessibleTo($user)
+                ->with('assignedUser:id,name')
                 ->where(
                     'lead_status_id',
                     $status->id
@@ -521,9 +519,8 @@ class DashboardController extends Controller
                 $leads->filter(
                     static fn (
                         Lead $lead
-                    ): bool =>
-                        $lead
-                            ->next_follow_up_at
+                    ): bool => $lead
+                        ->next_follow_up_at
                         !== null
                 );
 
@@ -552,10 +549,9 @@ class DashboardController extends Controller
                     ->sortBy(
                         static fn (
                             Lead $lead
-                        ): int =>
-                            $lead
-                                ->next_follow_up_at
-                                ?->getTimestamp()
+                        ): int => $lead
+                            ->next_follow_up_at
+                            ?->getTimestamp()
                             ?? 0
                     )
                     ->values();
@@ -565,21 +561,19 @@ class DashboardController extends Controller
                     ->filter(
                         static fn (
                             Lead $lead
-                        ): bool =>
-                            $lead
-                                ->next_follow_up_at
-                                ?->lt(
-                                    $todayStart
-                                )
+                        ): bool => $lead
+                            ->next_follow_up_at
+                            ?->lt(
+                                $todayStart
+                            )
                             ?? false
                     )
                     ->sortByDesc(
                         static fn (
                             Lead $lead
-                        ): int =>
-                            $lead
-                                ->next_follow_up_at
-                                ?->getTimestamp()
+                        ): int => $lead
+                            ->next_follow_up_at
+                            ?->getTimestamp()
                             ?? 0
                     )
                     ->values();
@@ -589,152 +583,106 @@ class DashboardController extends Controller
                     ->filter(
                         static fn (
                             Lead $lead
-                        ): bool =>
-                            $lead
-                                ->next_follow_up_at
-                                ?->gt(
-                                    $todayEnd
-                                )
+                        ): bool => $lead
+                            ->next_follow_up_at
+                            ?->gt(
+                                $todayEnd
+                            )
                             ?? false
                     )
                     ->sortBy(
                         static fn (
                             Lead $lead
-                        ): int =>
-                            $lead
-                                ->next_follow_up_at
-                                ?->getTimestamp()
+                        ): int => $lead
+                            ->next_follow_up_at
+                            ?->getTimestamp()
                             ?? 0
                     )
                     ->values();
 
             $scopeLeads = [
-                'today' =>
-                    $todayLeads,
+                'today' => $todayLeads,
 
-                'overdue' =>
-                    $overdueLeads,
+                'overdue' => $overdueLeads,
 
-                'upcoming' =>
-                    $upcomingLeads,
+                'upcoming' => $upcomingLeads,
             ];
 
             $scopeCounts = [
-                'today' =>
-                    $todayLeads->count(),
+                'today' => $todayLeads->count(),
 
-                'overdue' =>
-                    $overdueLeads->count(),
+                'overdue' => $overdueLeads->count(),
 
-                'upcoming' =>
-                    $upcomingLeads->count(),
+                'upcoming' => $upcomingLeads->count(),
             ];
 
             $noDateCount =
                 $leads->filter(
                     static fn (
                         Lead $lead
-                    ): bool =>
-                        $lead
-                            ->next_follow_up_at
+                    ): bool => $lead
+                        ->next_follow_up_at
                         === null
                 )->count();
 
             $kanbanColumns[] = [
-                'status_id' =>
-                    $status->id,
+                'status_id' => $status->id,
 
-                'code' =>
-                    $status->code,
+                'code' => $status->code,
 
-                'name' =>
-                    $status->name_ar,
+                'name' => $status->name_ar,
 
-                'slug' =>
-                    $ui['slug'],
+                'slug' => $ui['slug'],
 
-                'icon' =>
-                    $ui['icon'],
+                'icon' => $ui['icon'],
 
-                'class' =>
-                    $ui[
+                'class' => $ui[
                         'kanban_class'
                     ],
 
-                'status_color' =>
-                    (
-                        $status->color
-                        ?: '#3478f6'
-                    ),
+                'status_color' => (
+                    $status->color
+                    ?: '#3478f6'
+                ),
 
-                'stage_name' =>
-                    (
-                        $status
-                            ->stage
-                            ?->name_ar
-                        ?: ''
-                    ),
+                'stage_name' => (
+                    $status
+                        ->stage
+                        ?->name_ar
+                    ?: ''
+                ),
 
-                'stage_color' =>
-                    (
-                        $status
-                            ->stage
-                            ?->color
-                        ?: $status->color
-                        ?: '#3478f6'
-                    ),
+                'stage_color' => (
+                    $status
+                        ->stage
+                        ?->color
+                    ?: $status->color
+                    ?: '#3478f6'
+                ),
 
-                'total_count' =>
-                    $totalCount,
+                'total_count' => $totalCount,
 
-                'no_date_count' =>
-                    $noDateCount,
+                'no_date_count' => $noDateCount,
 
-                'scope_counts' =>
-                    $scopeCounts,
+                'scope_counts' => $scopeCounts,
 
-                'scope_leads' =>
-                    $scopeLeads,
+                'scope_leads' => $scopeLeads,
             ];
         }
 
         return view(
             'kanban',
             [
-                'kanbanColumns' =>
-                    $kanbanColumns,
+                'kanbanColumns' => $kanbanColumns,
 
-                'totalLeads' =>
-                    $totalLeads,
+                'totalLeads' => $totalLeads,
             ]
         );
     }
 
     private function assertCrmDatabase(): void
     {
-        $database = DB::connection()
-            ->getDatabaseName();
-
-        $host = (string)
-            config(
-                'database.connections.mysql.host'
-            );
-
-        $user = (string)
-            config(
-                'database.connections.mysql.username'
-            );
-
-        if (
-            $database !== 'sokrat_crm_v2'
-            || $host !== '127.0.0.1'
-            || $user !==
-                'sokrat_crm_v2_app'
-        ) {
-            throw new \RuntimeException(
-                'CRM v2 database isolation failed.'
-            );
-        }
+        CrmDatabaseGuard::ensureConnected();
     }
 
     private function resolveFilters(
@@ -754,7 +702,7 @@ class DashboardController extends Controller
             );
 
         if (
-            !in_array(
+            ! in_array(
                 $period,
                 [
                     'all',
@@ -793,8 +741,8 @@ class DashboardController extends Controller
         );
 
         if (
-            !$fromDate
-            && !$toDate
+            ! $fromDate
+            && ! $toDate
         ) {
             $now = now();
 
@@ -855,7 +803,7 @@ class DashboardController extends Controller
     ): ?Carbon {
         if (
             $value === ''
-            || !preg_match(
+            || ! preg_match(
                 '/^\d{4}-\d{2}-\d{2}$/',
                 $value
             )
@@ -886,8 +834,28 @@ class DashboardController extends Controller
             $filters['employee'] !== ''
         ) {
             $query->where(
-                'assigned_employee',
-                $filters['employee']
+                function (Builder $employeeQuery) use ($filters): void {
+                    $employeeQuery
+                        ->whereHas(
+                            'assignedUser',
+                            function (Builder $userQuery) use ($filters): void {
+                                $userQuery->where(
+                                    'name',
+                                    $filters['employee']
+                                );
+                            }
+                        )
+                        ->orWhere(
+                            function (Builder $legacyQuery) use ($filters): void {
+                                $legacyQuery
+                                    ->whereNull('assigned_user_id')
+                                    ->where(
+                                        'assigned_employee',
+                                        $filters['employee']
+                                    );
+                            }
+                        );
+                }
             );
         }
 

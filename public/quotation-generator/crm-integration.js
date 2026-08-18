@@ -74,6 +74,18 @@
    state.features
   );
 
+  if (
+   Object.prototype.hasOwnProperty.call(
+    state,
+    'financialNote'
+   )
+  ) {
+   setValue(
+    els.financialNote,
+    state.financialNote
+   );
+  }
+
   els.includeProducts.checked =
    Boolean(
     state.includeProducts
@@ -151,8 +163,28 @@
      'custom',
     qty:1,
     price:0,
+    inFinancial:true,
     showProduct:false
    });
+  }
+
+  adjustments = [];
+  nextAdjustmentId = 1;
+
+  const savedAdjustments =
+   Array.isArray(
+    state.adjustments
+   )
+    ? state.adjustments
+    : [];
+
+  if (savedAdjustments.length) {
+   savedAdjustments.forEach(
+    (adjustment) =>
+     addAdjustment(adjustment)
+   );
+  } else {
+   renderAdjustmentsEditor();
   }
 
   syncTypographyControls();
@@ -189,6 +221,10 @@
 
   features:
    els.features.value,
+
+  financialNote:
+   els.financialNote?.value
+    || '',
 
   includeProducts:
    els.includeProducts.checked,
@@ -253,9 +289,37 @@
      image:
       item.image || '',
 
+     inFinancial:
+      Boolean(
+       item.inFinancial
+      ),
+
      showProduct:
       Boolean(
        item.showProduct
+      )
+    })
+   ),
+
+  adjustments:
+   adjustments.map(
+    (adjustment) => ({
+     label:
+      adjustment.label || '',
+
+     operation:
+      adjustment.operation === 'subtract'
+       ? 'subtract'
+       : 'add',
+
+     mode:
+      adjustment.mode === 'percent'
+       ? 'percent'
+       : 'amount',
+
+     value:
+      Number(
+       adjustment.value || 0
       )
     })
    )
@@ -443,6 +507,11 @@
     '.builder'
    );
 
+  const resizer =
+   document.getElementById(
+    'builderResizer'
+   );
+
   if (appShell) {
    appShell.classList.add(
     'saved-quotation-view'
@@ -451,6 +520,10 @@
 
   if (builder) {
    builder.hidden = true;
+  }
+
+  if (resizer) {
+   resizer.hidden = true;
   }
 
   document.title =

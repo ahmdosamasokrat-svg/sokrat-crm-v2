@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
  <meta charset="utf-8">
  <meta
@@ -10,6 +10,7 @@
  <title>
   تسجيل متابعة {{ $lead->name }} | CRM v2
  </title>
+ <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
  <style>
   :root{
@@ -23,6 +24,16 @@
    --shadow:0 18px 45px #17203310
   }
 
+  html.dark-mode{
+   --dark:#f4f4f5;
+   --text:#a1a1aa;
+   --muted:#a1a1aa;
+   --line:rgba(255,255,255,.08);
+   --bg:#121214;
+   --card:rgba(24,24,27,.75);
+   --shadow:0 10px 30px rgba(0,0,0,.5)
+  }
+
   *{
    box-sizing:border-box
   }
@@ -31,7 +42,7 @@
    margin:0;
    background:var(--bg);
    color:var(--dark);
-   font-family:Tahoma,Arial,sans-serif
+   font-family:var(--font-primary)
   }
 
   button,
@@ -44,8 +55,7 @@
   .crm-app{
    min-height:100vh;
    display:flex;
-   direction:rtl
-  }
+   }
 
   .crm-main{
    min-width:0;
@@ -61,7 +71,7 @@
    height:100vh;
    overflow:auto;
    padding:24px 17px;
-   border-left:1px solid var(--line);
+   border-inline-end:1px solid var(--line);
    background:#fff;
    z-index:80
   }
@@ -95,7 +105,7 @@
   .crm-side-brand strong{
    display:block;
    color:var(--red);
-   font:900 22px Arial
+   font:900 22px var(--font-primary)
   }
 
   .crm-side-brand small{
@@ -130,7 +140,7 @@
    background:transparent;
    color:#566175;
    text-decoration:none;
-   text-align:right;
+   text-align:start;
    font-size:13px;
    cursor:pointer;
    transition:.2s
@@ -185,7 +195,7 @@
    border-radius:99px;
    background:#eef0f4;
    color:#7e8796;
-   font:800 10px Arial
+   font:800 10px var(--font-primary)
   }
 
   .crm-toggle.active .crm-count{
@@ -227,8 +237,8 @@
    display:grid;
    gap:2px;
    margin:3px 28px 7px 0;
-   padding-right:14px;
-   border-right:1px solid var(--line)
+   padding-inline-start:14px;
+   border-inline-start:1px solid var(--line)
   }
 
   .crm-sub a{
@@ -329,8 +339,16 @@
    margin-bottom:18px;
    border:1px solid var(--line);
    border-radius:19px;
-   background:#fff;
+   background:var(--card);
    box-shadow:var(--shadow)
+  }
+  html.dark-mode .client-card{
+   background:var(--bg-card,rgba(24,24,27,.75))!important;
+   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
+   backdrop-filter:var(--glass-blur,blur(16px))!important;
+   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+   box-shadow:var(--shadow-card,0 10px 30px rgba(0,0,0,.5))!important;
+   color:var(--text-primary,#f4f4f5)!important
   }
 
   .client-head{
@@ -344,6 +362,10 @@
     #303b50
    );
    color:#fff
+  }
+  html.dark-mode .client-head{
+   background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important
   }
 
   .client-avatar{
@@ -359,6 +381,11 @@
    font-size:28px;
    font-weight:900
   }
+  html.dark-mode .client-avatar{
+   background:rgba(255,255,255,.12)!important;
+   border-color:rgba(255,255,255,.2)!important;
+   color:#f87171!important
+  }
 
   .client-copy{
    min-width:0;
@@ -370,17 +397,20 @@
    font-size:10px;
    font-weight:900
   }
+  html.dark-mode .client-copy small{color:#f87171!important}
 
   .client-copy h2{
    margin:7px 0 6px;
    font-size:24px
   }
+  html.dark-mode .client-copy h2{color:#ffffff!important}
 
   .client-copy p{
    margin:0;
    color:#cbd2de;
    font-size:12px
   }
+  html.dark-mode .client-copy p{color:#d4d4d8!important}
 
   .client-actions{
    display:flex;
@@ -388,6 +418,30 @@
    gap:8px
   }
 
+  .header-action{
+   min-height:41px;
+   display:inline-flex;
+   align-items:center;
+   justify-content:center;
+   padding:8px 13px;
+   border:1px solid #ffffff55;
+   border-radius:10px;
+   background:#ffffff12;
+   color:#fff;
+   text-decoration:none;
+   font-size:11px;
+   font-weight:900
+  }
+  html.dark-mode .header-action{
+   background:rgba(255,255,255,.08)!important;
+   border-color:rgba(255,255,255,.14)!important;
+   color:#f4f4f5!important
+  }
+  html.dark-mode .header-action.primary{
+   background:linear-gradient(135deg,#e83243,#c91d2e)!important;
+   border-color:#ef4444!important;
+   color:#ffffff!important
+  }
   .header-action{
    min-height:41px;
    display:inline-flex;
@@ -422,6 +476,12 @@
    padding:15px;
    background:#fff
   }
+  html.dark-mode .client-data{
+   background:rgba(255,255,255,.08)!important
+  }
+  html.dark-mode .client-data-item{
+   background:rgba(24,24,27,.9)!important
+  }
 
   .client-data-item small{
    display:block;
@@ -430,6 +490,9 @@
    font-size:9px;
    font-weight:800
   }
+  html.dark-mode .client-data-item small{
+   color:var(--text-muted,#a1a1aa)!important
+  }
 
   .client-data-item strong{
    display:block;
@@ -437,6 +500,9 @@
    font-size:12px;
    line-height:1.7;
    overflow-wrap:anywhere
+  }
+  html.dark-mode .client-data-item strong{
+   color:var(--text-primary,#f4f4f5)!important
   }
 
   .workspace{
@@ -455,29 +521,27 @@
    background:#fff;
    box-shadow:var(--shadow)
   }
+  html.dark-mode .panel{
+   background:var(--bg-card,rgba(24,24,27,.75))!important;
+   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
+   backdrop-filter:var(--glass-blur,blur(16px))!important;
+   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
+   box-shadow:var(--shadow-glass)!important;
+   color:var(--text-primary,#f4f4f5)!important
+  }
 
   .panel-head{
    padding:17px 19px;
    border-bottom:1px solid var(--line);
    background:#fafbfc
   }
-
-  .panel-head h3{
-   margin:0;
-   font-size:16px
+  html.dark-mode .panel-head{
+   background:rgba(255,255,255,.03)!important;
+   border-bottom:1px solid rgba(255,255,255,.08)!important
   }
-
-  .panel-head p{
-   margin:6px 0 0;
-   color:var(--muted);
-   font-size:10px
-  }
-
-  .panel-body{
-   padding:19px
-  }
-
-  .flash-success{
+  html.dark-mode .panel-head h3{color:#f4f4f5!important;font-weight:800!important}
+  html.dark-mode .panel-head p{color:var(--text-muted,#a1a1aa)!important}
+  html.dark-mode .panel-body{color:var(--text-primary,#f4f4f5)!important}
    margin-bottom:15px;
    padding:13px 15px;
    border:1px solid #a9d8bd;
@@ -521,6 +585,10 @@
    font-size:11px;
    font-weight:900
   }
+  html.dark-mode .field label{
+   color:#e4e4e7!important;
+   font-weight:700!important
+  }
 
   .field small{
    display:block;
@@ -528,6 +596,9 @@
    color:#929baa;
    font-size:9px;
    line-height:1.7
+  }
+  html.dark-mode .field small{
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .control{
@@ -541,10 +612,24 @@
    font-size:12px;
    outline:none
   }
+  html.dark-mode .control{
+   background:var(--bg-input,rgba(39,39,42,.65))!important;
+   border:1px solid rgba(255,255,255,.14)!important;
+   color:#f4f4f5!important
+  }
 
   .control:focus{
    border-color:#8eacd5;
    box-shadow:0 0 0 3px #2c66ad13
+  }
+  html.dark-mode .control:focus{
+   border-color:rgba(239,68,68,.6)!important;
+   background:rgba(39,39,42,.95)!important;
+   box-shadow:0 0 0 3px rgba(239,68,68,.2)!important
+  }
+  html.dark-mode .control option{
+   background:#18181b!important;
+   color:#f4f4f5!important
   }
 
   textarea.control{
@@ -565,7 +650,11 @@
    font-size:12px;
    font-weight:900
   }
-
+  html.dark-mode .employee-display{
+   background:rgba(255,255,255,.04)!important;
+   border-color:rgba(255,255,255,.15)!important;
+   color:#f4f4f5!important
+  }
   .submit-row{
    display:flex;
    justify-content:flex-end;
@@ -601,6 +690,11 @@
    border-radius:13px;
    background:#fff
   }
+  html.dark-mode .timeline-item{
+   background:rgba(255,255,255,.03)!important;
+   border:1px solid rgba(255,255,255,.08)!important;
+   border-radius:13px!important
+  }
 
   .timeline-top{
    display:flex;
@@ -615,11 +709,18 @@
    font-size:12px;
    font-weight:900
   }
+  html.dark-mode .timeline-employee{
+   color:#f4f4f5!important;
+   font-weight:800!important
+  }
 
   .timeline-date{
    color:#929baa;
    font-size:9px;
    white-space:nowrap
+  }
+  html.dark-mode .timeline-date{
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .timeline-badges{
@@ -639,10 +740,20 @@
    font-size:9px;
    font-weight:900
   }
+  html.dark-mode .timeline-badge{
+   background:rgba(255,255,255,.08)!important;
+   color:#d4d4d8!important;
+   border:1px solid rgba(255,255,255,.1)!important
+  }
 
   .timeline-badge.channel{
    background:#eef5fd;
    color:#285e9d
+  }
+  html.dark-mode .timeline-badge.channel{
+   background:rgba(59,130,246,.15)!important;
+   color:#60a5fa!important;
+   border:1px solid rgba(59,130,246,.3)!important
   }
 
   .timeline-outcome{
@@ -653,6 +764,9 @@
    white-space:pre-wrap;
    overflow-wrap:anywhere
   }
+  html.dark-mode .timeline-outcome{
+   color:#e4e4e7!important
+  }
 
   .timeline-next{
    margin-top:10px;
@@ -660,6 +774,10 @@
    border-top:1px solid #eef1f5;
    color:#7c8798;
    font-size:9px
+  }
+  html.dark-mode .timeline-next{
+   border-top-color:rgba(255,255,255,.08)!important;
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   .empty-state{
@@ -671,6 +789,11 @@
    text-align:center;
    font-size:11px;
    line-height:1.9
+  }
+  html.dark-mode .empty-state{
+   background:rgba(255,255,255,.02)!important;
+   border-color:rgba(255,255,255,.1)!important;
+   color:var(--text-muted,#a1a1aa)!important
   }
 
   @media(max-width:1100px){
@@ -982,14 +1105,14 @@
   /* FOLLOW-UP STAGE COLOR START */
 
   .latest-followups-panel .timeline-item{
-   border-right:
+   border-inline-start:
     4px solid
     var(--timeline-stage-color,#64748b)
   }
 
   .timeline-stage-badge{
    position:relative;
-   padding-right:22px!important;
+   padding-inline-start:22px!important;
    border-color:
     var(--timeline-stage-color,#64748b)!important;
    color:
@@ -1133,7 +1256,7 @@ body.kanban-followup-popup
    class="crm-side-overlay"
    id="crmSidebarOverlay"
    type="button"
-   aria-label="إغلاق القائمة"
+   aria-label="{{ __('crm.close_menu') }}"
   ></button>
 
   <main class="crm-main">
@@ -1144,37 +1267,19 @@ body.kanban-followup-popup
      type="button"
      aria-controls="crmSidebar"
      aria-expanded="false"
-     aria-label="فتح القائمة"
+     aria-label="{{ __('crm.open_menu') }}"
     >
      ☰
     </button>
 
     <div class="page-title">
-     <h1>تسجيل متابعة العميل</h1>
+     <h1>{{ __('crm.record_lead_followup') }}</h1>
      <p>
-      تسجيل نتيجة التواصل وتحديث حالة العميل
+      {{ __('crm.followup_subtitle') }}
      </p>
     </div>
 
-    <div class="user-tools">
-     <span class="user-chip">
-      {{ $currentEmployee }}
-     </span>
-
-     <form
-      method="POST"
-      action="{{ route('logout') }}"
-     >
-      @csrf
-
-      <button
-       class="logout-button"
-       type="submit"
-      >
-       تسجيل الخروج
-      </button>
-     </form>
-    </div>
+     @include('partials.profile-dropdown')
    </header>
 
    <div class="shell">
@@ -1212,7 +1317,7 @@ body.kanban-followup-popup
         class="header-action primary"
         href="{{ route('v2.leads') }}"
        >
-        ← العملاء
+        {{ __('crm.back_to_leads_short') }}
        </a>
 
        <a
@@ -1222,7 +1327,7 @@ body.kanban-followup-popup
          $lead
         ) }}"
        >
-        عرض بيانات العميل
+        {{ __('crm.view_lead_data') }}
        </a>
 
        @if ($callPhone)
@@ -1230,7 +1335,7 @@ body.kanban-followup-popup
          class="header-action"
          href="callto:{{ $callPhone }}"
         >
-         ☎ اتصال
+         {{ __('crm.call_action') }}
         </a>
        @endif
       </div>
@@ -1238,35 +1343,35 @@ body.kanban-followup-popup
 
      <div class="client-data">
       <div class="client-data-item">
-       <small>الهاتف</small>
+       <small>{{ __('crm.phone') }}</small>
        <strong>
         {{ $lead->phone ?: '----' }}
        </strong>
       </div>
 
       <div class="client-data-item">
-       <small>البريد الإلكتروني</small>
+       <small>{{ __('crm.email') }}</small>
        <strong>
         {{ $lead->email ?: '----' }}
        </strong>
       </div>
 
       <div class="client-data-item">
-       <small>النشاط</small>
+       <small>{{ __('crm.activity') }}</small>
        <strong>
         {{ $lead->activity ?: '----' }}
        </strong>
       </div>
 
       <div class="client-data-item">
-       <small>المحافظة</small>
+       <small>{{ __('crm.governorate') }}</small>
        <strong>
         {{ $lead->governorate ?: '----' }}
        </strong>
       </div>
 
       <div class="client-data-item">
-       <small>الحالة الحالية</small>
+       <small>{{ __('crm.current_status') }}</small>
        <strong>
         {{
          $lead->status?->name_ar
@@ -1276,7 +1381,7 @@ body.kanban-followup-popup
       </div>
 
       <div class="client-data-item">
-       <small>المرحلة الحالية</small>
+       <small>{{ __('crm.current_stage') }}</small>
        <strong>
         {{
          $lead->status?->stage?->name_ar
@@ -1286,17 +1391,18 @@ body.kanban-followup-popup
       </div>
 
       <div class="client-data-item">
-       <small>الموظف المسؤول</small>
+       <small>{{ __('crm.responsible_employee') }}</small>
        <strong>
         {{
-         $lead->assigned_employee
+         $lead->assignedUser?->name
+         ?? $lead->assigned_employee
          ?: '----'
         }}
        </strong>
       </div>
 
       <div class="client-data-item">
-       <small>المتابعة القادمة</small>
+       <small>{{ __('crm.next_followup') }}</small>
        <strong>
         {{
          $lead->next_follow_up_at
@@ -1317,7 +1423,7 @@ body.kanban-followup-popup
     @if ($errors->any())
      <div class="error-box">
       <strong>
-       راجع البيانات التالية:
+       {{ __('crm.review_followup_data') }}
       </strong>
 
       <ul>
@@ -1329,9 +1435,10 @@ body.kanban-followup-popup
     @endif
 
     <div class="workspace">
+     @can('leads.followups.create')
      <section class="panel">
       <header class="panel-head">
-       <h3>بيانات المتابعة الجديدة</h3>
+       <h3>{{ __('crm.new_followup_data') }}</h3>
        <p>
         الموظف المسجل:
         {{ $currentEmployee }}
@@ -1376,10 +1483,10 @@ body.kanban-followup-popup
           );
         @endphp
 
-        <div class="form-grid">
+         <div class="form-grid">
          <div class="field">
           <label for="lead_status_id">
-           الحالة والمرحلة
+           {{ __('crm.status_stage') }}
           </label>
 
           <select
@@ -1452,9 +1559,51 @@ body.kanban-followup-popup
             للعميل.
            @endif
           </small>
-         </div>
+          </div>
 
-         <!-- FOLLOW-UP EDITABLE STAGE DATA START -->
+          @if ($manageableCampaigns->isNotEmpty())
+           <div class="field">
+            <label for="followupCampaign">{{ __('crm.campaign') }}</label>
+            <select class="control" id="followupCampaign" name="campaign_id">
+             <option value="">{{ __('crm.no_campaign_change') }}</option>
+             @foreach ($manageableCampaigns as $campaignOption)
+              <option
+               value="{{ $campaignOption->id }}"
+               data-user-ids="{{ implode(',', $campaignOption->users->modelKeys()) }}"
+               @selected(
+                (int) old('campaign_id', $currentCampaign?->id)
+                 === (int) $campaignOption->id
+               )
+              >
+               {{ $campaignOption->name }}
+              </option>
+             @endforeach
+            </select>
+            <small>{{ __('crm.followup_campaign_hint') }}</small>
+           </div>
+
+           <div class="field">
+            <label for="followupAssignedUser">{{ __('crm.campaign_responsible_employee') }}</label>
+            <select class="control" id="followupAssignedUser" name="assigned_user_id">
+             <option value="">{{ __('crm.select_responsible_employee') }}</option>
+             @foreach ($campaignAssignees as $assignee)
+              <option
+               value="{{ $assignee->id }}"
+               data-user-id="{{ $assignee->id }}"
+               @selected(
+                (int) old('assigned_user_id', $lead->assigned_user_id)
+                 === (int) $assignee->id
+               )
+              >
+               {{ $assignee->name }}
+              </option>
+             @endforeach
+            </select>
+            <small>تظهر فقط مستخدمو الحملة المسموح لك بالإسناد إليهم.</small>
+           </div>
+          @endif
+
+          <!-- FOLLOW-UP EDITABLE STAGE DATA START -->
 
          <section
           class="followup-stage-editor is-hidden"
@@ -1462,7 +1611,7 @@ body.kanban-followup-popup
          >
           <header class="followup-editor-head">
            <div>
-            <h3>بيانات الشركة والعميل</h3>
+            <h3>{{ __('crm.company_lead_data') }}</h3>
             <p>
              عدّل البيانات الحالية ثم اضغط حفظ المتابعة.
             </p>
@@ -1472,7 +1621,7 @@ body.kanban-followup-popup
           <div class="followup-editor-grid">
            <div class="field">
             <label for="companyName">
-             اسم الشركة
+             {{ __('crm.company_name') }}
             </label>
 
             <input
@@ -1490,7 +1639,7 @@ body.kanban-followup-popup
 
            <div class="field">
             <label for="activity">
-             النشاط
+             {{ __('crm.activity') }}
             </label>
 
             <input
@@ -1508,7 +1657,7 @@ body.kanban-followup-popup
 
            <div class="field">
             <label for="governorate">
-             المحافظة
+             {{ __('crm.governorate') }}
             </label>
 
             <input
@@ -1526,7 +1675,7 @@ body.kanban-followup-popup
 
            <div class="field full">
             <label for="address">
-             العنوان
+             {{ __('crm.address') }}
             </label>
 
             <input
@@ -1544,7 +1693,7 @@ body.kanban-followup-popup
 
            <div class="field">
             <label for="usersCount">
-             عدد المستخدمين
+             {{ __('crm.user_count') }}
             </label>
 
             <input
@@ -1563,7 +1712,7 @@ body.kanban-followup-popup
 
            <div class="field">
             <label for="branchesCount">
-             عدد الفروع
+             {{ __('crm.branch_count') }}
             </label>
 
             <input
@@ -1582,7 +1731,7 @@ body.kanban-followup-popup
 
            <div class="field">
             <label for="jobTitle">
-             المنصب
+             {{ __('crm.job_title') }}
             </label>
 
             <input
@@ -1606,7 +1755,7 @@ body.kanban-followup-popup
          >
           <header class="followup-editor-head">
            <div>
-            <h3>سبب عدم الاهتمام</h3>
+            <h3>{{ __('crm.not_interested_reason') }}</h3>
             <p>
              سجّل سبب عدم اهتمام العميل.
             </p>
@@ -1616,7 +1765,7 @@ body.kanban-followup-popup
           <div class="followup-editor-grid">
            <div class="field full">
             <label for="disinterestReason">
-             سبب عدم الاهتمام
+             {{ __('crm.not_interested_reason') }}
              <span class="required">*</span>
             </label>
 
@@ -1639,7 +1788,7 @@ body.kanban-followup-popup
          >
           <header class="followup-editor-head">
            <div>
-            <h3>بيانات عرض السعر</h3>
+            <h3>{{ __('crm.quotation_data') }}</h3>
             <p>
              تظهر في عرض سعر، مناقشة،
              تقفيل عقد وتنفيذ.
@@ -1650,7 +1799,7 @@ body.kanban-followup-popup
           <div class="followup-editor-grid">
            <div class="field">
             <label for="solutionType">
-             نوع النظام
+             {{ __('crm.system_type') }}
              <span class="required">*</span>
             </label>
 
@@ -1660,7 +1809,7 @@ body.kanban-followup-popup
              name="solution_type"
             >
              <option value="">
-              اختر نوع النظام
+              {{ __('crm.select_system_type') }}
              </option>
 
              <option
@@ -1739,7 +1888,7 @@ body.kanban-followup-popup
           >
            <div class="field">
             <label for="linesCount">
-             عدد الخطوط
+             {{ __('crm.line_count') }}
              <span class="required">*</span>
             </label>
 
@@ -1759,7 +1908,7 @@ body.kanban-followup-popup
 
            <div class="field full">
             <label for="extensions">
-             الملحقات
+             {{ __('crm.accessories') }}
              <span class="required">*</span>
             </label>
 
@@ -1781,7 +1930,7 @@ body.kanban-followup-popup
           >
            <div class="field full">
             <label for="departments">
-             الأقسام
+             {{ __('crm.departments') }}
              <span class="required">*</span>
             </label>
 
@@ -1844,7 +1993,7 @@ body.kanban-followup-popup
 
          <div class="field">
           <label for="next_follow_up_at">
-           موعد المتابعة القادمة
+           {{ __('crm.next_followup_date') }}
           </label>
 
           <input
@@ -1867,7 +2016,7 @@ body.kanban-followup-popup
 
          <div class="field full">
           <label for="outcome">
-           ماذا حدث في المتابعة؟
+           {{ __('crm.followup_notes') }}
           </label>
 
           <textarea
@@ -1876,7 +2025,7 @@ body.kanban-followup-popup
            name="outcome"
            maxlength="5000"
            
-           placeholder="اكتب ملخص المكالمة أو المقابلة والنتيجة التي تم الوصول إليها..."
+           placeholder="{{ __('crm.followup_notes_placeholder') }}"
           >{{ old('outcome') }}</textarea>
          </div>
         </div>
@@ -1886,18 +2035,19 @@ body.kanban-followup-popup
           class="submit-button"
           type="submit"
          >
-          ✓ حفظ المتابعة
+          {{ __('crm.save_followup') }}
          </button>
         </div>
        </form>
       </div>
      </section>
+     @endcan
 
      <section class="panel latest-followups-panel">
       <header class="panel-head">
-       <h3>آخر المتابعات</h3>
+       <h3>{{ __('crm.latest_followups') }}</h3>
        <p>
-        أحدث 20 متابعة مسجلة لهذا العميل
+        {{ __('crm.latest_20_followups') }}
        </p>
       </header>
 
@@ -1928,7 +2078,7 @@ body.kanban-followup-popup
          >
           <div class="timeline-top">
            <span class="timeline-employee">
-            {{ $followup->employee_name }}
+            {{ $followup->user?->name ?? $followup->employee_name }}
            </span>
 
            <time class="timeline-date">
@@ -1983,7 +2133,7 @@ body.kanban-followup-popup
               )
                <li class="timeline-change-item">
                 <span class="timeline-change-label">
-                 {{ $change['label'] ?? 'تعديل' }}
+                 {{ $change['label'] ?? __('crm.edit') }}
                 </span>
 
                 <div class="timeline-change-values">
@@ -2118,6 +2268,49 @@ body.kanban-followup-popup
    document.getElementById(
     'lead_status_id'
    );
+
+  const followupCampaignSelect =
+   document.getElementById('followupCampaign');
+
+  const followupAssignedUserSelect =
+   document.getElementById('followupAssignedUser');
+
+  const updateFollowupCampaignUsers = () => {
+   if (!followupCampaignSelect || !followupAssignedUserSelect) return;
+
+   const campaignOption = followupCampaignSelect.selectedOptions[0];
+   const userIds = new Set(
+    (campaignOption?.dataset?.userIds || '').split(',').filter(Boolean)
+   );
+   const hasCampaign = followupCampaignSelect.value !== '';
+
+   [...followupAssignedUserSelect.options].forEach((option) => {
+    if (option.value === '') {
+     option.hidden = false;
+     option.disabled = hasCampaign;
+     return;
+    }
+
+    const allowed = hasCampaign && userIds.has(option.dataset.userId || option.value);
+    option.hidden = !allowed;
+    option.disabled = !allowed;
+   });
+
+   const selected = followupAssignedUserSelect.selectedOptions[0];
+   if (!hasCampaign) {
+    followupAssignedUserSelect.value = '';
+    followupAssignedUserSelect.required = false;
+    return;
+   }
+
+   followupAssignedUserSelect.required = true;
+
+   if (!selected || selected.disabled) {
+    const firstAllowed = [...followupAssignedUserSelect.options]
+     .find((option) => option.value !== '' && !option.disabled);
+    followupAssignedUserSelect.value = firstAllowed?.value || '';
+   }
+  };
 
   const followupBusinessSection =
    document.getElementById(
@@ -2321,6 +2514,11 @@ body.kanban-followup-popup
     updateFollowupStageEditor
    );
 
+  followupCampaignSelect?.addEventListener(
+   'change',
+   updateFollowupCampaignUsers
+  );
+
   followupSolutionType
    ?.addEventListener(
     'change',
@@ -2344,6 +2542,7 @@ body.kanban-followup-popup
     }
    );
 
+  updateFollowupCampaignUsers();
   updateFollowupStageEditor();
 
  })();

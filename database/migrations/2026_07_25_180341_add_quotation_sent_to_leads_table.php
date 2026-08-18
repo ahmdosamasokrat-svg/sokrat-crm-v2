@@ -11,11 +11,20 @@ return new class extends Migration
     {
         $database = (string) DB::connection()
             ->getDatabaseName();
+        $environment = app()->environment();
+        $allowedDatabases = [
+            'production' => 'sokrat_crm_v2',
+            'testing' => 'sokrat_crm_v2_testing',
+        ];
+        $expectedDatabase = $allowedDatabases[$environment]
+            ?? null;
 
-        if ($database !== 'sokrat_crm_v2') {
-            throw new RuntimeException(
-                'Refusing migration outside sokrat_crm_v2.'
-            );
+        if ($database !== $expectedDatabase) {
+            throw new RuntimeException(sprintf(
+                'Refusing migration for environment %s on database %s.',
+                $environment,
+                $database,
+            ));
         }
     }
 
@@ -49,7 +58,7 @@ return new class extends Migration
     {
         $this->verifyDatabase();
 
-        if (!Schema::hasColumn('leads', 'quotation_sent')) {
+        if (! Schema::hasColumn('leads', 'quotation_sent')) {
             return;
         }
 

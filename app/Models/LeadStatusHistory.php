@@ -12,6 +12,7 @@ class LeadStatusHistory extends Model
         'from_status_id',
         'to_status_id',
         'changed_by',
+        'changed_by_user_id',
         'note',
         'changed_at',
     ];
@@ -26,6 +27,14 @@ class LeadStatusHistory extends Model
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    public function changedByUser(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'changed_by_user_id'
+        );
     }
 
     public function fromStatus(): BelongsTo

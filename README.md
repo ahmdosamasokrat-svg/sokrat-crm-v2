@@ -25,6 +25,7 @@ curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/ma
 - **Quotation Generator**: Built-in quotation builder module with custom layout and pricing calculations.
 - **Follow-ups & Task Scheduling**: Real-time tracking of upcoming meetings, calls, daily tasks, and VIP clients.
 - **Data Import & Export**: Import leads from CSV/Excel templates with preview validation; export selected leads cleanly.
+- **Users, Groups & Permissions**: Database-backed login, multi-group RBAC, active-account enforcement, and a protected permission matrix under Settings.
 - **Automated Deployment**: Production-ready installer (`install.sh`) and clean uninstaller (`uninstall.sh`) tailored for **Ubuntu 24.04.4 LTS**.
 - **Localhost Accessibility**: Out-of-the-box Apache web server configuration serving the application directly on `http://localhost/`.
 
@@ -65,13 +66,20 @@ sudo ./install.sh
 3. Installs PHP dependencies (`composer install`) and builds frontend assets (`npm install && npm run build`).
 4. Creates an isolated MySQL database (`sokrat_crm_v2`) and user (`sokrat_crm_v2_app`) with secure generated credentials.
 5. Generates `.env` and application key (`php artisan key:generate`).
-6. Executes database migrations and seeds CRM pipeline stages.
+6. Executes database migrations, seeds the CRM pipeline and permissions, and provisions `admin` as the default Super Admin.
 7. Configures Apache VirtualHost serving `/var/www/html/crm-v2/public` on `http://localhost/`.
 8. Secures directory storage/cache permissions for `www-data`.
-9. Saves generated admin credentials to `/root/sokrat-crm-v2-credentials.txt`.
+9. Saves the CRM and database credentials to `/root/sokrat-crm-v2-credentials.txt`.
 
 Once installed, open your browser and navigate to:
 👉 **[http://localhost/](http://localhost/)**
+
+Default CRM account:
+
+- **Username:** `admin`
+- **Password:** `Admin@123`
+
+Change this password from **Settings → Users** after the first login.
 
 ---
 
