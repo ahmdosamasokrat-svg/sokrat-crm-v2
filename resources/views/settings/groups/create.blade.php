@@ -3,6 +3,9 @@
 @section('title', __('crm.new_group_title'))
 @section('heading', __('crm.add_group'))
 @section('subheading', __('crm.create_group_subtitle'))
+@section('page-icon', 'bi-folder-plus')
+@section('back-url', route('v2.settings.groups.index'))
+@section('back-title', __('crm.groups'))
 
 @section('content')
 <section class="panel">

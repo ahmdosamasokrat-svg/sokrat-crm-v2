@@ -4,6 +4,7 @@ namespace Tests;
 
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
 
@@ -44,6 +45,16 @@ abstract class TestCase extends BaseTestCase
                 $activeDatabase,
             ));
         }
+        $connection->statement('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        $connection->statement('SET SESSION innodb_lock_wait_timeout = 20');
+
+        RefreshDatabaseState::$migrated = true;
+        static $seeded = false;
+        if (! $seeded) {
+            $seeded = true;
+            (new \Database\Seeders\CrmAccessControlSeeder())->run();
+        }
+
 
         return $app;
     }

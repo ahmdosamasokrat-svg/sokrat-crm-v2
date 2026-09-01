@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
+<link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
 <style>
 :root{
  --red:#dc2637;
@@ -72,20 +73,21 @@ a{color:inherit}
  gap:8px
 }
 .btn{
- min-height:40px;
+ min-height:44px;
  display:inline-flex;
  align-items:center;
  justify-content:center;
  gap:7px;
- padding:8px 14px;
+ padding:8px 16px;
  border:1px solid transparent;
  border-radius:11px;
  background:var(--red);
  color:#fff;
  text-decoration:none;
- font-size:12px;
+ font-size:13px;
  font-weight:900;
- box-shadow:0 10px 22px #dc26372b
+ box-shadow:0 10px 22px #dc26372b;
+ cursor:pointer
 }
 .btn.light{
  border-color:var(--line);
@@ -93,24 +95,35 @@ a{color:inherit}
  color:#596477;
  box-shadow:none
 }
-main{
- padding:28px clamp(16px,3vw,38px) 40px
-}
-.page-head{
+.crm-app{
  display:flex;
- align-items:flex-end;
+ min-height:100vh;
+ width:100%;
+ max-width:100vw;
+ overflow-x:hidden!important;
+}
+.crm-main,main{
+ flex:1 1 auto;
+ min-width:0;
+ max-width:100%;
+ padding:24px clamp(16px,2.5vw,36px) 48px;
+ box-sizing:border-box;
+}
+.kanban-toolbar{
+ display:flex;
+ align-items:center;
  justify-content:space-between;
- gap:16px;
- margin-bottom:18px
+ gap:14px;
+ margin-bottom:18px;
+ flex-wrap:wrap;
 }
-.page-head h1{
- margin:0;
- font-size:28px
-}
-.page-head p{
- margin:7px 0 0;
- color:var(--muted);
- font-size:13px
+.page-tools{
+ display:flex;
+ align-items:center;
+ gap:12px;
+ flex-wrap:wrap;
+ width:100%;
+ justify-content:space-between;
 }
 .summary{
  display:flex;
@@ -246,12 +259,15 @@ main{
  font-size:11px;
  font-weight:bold
 }
-@media(max-width:760px){
- .topbar{align-items:flex-start;flex-wrap:wrap}
- .top-actions{width:100%;margin:0}
- .top-actions .btn{flex:1}
- .page-head{align-items:flex-start;flex-direction:column}
- .board{grid-auto-columns:minmax(260px,82vw)}
+@media(max-width:768px){
+ .topbar{align-items:stretch;flex-direction:column;gap:12px;padding:12px 16px}
+ .top-actions{width:100%;margin:0;flex-wrap:wrap;display:flex;gap:8px}
+ .top-actions .btn{flex:1 1 auto;min-height:44px}
+ main{padding:16px 10px 36px;max-width:100vw;overflow-x:hidden}
+ .page-head{align-items:flex-start;flex-direction:column;gap:12px}
+ .board-shell{border-radius:14px;max-width:100%;overflow:hidden}
+ .board{grid-auto-columns:minmax(280px,84vw);padding:10px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+ .kanban-column{scroll-snap-align:start;scroll-snap-stop:always;min-height:500px}
 }
 
 
@@ -404,13 +420,20 @@ main{
  margin:auto
 }
 
-@media(max-width:760px){
+@media(max-width:768px){
  .kanban-card-actions{
-  grid-template-columns:1fr
+  grid-template-columns:1fr;
+  gap:6px
  }
-
+ .kanban-card-actions .btn{
+  min-height:44px;
+  font-size:11px
+ }
  .kanban-card-actions .call{
   grid-column:auto
+ }
+ .kanban-scope-btn{
+  min-height:44px
  }
 }
 
@@ -824,11 +847,13 @@ main{
 }
 
 .kanban-followup-close{
- width:38px;
- height:38px;
+ width:44px;
+ height:44px;
+ min-width:44px;
+ min-height:44px;
  display:grid;
  place-items:center;
- flex:0 0 38px;
+ flex:0 0 44px;
  border:1px solid #e1e5eb;
  border-radius:10px;
  background:#f8f9fb;
@@ -870,17 +895,32 @@ body.kanban-modal-open{
  display:block
 }
 
-@media(max-width:700px){
+@media(max-width:768px){
  .kanban-followup-modal{
-  padding:7px
+  padding:10px;
+  align-items:center
  }
-
- .kanban-followup-dialog{
-  width:100%;
-  height:96vh;
-  border-radius:13px
+ .kanban-followup-dialog,
+ .kanban-utility-dialog{
+  width:100%!important;
+  max-width:100%!important;
+  max-height:calc(100vh - 40px)!important;
+  height:calc(100vh - 40px)!important;
+  border-radius:14px!important;
+  overflow-y:auto!important
+ }
+ .kanban-followup-modal-head{
+  min-height:54px;
+  padding:10px 14px
+ }
+ .kanban-followup-close{
+  width:44px;
+  height:44px;
+  min-width:44px;
+  min-height:44px
  }
 }
+
 
 /* CRM KANBAN DRAG DROP END */
 
@@ -1040,48 +1080,57 @@ body.kanban-modal-open{
 <body>
 @include('partials.page-loader')
 
-<header class="topbar">
- <a class="brand" href="{{ route('dashboard') }}">
-  <img src="{{ asset('images/sokrat-pro-tech.png') }}" alt="Sokrat PRO">
-  <span>
-   <strong>SokratCRM</strong>
-   <small>{{ __('crm.crm_subtitle') }}</small>
-  </span>
- </a>
+<div class="crm-app kanban-page">
+ @include('partials.crm-sidebar')
 
- <div class="top-actions">
-  <a class="btn light" href="{{ route('dashboard') }}"><i class="bi bi-arrow-right"></i> {{ __('crm.dashboard') }}</a>
-  @can('leads.create')
-  <a class="btn" href="{{ route('v2.leads.create') }}"
-   data-kanban-create-popup
-   draggable="false"><i class="bi bi-plus-lg"></i> {{ __('crm.add_lead_short') }}</a>
-  @endcan
- </div>
-</header>
+ <main class="crm-main">
+  @php
+      $kanbanTopActions = '<a class="btn soft" href="' . route('dashboard') . '"><i class="bi bi-speedometer2"></i> ' . __('crm.dashboard') . '</a>';
+      if (auth()->user()->can('leads.create')) {
+          $kanbanTopActions .= '<a class="btn primary" href="' . route('v2.leads.create') . '" data-kanban-create-popup draggable="false"><i class="bi bi-plus-lg"></i> ' . __('crm.add_lead_short') . '</a>';
+      }
+  @endphp
 
-<main>
- <section class="page-head">
-  <div>
-   <h1>Kanban View</h1>
-   <p>
-    {{ __('crm.kanban_subtitle') }}
-   </p>
-  </div>
+  @include('partials.topbar', [
+      'title' => __('crm.kanban_view'),
+      'subtitle' => __('crm.kanban_subtitle'),
+      'icon' => 'bi-kanban-fill',
+      'backUrl' => route('dashboard'),
+      'backTitle' => __('crm.dashboard'),
+      'actions' => $kanbanTopActions,
+  ])
 
-  <div class="summary">
-   <span>
-    {{ __('crm.total_leads') }}
-    <b>
-     {{ number_format($totalLeads) }}
-    </b>
-   </span>
+  <section class="kanban-toolbar">
+   <div class="page-tools">
+   @if ($canFilterByEmployee)
+    <form class="employee-filter" method="get" action="{{ route('v2.leads.kanban') }}">
+     <i class="bi bi-person-check" aria-hidden="true"></i>
+     <select id="kanbanEmployee" name="employee_id" aria-label="{{ __('crm.responsible_employee') }}" onchange="this.form.submit()">
+      <option value="">{{ __('crm.all_employees') }}</option>
+      @foreach ($employees as $employee)
+       <option value="{{ $employee->id }}" @selected($selectedEmployeeId === $employee->id)>
+        {{ $employee->name }}
+       </option>
+      @endforeach
+     </select>
+    </form>
+   @endif
 
-   <span>
-    {{ __('crm.status_count') }}
-    <b>
-     {{ count($kanbanColumns) }}
-    </b>
-   </span>
+   <div class="summary">
+    <span>
+     {{ __('crm.total_leads') }}
+     <b>
+      {{ number_format($totalLeads) }}
+     </b>
+    </span>
+
+    <span>
+     {{ __('crm.status_count') }}
+     <b>
+      {{ count($kanbanColumns) }}
+     </b>
+    </span>
+   </div>
   </div>
  </section>
 
@@ -1100,12 +1149,13 @@ body.kanban-modal-open{
       in_array(
        $column['code'],
        [
+        'start',
         'new',
         'not_interested',
         'execution',
        ],
        true
-      );
+      ) || request('scope') === 'all';
     @endphp
 
     <article
@@ -1314,30 +1364,13 @@ body.kanban-modal-open{
        @php
         if ($kanbanDirectStatus) {
          if ($scope === 'today') {
-          $scopeLeads =
-           \App\Models\Lead::query()
-            ->with([
-             'status.stage',
-            ])
-            ->where(
-             'lead_status_id',
-             (int) $column['status_id']
-            )
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get();
-
-          $scopeLabel =
-           __('crm.all_leads_in_stage');
+          $scopeLeads = $column['all_leads'] ?? ($column['scope_leads']['all'] ?? $column['scope_leads']['today']);
+          $scopeLabel = __('crm.all_leads_in_stage');
          } else {
-          $scopeLeads =
-           collect();
+          $scopeLeads = collect();
          }
         } else {
-         $scopeLeads =
-          $column[
-           'scope_leads'
-          ][$scope];
+         $scopeLeads = $column['scope_leads'][$scope] ?? collect();
         }
        @endphp
 
@@ -1526,6 +1559,24 @@ body.kanban-modal-open{
            {{ $scopeLabel }}.
          </div>
         @endforelse
+
+        @if (($kanbanDirectStatus && $column['total_count'] > $scopeLeads->count()) || (!$kanbanDirectStatus && ($column['scope_counts'][$scope] ?? 0) > $scopeLeads->count()))
+         @php
+          $remCount = $kanbanDirectStatus 
+            ? ($column['total_count'] - $scopeLeads->count())
+            : (($column['scope_counts'][$scope] ?? 0) - $scopeLeads->count());
+         @endphp
+         <div class="kanban-more-wrap">
+          <a
+           href="{{ route('v2.leads', ['status' => $column['code']]) }}"
+           class="kanban-more-btn"
+           title="{{ __('crm.view_all_leads_in_status') ?? 'View all leads' }}"
+          >
+           <i class="bi bi-arrow-up-right-square"></i>
+           <span>{{ __('crm.more') ?? 'المزيد' }} (+{{ number_format($remCount) }})</span>
+          </a>
+         </div>
+        @endif
        </div>
       @endforeach
      </div>
@@ -1534,7 +1585,8 @@ body.kanban-modal-open{
   </div>
  </section>
 <!-- CRM KANBAN DIRECT STATUS COLUMNS V4 END -->
-</main>
+ </main>
+</div>
 
 <!-- CRM KANBAN UTILITY MODAL START -->
 <div
@@ -3383,149 +3435,7 @@ document.addEventListener(
 <!-- CRM KANBAN UTILITY POPUPS JS END -->
 
 
-<!-- CRM KANBAN PAGE SIZE 15 V7 JS START -->
-<script>
-(() => {
- const PAGE_SIZE = 15;
 
- const getPanelCards = (panel) =>
-  Array.from(
-   panel.children
-  ).filter(
-   (element) =>
-    element.classList.contains(
-     'kanban-card'
-    )
-  );
-
- const setupPanel = (panel) => {
-  const cards =
-   getPanelCards(panel);
-
-  /*
-   * 15 or fewer:
-   * show normally, no button needed.
-   */
-  if (
-   cards.length
-   <= PAGE_SIZE
-  ) {
-   return;
-  }
-
-  let visibleCount =
-   PAGE_SIZE;
-
-  const wrap =
-   document.createElement(
-    'div'
-   );
-
-  wrap.className =
-   'kanban-more-wrap';
-
-  wrap.setAttribute(
-   'data-kanban-more-wrap',
-   ''
-  );
-
-  const button =
-   document.createElement(
-    'button'
-   );
-
-  button.type =
-   'button';
-
-  button.className =
-   'kanban-more-btn';
-
-  button.setAttribute(
-   'data-kanban-more',
-   ''
-  );
-
-  const render = () => {
-   cards.forEach(
-    (card, index) => {
-     const visible =
-      index < visibleCount;
-
-     card.hidden =
-      !visible;
-
-     if (visible) {
-      card.removeAttribute(
-       'aria-hidden'
-      );
-     } else {
-      card.setAttribute(
-       'aria-hidden',
-       'true'
-      );
-     }
-    }
-   );
-
-   const remaining =
-    cards.length
-     - visibleCount;
-
-   if (remaining <= 0) {
-    wrap.hidden = true;
-    return;
-   }
-
-   wrap.hidden = false;
-
-   const nextBatch =
-    Math.min(
-     PAGE_SIZE,
-     remaining
-    );
-
-   button.textContent =
-    'المزيد'
-    + ' ('
-    + nextBatch
-    + ')';
-  };
-
-  button.addEventListener(
-   'click',
-   () => {
-    visibleCount =
-     Math.min(
-      visibleCount
-       + PAGE_SIZE,
-      cards.length
-     );
-
-    render();
-   }
-  );
-
-  wrap.appendChild(
-   button
-  );
-
-  panel.appendChild(
-   wrap
-  );
-
-  render();
- };
-
- document
-  .querySelectorAll(
-   '.kanban-scope-panel'
-  )
-  .forEach(
-   setupPanel
-  );
-})();
-</script>
-<!-- CRM KANBAN PAGE SIZE 15 V7 JS END -->
 
 </body>
 </html>

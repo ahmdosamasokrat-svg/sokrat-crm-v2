@@ -377,25 +377,20 @@ class DailyTaskController extends Controller
         $fromStatusId = $lead->lead_status_id;
         $toStatusId = !empty($validated['lead_status_id']) ? (int) $validated['lead_status_id'] : $fromStatusId;
         $nextFollowUpAt = !empty($validated['next_follow_up_at']) ? Carbon::parse($validated['next_follow_up_at']) : null;
-
-        DB::transaction(static function () use ($lead, $user, $validated, $fromStatusId, $toStatusId, $nextFollowUpAt): void {
-            LeadFollowup::create([
-                'lead_id' => $lead->id,
-                'from_status_id' => $fromStatusId,
-                'to_status_id' => $toStatusId,
-                'employee_name' => $user->name ?? 'System',
-                'user_id' => $user->id,
+        $toStatus = LeadStatus::query()->findOrFail($toStatusId);
+        $transitionService = app(\App\Services\LeadTransitionService::class);
+        $transitionService->transition(
+            $lead,
+            $toStatus,
+            $user,
+            [
+                'record_followup' => true,
                 'communication_type' => $validated['communication_type'],
                 'outcome' => $validated['outcome'],
                 'next_follow_up_at' => $nextFollowUpAt,
-                'followed_up_at' => now(),
-            ]);
-
-            $lead->update([
-                'lead_status_id' => $toStatusId,
-                'next_follow_up_at' => $nextFollowUpAt,
-            ]);
-        });
+                'stage_fields' => $request->input('stage_fields', []),
+            ]
+        );
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

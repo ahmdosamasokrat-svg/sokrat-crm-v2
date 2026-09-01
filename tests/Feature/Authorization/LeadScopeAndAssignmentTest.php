@@ -351,11 +351,13 @@ class LeadScopeAndAssignmentTest extends TestCase
         array $permissions = [],
         bool $isSystem = false,
     ): Group {
-        $group = Group::query()->create([
-            'name' => $code,
-            'code' => $code,
-            'is_system' => $isSystem,
-        ]);
+        $group = Group::query()->firstOrCreate(
+            ['code' => $code],
+            [
+                'name' => $code,
+                'is_system' => $isSystem,
+            ]
+        );
 
         $this->grantPermissions($group, $permissions);
 

@@ -39,6 +39,24 @@ curl -sSL https://raw.githubusercontent.com/ahmdosamasokrat-svg/sokrat-crm-v2/ma
 - **Database**: MySQL 8.0+ / MariaDB
 - **Build Tools**: Composer 2.x, Node.js & npm (for Vite assets)
 
+## MicroSIP Integration
+
+Customer-list call buttons use the Windows `tel:` handler. Set MicroSIP as the default app for `TEL` links to place outgoing calls.
+
+To open the matching CRM customer when an incoming call arrives:
+
+1. Copy `microsip-open-crm-caller.cmd.example` to the Windows computer and rename it to `open-crm-caller.cmd`.
+2. Replace `http://CRM-SERVER` in that file with the CRM URL reachable from the Windows computer. Do not use `localhost` unless CRM runs on that same computer.
+3. Close MicroSIP, open `microsip.ini` beside `microsip.exe`, and add this line under `[Settings]`:
+
+```ini
+cmdIncomingCall=C:\path\to\open-crm-caller.cmd
+```
+
+4. Start MicroSIP again and keep the CRM user signed in in the default browser.
+
+MicroSIP passes the caller ID to the command. CRM normalizes common local and international number formats, opens an accessible matching customer, or shows a filtered customer search when no match exists.
+
 ---
 
 ## Quick Start / Installation

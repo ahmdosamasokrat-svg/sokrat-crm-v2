@@ -20,37 +20,43 @@ class UserAttributionTest extends TestCase
 
     public function test_created_lead_is_attributed_to_authenticated_user(): void
     {
-        $permission = Permission::query()->create([
-            'code' => CrmPermission::LEADS_CREATE->value,
-            'module' => CrmPermission::LEADS_CREATE->module(),
-            'name_ar' => CrmPermission::LEADS_CREATE->label(),
-        ]);
-        $group = Group::query()->create([
-            'name' => 'موظف المبيعات',
-            'code' => 'sales-agent',
-        ]);
-        $group->permissions()->attach($permission);
+        $permission = Permission::query()->firstOrCreate(
+            ['code' => CrmPermission::LEADS_CREATE->value],
+            [
+                'module' => CrmPermission::LEADS_CREATE->module(),
+                'name_ar' => CrmPermission::LEADS_CREATE->label(),
+            ]
+        );
+        $group = Group::query()->firstOrCreate(
+            ['code' => 'sales-agent'],
+            ['name' => 'موظف المبيعات']
+        );
+        $group->permissions()->syncWithoutDetaching($permission);
 
         $user = User::factory()->create([
             'name' => 'Sales User',
         ]);
         $user->groups()->attach($group);
 
-        $stage = PipelineStage::query()->create([
-            'code' => 'initial',
-            'name_ar' => 'البداية',
-            'position' => 1,
-            'color' => '#64748b',
-            'is_active' => true,
-        ]);
-        $status = LeadStatus::query()->create([
-            'pipeline_stage_id' => $stage->id,
-            'code' => 'new',
-            'name_ar' => 'جديد',
-            'position' => 1,
-            'color' => '#64748b',
-            'is_terminal' => false,
-        ]);
+        $stage = PipelineStage::query()->firstOrCreate(
+            ['code' => 'initial'],
+            [
+                'name_ar' => 'البداية',
+                'position' => 1,
+                'color' => '#64748b',
+                'is_active' => true,
+            ]
+        );
+        $status = LeadStatus::query()->firstOrCreate(
+            ['code' => 'new'],
+            [
+                'pipeline_stage_id' => $stage->id,
+                'name_ar' => 'جديد',
+                'position' => 1,
+                'color' => '#64748b',
+                'is_terminal' => false,
+            ]
+        );
 
         $this->actingAs($user)
             ->post(route('v2.leads.store'), [

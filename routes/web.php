@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
+use App\Http\Controllers\CampaignReportController;
 use App\Http\Controllers\DailyTaskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LeadController;
@@ -15,11 +16,16 @@ use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\Settings\GroupController;
+use App\Http\Controllers\Settings\FollowupCustomerFieldController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\PermissionController;
+use App\Http\Controllers\Settings\PipelineStageController;
 use App\Http\Controllers\Settings\SettingsController;
+use App\Http\Controllers\Settings\StageFieldController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\TaskStatusController;
+use App\Http\Controllers\TechnicalSupportController;
+use App\Http\Controllers\TechnicalSupportReportController;
 use App\Http\Controllers\TwilioNotificationStatusController;
 use App\Http\Controllers\VoipController;
 use Illuminate\Support\Facades\Auth;
@@ -56,6 +62,9 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->name('v2.notifications.index');
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
         ->name('v2.notifications.unread-count');
+    Route::get('/notifications/due-followups', [NotificationController::class, 'dueFollowups'])
+        ->middleware('can:tasks.view')
+        ->name('v2.notifications.due-followups');
     Route::patch('/notifications/read-all', [NotificationController::class, 'readAll'])
         ->name('v2.notifications.read-all');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'read'])
@@ -83,9 +92,68 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->middleware('can:dashboard.view')
         ->name('dashboard');
 
+    Route::get('/technical-support', [TechnicalSupportController::class, 'index'])
+        ->middleware(['can:technical_support.view', 'throttle:30,1'])
+        ->name('v2.technical-support.index');
+
+    Route::get('/technical-support/reports', TechnicalSupportReportController::class)
+        ->middleware(['can:technical_support.reports', 'throttle:30,1'])
+        ->name('v2.technical-support.reports');
+
+    Route::get('/technical-support/cards/{deviceKey}', [TechnicalSupportController::class, 'show'])
+        ->middleware(['can:technical_support.view', 'throttle:30,1'])
+        ->name('v2.technical-support.cards.show');
+
+    Route::put('/technical-support/cards/{deviceKey}', [TechnicalSupportController::class, 'update'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->name('v2.technical-support.cards.update');
+
+    Route::post('/technical-support/cards/{deviceKey}/tickets', [TechnicalSupportController::class, 'storeTicket'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->name('v2.technical-support.tickets.store');
+
+    Route::patch('/technical-support/cards/{deviceKey}/tickets/{ticket}/close', [TechnicalSupportController::class, 'closeTicket'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->whereNumber('ticket')
+        ->name('v2.technical-support.tickets.close');
+
+    Route::delete('/technical-support/cards/{deviceKey}', [TechnicalSupportController::class, 'destroyDevice'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->name('v2.technical-support.cards.destroy');
+
+    Route::post('/technical-support/ips', [TechnicalSupportController::class, 'storeIp'])
+        ->middleware(['can:technical_support.manage', 'throttle:60,1'])
+        ->name('v2.technical-support.ips.store');
+
+    Route::delete('/technical-support/ips/{ip}', [TechnicalSupportController::class, 'destroyIp'])
+        ->middleware(['can:technical_support.manage', 'throttle:60,1'])
+        ->whereNumber('ip')
+        ->name('v2.technical-support.ips.destroy');
+
+    Route::post('/technical-support/devices', [TechnicalSupportController::class, 'storeDevice'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->name('v2.technical-support.devices.store');
+
+    Route::post('/technical-support/devices/{deviceKey}/toggle-status', [TechnicalSupportController::class, 'toggleDeviceStatus'])
+        ->middleware(['can:technical_support.manage', 'throttle:30,1'])
+        ->name('v2.technical-support.devices.toggle-status');
+
     Route::get('/voip/live', [VoipController::class, 'livePanel'])
         ->middleware('can:voip.live_panel')
         ->name('v2.voip.live');
+
+    Route::get('/voip/incoming', [VoipController::class, 'incomingCaller'])
+        ->middleware(['can:leads.view', 'throttle:120,1'])
+        ->name('v2.voip.incoming');
+
+    Route::get('/caller-lookup.php', [VoipController::class, 'incomingCaller'])
+        ->middleware(['can:leads.view', 'throttle:120,1']);
+
+    Route::get('/custom-dashboard/caller-lookup.php', [VoipController::class, 'incomingCaller'])
+        ->middleware(['can:leads.view', 'throttle:120,1']);
+
+    Route::get('/caller-lookup', [VoipController::class, 'incomingCaller'])
+        ->middleware(['can:leads.view', 'throttle:120,1']);
 
     Route::get('/voip/recordings/{mediaId}', [VoipController::class, 'streamRecording'])
         ->middleware('can:voip.recordings')
@@ -305,10 +373,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->whereNumber('campaign')
         ->middleware('can:campaigns.create')
         ->name('v2.campaigns.destroy');
-    Route::get(
-        '/campaigns/reports',
-        static fn () => view('placeholder', ['title' => 'تقارير الحملة']),
-    )->middleware('can:campaigns.reports')
+    Route::get('/campaigns/reports', CampaignReportController::class)
+        ->middleware('can:campaigns.reports')
         ->name('v2.campaigns.reports');
 
     Route::get('/campaigns/{campaign}', [CampaignController::class, 'show'])
@@ -344,6 +410,59 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->group(function (): void {
             Route::get('/', [SettingsController::class, 'index'])
                 ->name('');
+
+            Route::get('/stages', [PipelineStageController::class, 'index'])
+                ->name('.stages.index');
+            Route::post('/stages', [PipelineStageController::class, 'store'])
+                ->name('.stages.store');
+            Route::patch('/stages/{stage}', [PipelineStageController::class, 'update'])
+                ->whereNumber('stage')
+                ->name('.stages.update');
+            Route::delete('/stages/{stage}', [PipelineStageController::class, 'destroy'])
+                ->whereNumber('stage')
+                ->name('.stages.destroy');
+
+            Route::get('/stages/{stage}/fields', [StageFieldController::class, 'index'])
+                ->whereNumber('stage')
+                ->name('.stages.fields.index');
+            Route::post('/stages/{stage}/fields', [StageFieldController::class, 'store'])
+                ->whereNumber('stage')
+                ->name('.stages.fields.store');
+            Route::post('/stages/{stage}/fields/preset', [StageFieldController::class, 'applyPreset'])
+                ->whereNumber('stage')
+                ->name('.stages.fields.preset');
+            Route::post('/stages/{stage}/fields/reorder', [StageFieldController::class, 'reorder'])
+                ->whereNumber('stage')
+                ->name('.stages.fields.reorder');
+            Route::patch('/stages/{stage}/fields/{field}', [StageFieldController::class, 'update'])
+                ->whereNumber('stage')
+                ->whereNumber('field')
+                ->name('.stages.fields.update');
+            Route::delete('/stages/{stage}/fields/{field}', [StageFieldController::class, 'destroy'])
+                ->whereNumber('stage')
+                ->whereNumber('field')
+                ->name('.stages.fields.destroy');
+            Route::patch('/stages/{stage}/fields/{field}/toggle', [StageFieldController::class, 'toggle'])
+                ->whereNumber('stage')
+                ->whereNumber('field')
+                ->name('.stages.fields.toggle');
+
+            Route::get('/followup-customer-fields', [FollowupCustomerFieldController::class, 'index'])
+                ->name('.followup-customer-fields.index');
+            Route::post('/followup-customer-fields', [FollowupCustomerFieldController::class, 'store'])
+                ->name('.followup-customer-fields.store');
+            Route::patch('/followup-customer-fields/{field}', [FollowupCustomerFieldController::class, 'update'])
+                ->whereNumber('field')
+                ->name('.followup-customer-fields.update');
+            Route::patch('/followup-customer-fields/{field}/toggle', [FollowupCustomerFieldController::class, 'toggle'])
+                ->whereNumber('field')
+                ->name('.followup-customer-fields.toggle');
+            Route::patch('/followup-customer-fields/{field}/move', [FollowupCustomerFieldController::class, 'move'])
+                ->whereNumber('field')
+                ->name('.followup-customer-fields.move');
+            Route::delete('/followup-customer-fields/{field}', [FollowupCustomerFieldController::class, 'destroy'])
+                ->whereNumber('field')
+                ->name('.followup-customer-fields.destroy');
 
             Route::get('/users', [UserController::class, 'index'])
                 ->middleware('can:users.view')

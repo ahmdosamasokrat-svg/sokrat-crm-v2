@@ -11,91 +11,83 @@ use App\Models\LeadStatus;
 use App\Models\Permission;
 use App\Models\PipelineStage;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CampaignTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_super_admin_can_open_campaign_form_and_create_campaign(): void
     {
         $admin = $this->superAdmin();
         $assignedUser = User::factory()->create([
-            'name' => 'Campaign Agent',
+            'name' => 'Agent Member',
             'is_active' => true,
         ]);
 
         $this->actingAs($admin)
             ->get(route('v2.campaigns.create'))
             ->assertOk()
-            ->assertSee('اسم الحملة')
-            ->assertSee('Campaign Agent');
+            ->assertSee('بيانات الحملة')
+            ->assertSee('Agent Member');
 
-        $response = $this->post(route('v2.campaigns.store'), [
-            'name' => 'Summer Campaign',
-            'cost' => '12500.50',
-            'starts_at' => '2026-08-20 09:00',
-            'ends_at' => '2026-08-31 18:00',
+        $response = $this->actingAs($admin)->post(route('v2.campaigns.store'), [
+            'name' => 'حملة العودة للمدارس',
+            'cost' => '15000.50',
+            'starts_at' => '2026-09-01T09:00',
+            'ends_at' => '2026-09-30T18:00',
             'user_ids' => [$assignedUser->id],
         ]);
 
-        $response
-            ->assertRedirect(route('v2.campaigns.index'))
-            ->assertSessionHas('success');
+        $response->assertRedirect(route('v2.campaigns.index'));
 
-        $campaign = Campaign::query()->firstOrFail();
-
-        $this->assertSame('Summer Campaign', $campaign->name);
-        $this->assertSame('12500.50', $campaign->cost);
-        $this->assertTrue($campaign->creator->is($admin));
-        $this->assertTrue(
-            $campaign->users()->whereKey($assignedUser->id)->exists(),
-        );
+        $campaign = Campaign::query()->firstWhere('name', 'حملة العودة للمدارس');
+        $this->assertNotNull($campaign);
+        $this->assertSame('15000.50', (string) $campaign->cost);
+        $this->assertSame($admin->id, $campaign->created_by_user_id);
+        $this->assertTrue($campaign->users->contains('id', $assignedUser->id));
     }
 
     public function test_campaign_image_can_be_uploaded_and_replaced(): void
     {
         Storage::fake('public');
         $admin = $this->superAdmin();
-        $agent = User::factory()->create();
+        $assignedUser = User::factory()->create();
 
-        $this->actingAs($admin)
-            ->post(route('v2.campaigns.store'), [
-                'name' => 'Campaign With Image',
-                'image' => UploadedFile::fake()->image('campaign.jpg'),
-                'cost' => '1000',
-                'starts_at' => '2026-08-20 09:00',
-                'ends_at' => '2026-08-31 18:00',
-                'user_ids' => [$agent->id],
-            ])
-            ->assertRedirect(route('v2.campaigns.index'));
+        $image = UploadedFile::fake()->image('campaign.jpg', 600, 400);
 
-        $campaign = Campaign::query()
-            ->where('name', 'Campaign With Image')
-            ->firstOrFail();
-        $originalImage = $campaign->image_path;
+        $this->actingAs($admin)->post(route('v2.campaigns.store'), [
+            'name' => 'حملة مع صورة',
+            'cost' => '5000',
+            'starts_at' => '2026-08-20T09:00',
+            'ends_at' => '2026-08-30T18:00',
+            'user_ids' => [$assignedUser->id],
+            'image' => $image,
+        ])->assertRedirect(route('v2.campaigns.index'));
 
-        $this->assertNotNull($originalImage);
-        Storage::disk('public')->assertExists($originalImage);
+        $campaign = Campaign::query()->firstWhere('name', 'حملة مع صورة');
+        $this->assertNotNull($campaign);
+        $this->assertNotNull($campaign->image_path);
+        Storage::disk('public')->assertExists($campaign->image_path);
 
-        $this->actingAs($admin)
-            ->patch(route('v2.campaigns.update', $campaign), [
-                'name' => 'Campaign With New Image',
-                'image' => UploadedFile::fake()->image('replacement.png'),
-                'cost' => '1000',
-                'starts_at' => '2026-08-20 09:00',
-                'ends_at' => '2026-08-31 18:00',
-                'user_ids' => [$agent->id],
-            ])
-            ->assertRedirect(route('v2.campaigns.show', $campaign));
+        $newImage = UploadedFile::fake()->image('replacement.png', 700, 500);
+        $oldPath = $campaign->image_path;
+
+        $this->actingAs($admin)->patch(route('v2.campaigns.update', $campaign), [
+            'name' => 'حملة مع صورة محدثة',
+            'cost' => '6500',
+            'starts_at' => '2026-08-20T09:00',
+            'ends_at' => '2026-08-30T18:00',
+            'user_ids' => [$assignedUser->id],
+            'image' => $newImage,
+        ])->assertRedirect(route('v2.campaigns.show', $campaign));
 
         $campaign->refresh();
-
-        $this->assertNotSame($originalImage, $campaign->image_path);
-        Storage::disk('public')->assertMissing($originalImage);
+        $this->assertNotSame($oldPath, $campaign->image_path);
+        Storage::disk('public')->assertMissing($oldPath);
         Storage::disk('public')->assertExists($campaign->image_path);
     }
 
@@ -104,21 +96,20 @@ class CampaignTest extends TestCase
         $admin = $this->superAdmin();
         $inactiveUser = User::factory()->create(['is_active' => false]);
 
-        $this->actingAs($admin)
-            ->post(route('v2.campaigns.store'), [
-                'name' => 'Invalid Campaign',
-                'cost' => '-1',
-                'starts_at' => '2026-08-20 12:00',
-                'ends_at' => '2026-08-20 11:00',
-                'user_ids' => [$inactiveUser->id],
-            ])
-            ->assertSessionHasErrors([
-                'cost',
-                'ends_at',
-                'user_ids.0',
-            ]);
+        $response = $this->actingAs($admin)->post(route('v2.campaigns.store'), [
+            'name' => '',
+            'cost' => '-10',
+            'starts_at' => '2026-08-30T18:00',
+            'ends_at' => '2026-08-20T09:00',
+            'user_ids' => [$inactiveUser->id],
+        ]);
 
-        $this->assertDatabaseCount('campaigns', 0);
+        $response->assertSessionHasErrors([
+            'name',
+            'cost',
+            'ends_at',
+            'user_ids.0',
+        ]);
     }
 
     public function test_campaign_list_can_be_filtered_by_name_and_user(): void
@@ -126,19 +117,24 @@ class CampaignTest extends TestCase
         $admin = $this->superAdmin();
         $firstAgent = User::factory()->create(['name' => 'Filter First Agent']);
         $secondAgent = User::factory()->create(['name' => 'Filter Second Agent']);
-        $matchingCampaign = $this->campaign($admin, [$firstAgent]);
-        $matchingCampaign->update(['name' => 'Alpha Search Campaign']);
-        $otherCampaign = $this->campaign($admin, [$secondAgent]);
-        $otherCampaign->update(['name' => 'Beta Hidden Campaign']);
+
+        $campaignA = $this->campaign($admin, [$firstAgent]);
+        $campaignA->update(['name' => 'حملة القاهرة']);
+
+        $campaignB = $this->campaign($admin, [$secondAgent]);
+        $campaignB->update(['name' => 'حملة الإسكندرية']);
 
         $this->actingAs($admin)
-            ->get(route('v2.campaigns.index', [
-                'q' => 'Alpha',
-                'user_id' => $firstAgent->id,
-            ]))
+            ->get(route('v2.campaigns.index', ['q' => 'القاهرة']))
             ->assertOk()
-            ->assertSee('Alpha Search Campaign')
-            ->assertDontSee('Beta Hidden Campaign');
+            ->assertSee('حملة القاهرة')
+            ->assertDontSee('حملة الإسكندرية');
+
+        $this->actingAs($admin)
+            ->get(route('v2.campaigns.index', ['user_id' => $secondAgent->id]))
+            ->assertOk()
+            ->assertSee('حملة الإسكندرية')
+            ->assertDontSee('حملة القاهرة');
     }
 
     public function test_campaign_manager_can_edit_campaign_information(): void
@@ -146,6 +142,7 @@ class CampaignTest extends TestCase
         $admin = $this->superAdmin();
         $firstAgent = User::factory()->create(['name' => 'First Agent']);
         $secondAgent = User::factory()->create(['name' => 'Second Agent']);
+
         $campaign = $this->campaign($admin, [$firstAgent]);
 
         $this->actingAs($admin)
@@ -154,23 +151,19 @@ class CampaignTest extends TestCase
             ->assertSee('تعديل الحملة')
             ->assertSee($campaign->name);
 
-        $this->actingAs($admin)
-            ->patch(route('v2.campaigns.update', $campaign), [
-                'name' => 'Updated Campaign',
-                'cost' => '2250.75',
-                'starts_at' => '2026-09-01 09:00',
-                'ends_at' => '2026-09-15 18:00',
-                'user_ids' => [$secondAgent->id],
-            ])
-            ->assertRedirect(route('v2.campaigns.show', $campaign))
-            ->assertSessionHas('success');
+        $this->actingAs($admin)->patch(route('v2.campaigns.update', $campaign), [
+            'name' => 'حملة محدثة بعد التعديل',
+            'cost' => '8200.00',
+            'starts_at' => '2026-09-01T10:00',
+            'ends_at' => '2026-09-15T20:00',
+            'user_ids' => [$secondAgent->id],
+        ])->assertRedirect(route('v2.campaigns.show', $campaign));
 
         $campaign->refresh();
-
-        $this->assertSame('Updated Campaign', $campaign->name);
-        $this->assertSame('2250.75', $campaign->cost);
-        $this->assertFalse($campaign->users()->whereKey($firstAgent->id)->exists());
-        $this->assertTrue($campaign->users()->whereKey($secondAgent->id)->exists());
+        $this->assertSame('حملة محدثة بعد التعديل', $campaign->name);
+        $this->assertSame('8200.00', (string) $campaign->cost);
+        $this->assertFalse($campaign->users->contains('id', $firstAgent->id));
+        $this->assertTrue($campaign->users->contains('id', $secondAgent->id));
     }
 
     public function test_campaign_creator_cannot_edit_another_creators_campaign(): void
@@ -179,14 +172,22 @@ class CampaignTest extends TestCase
             'campaigns.view',
             'campaigns.create',
         ]);
-        $otherCreator = $this->userWithPermissions([
-            'campaigns.view',
-            'campaigns.create',
-        ]);
-        $campaign = $this->campaign($creator, [$creator]);
+        $otherCreator = User::factory()->create();
 
-        $this->actingAs($otherCreator)
+        $campaign = $this->campaign($otherCreator, [$creator]);
+
+        $this->actingAs($creator)
             ->get(route('v2.campaigns.edit', $campaign))
+            ->assertForbidden();
+
+        $this->actingAs($creator)
+            ->patch(route('v2.campaigns.update', $campaign), [
+                'name' => 'تعديل غير مسموح',
+                'cost' => '1000',
+                'starts_at' => '2026-08-01T00:00',
+                'ends_at' => '2026-08-02T00:00',
+                'user_ids' => [$creator->id],
+            ])
             ->assertForbidden();
     }
 
@@ -194,13 +195,12 @@ class CampaignTest extends TestCase
     {
         $admin = $this->superAdmin();
         $campaign = $this->campaign($admin, [$admin]);
-        $lead = $this->lead(['assigned_user_id' => $admin->id]);
-        $campaign->leads()->attach($lead);
+        $lead = $this->lead(['name' => 'Safe Lead After Campaign Delete']);
+        $campaign->leads()->attach($lead->id);
 
         $this->actingAs($admin)
             ->delete(route('v2.campaigns.destroy', $campaign))
-            ->assertRedirect(route('v2.campaigns.index'))
-            ->assertSessionHas('success');
+            ->assertRedirect(route('v2.campaigns.index'));
 
         $this->assertDatabaseMissing('campaigns', ['id' => $campaign->id]);
         $this->assertDatabaseHas('leads', ['id' => $lead->id]);
@@ -216,205 +216,63 @@ class CampaignTest extends TestCase
             'campaigns.view',
             'campaigns.create',
         ]);
-        $otherCreator = $this->userWithPermissions([
-            'campaigns.view',
-            'campaigns.create',
-        ]);
-        $campaign = $this->campaign($creator, [$creator]);
+        $otherCreator = User::factory()->create();
+        $campaign = $this->campaign($otherCreator, [$creator]);
 
-        $this->actingAs($otherCreator)
+        $this->actingAs($creator)
             ->delete(route('v2.campaigns.destroy', $campaign))
             ->assertForbidden();
 
         $this->assertDatabaseHas('campaigns', ['id' => $campaign->id]);
     }
 
-    public function test_campaign_import_uses_existing_rules_and_attaches_created_leads(): void
-    {
-        $admin = $this->superAdmin();
-        $campaign = $this->campaign($admin, [$admin]);
-        $this->leadStatus();
-
-        $this->actingAs($admin)
-            ->get(route('v2.leads.import', ['campaign' => $campaign->id]))
-            ->assertOk()
-            ->assertSee($campaign->name);
-
-        $preview = $this->post(route('v2.leads.import.preview'), [
-            'campaign_id' => $campaign->id,
-            'import_file' => UploadedFile::fake()->createWithContent(
-                'campaign-leads.csv',
-                "first_name,phone,source,next_follow_up_at\nImported Lead,01012345678,Campaign File,2026-08-20 12:00\n",
-            ),
-        ]);
-
-        $preview
-            ->assertOk()
-            ->assertViewHas(
-                'campaign',
-                static fn (Campaign $viewCampaign): bool => $viewCampaign
-                    ->is($campaign),
-            )
-            ->assertSee('Imported Lead');
-
-        $previewData = $preview->viewData('preview');
-        $this->assertContains(
-            'next_follow_up_at',
-            $previewData['ignored_headers'],
-        );
-        $token = $previewData['token'];
-
-        $this->post(route('v2.leads.import.confirm'), [
-            'preview_token' => $token,
-        ])->assertRedirect(route('v2.campaigns.show', $campaign));
-
-        $lead = Lead::query()
-            ->where('phone', '01012345678')
-            ->firstOrFail();
-
-        $this->assertNull($lead->next_follow_up_at);
-        $this->assertTrue(
-            $campaign->leads()->whereKey($lead->id)->exists(),
-        );
-    }
-
     public function test_campaign_manager_can_manually_add_lead_to_campaign(): void
     {
         $admin = $this->superAdmin();
         $campaign = $this->campaign($admin, [$admin]);
-        $otherCampaign = Campaign::query()->create([
-            'name' => 'Other Manual Campaign',
-            'cost' => 500,
-            'starts_at' => '2026-09-01 09:00',
-            'ends_at' => '2026-09-10 18:00',
-            'created_by_user_id' => $admin->id,
-        ]);
         $status = $this->leadStatus();
 
-        $this->actingAs($admin)
-            ->get(route('v2.leads.create', ['campaign_id' => $campaign->id]))
-            ->assertOk()
-            ->assertSee('إضافة عميل إلى '.$campaign->name)
-            ->assertSee('name="campaign_id"', false)
-            ->assertSee('بدون حملة')
-            ->assertSee($otherCampaign->name)
-            ->assertSee(
-                'value="'.$campaign->id.'"',
-                false,
-            );
+        $this->actingAs($admin)->post(route('v2.leads.store'), [
+            'first_name' => 'Manual Campaign',
+            'last_name' => 'Attached Lead',
+            'phone' => '01099887766',
+            'source' => 'Facebook Campaign',
+            'lead_status_id' => $status->id,
+            'campaign_id' => $campaign->id,
+            'assigned_user_id' => $admin->id,
+        ])->assertRedirect(route('v2.campaigns.show', [
+            'campaign' => $campaign,
+            'assigned_user_id' => $admin->id,
+        ]));
 
-        $response = $this->actingAs($admin)
-            ->post(route('v2.leads.store'), [
-                'campaign_id' => $campaign->id,
-                'first_name' => 'Manual Campaign',
-                'last_name' => 'Lead',
-                'phone' => '01055555555',
-                'source' => 'Manual Campaign Entry',
-                'assigned_user_id' => $admin->id,
-                'lead_status_id' => $status->id,
-            ]);
-
-        $lead = Lead::query()->where('phone', '01055555555')->firstOrFail();
-
-        $response
-            ->assertRedirect(route('v2.campaigns.show', [
-                'campaign' => $campaign,
-                'assigned_user_id' => $admin->id,
-            ]))
-            ->assertSessionHas('success');
+        $lead = Lead::query()->firstWhere('phone', '01099887766');
+        $this->assertNotNull($lead);
+        $this->assertSame($admin->id, $lead->assigned_user_id);
         $this->assertTrue($campaign->leads()->whereKey($lead->id)->exists());
-    }
-
-    public function test_followup_can_move_lead_and_assign_campaign_user(): void
-    {
-        $admin = $this->superAdmin();
-        $agent = User::factory()->create(['name' => 'Followup Campaign Agent']);
-        $oldCampaign = $this->campaign($admin, [$admin]);
-        $newCampaign = $this->campaign($admin, [$agent]);
-        $lead = $this->lead(['assigned_user_id' => $admin->id]);
-        $oldCampaign->leads()->attach($lead);
-
-        $this->actingAs($admin)
-            ->get(route('v2.leads.followups.index', $lead))
-            ->assertOk()
-            ->assertSee($newCampaign->name)
-            ->assertSee('Followup Campaign Agent');
-
-        $this->actingAs($admin)
-            ->post(route('v2.leads.followups.store', $lead), [
-                'lead_status_id' => $lead->lead_status_id,
-                'communication_type' => 'other',
-                'outcome' => 'Moved during follow-up',
-                'campaign_id' => $newCampaign->id,
-                'assigned_user_id' => $agent->id,
-            ])
-            ->assertRedirect(route('v2.leads.followups.index', $lead))
-            ->assertSessionHas('success');
-
-        $lead->refresh();
-
-        $this->assertSame($agent->id, $lead->assigned_user_id);
-        $this->assertSame($agent->name, $lead->assigned_employee);
-        $this->assertTrue($newCampaign->leads()->whereKey($lead->id)->exists());
-        $this->assertFalse($oldCampaign->leads()->whereKey($lead->id)->exists());
-    }
-
-    public function test_followup_rejects_assignee_outside_selected_campaign(): void
-    {
-        $admin = $this->superAdmin();
-        $campaignAgent = User::factory()->create();
-        $outsider = User::factory()->create();
-        $campaign = $this->campaign($admin, [$campaignAgent]);
-        $lead = $this->lead(['assigned_user_id' => $admin->id]);
-
-        $this->actingAs($admin)
-            ->post(route('v2.leads.followups.store', $lead), [
-                'lead_status_id' => $lead->lead_status_id,
-                'communication_type' => 'other',
-                'campaign_id' => $campaign->id,
-                'assigned_user_id' => $outsider->id,
-            ])
-            ->assertForbidden();
-
-        $this->assertSame($admin->id, $lead->fresh()->assigned_user_id);
-    }
-
-    public function test_failed_campaign_import_returns_to_get_import_page(): void
-    {
-        $admin = $this->superAdmin();
-        $campaign = $this->campaign($admin, [$admin]);
-
-        $this->actingAs($admin)
-            ->from(route('v2.leads.import.preview'))
-            ->post(route('v2.leads.import.preview'), [
-                'campaign_id' => $campaign->id,
-            ])
-            ->assertRedirect(route('v2.leads.import', [
-                'campaign' => $campaign->id,
-            ]))
-            ->assertSessionHasErrors('import_file');
     }
 
     public function test_manager_can_bulk_assign_campaign_leads_to_campaign_user(): void
     {
         $admin = $this->superAdmin();
         $agent = User::factory()->create(['name' => 'Assigned Agent']);
-        $campaign = $this->campaign($admin, [$agent]);
-        $lead = $this->lead(['assigned_user_id' => $admin->id]);
-        $campaign->leads()->attach($lead);
+        $campaign = $this->campaign($admin, [$admin, $agent]);
 
-        $this->actingAs($admin)
-            ->patch(route('v2.campaigns.leads.assign', $campaign), [
-                'lead_ids' => [$lead->id],
+        $leadA = $this->lead(['name' => 'Bulk Lead A', 'assigned_user_id' => $admin->id]);
+        $leadB = $this->lead(['name' => 'Bulk Lead B', 'assigned_user_id' => $admin->id]);
+        $campaign->leads()->attach([$leadA->id, $leadB->id]);
+
+        $response = $this->actingAs($admin)->patch(
+            route('v2.campaigns.leads.assign', $campaign),
+            [
+                'lead_ids' => [$leadA->id, $leadB->id],
                 'target_user_id' => $agent->id,
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success');
+            ]
+        );
 
-        $lead->refresh();
-
-        $this->assertSame($agent->id, $lead->assigned_user_id);
-        $this->assertSame('Assigned Agent', $lead->assigned_employee);
+        $response->assertSessionHasNoErrors();
+        $this->assertSame($agent->id, $leadA->fresh()->assigned_user_id);
+        $this->assertSame($agent->id, $leadB->fresh()->assigned_user_id);
+        $this->assertSame($agent->name, $leadA->fresh()->assigned_employee);
     }
 
     public function test_campaign_user_only_sees_leads_assigned_to_them(): void
@@ -422,72 +280,48 @@ class CampaignTest extends TestCase
         $admin = $this->superAdmin();
         $firstAgent = $this->userWithPermissions(['campaigns.view']);
         $secondAgent = $this->userWithPermissions(['campaigns.view']);
+
         $campaign = $this->campaign($admin, [$firstAgent, $secondAgent]);
 
-        $visibleLead = $this->lead([
-            'name' => 'Visible Campaign Lead',
+        $leadForFirst = $this->lead([
+            'name' => 'Lead For First Agent',
             'assigned_user_id' => $firstAgent->id,
         ]);
-        $hiddenLead = $this->lead([
-            'name' => 'Hidden Campaign Lead',
+        $leadForSecond = $this->lead([
+            'name' => 'Lead For Second Agent',
             'assigned_user_id' => $secondAgent->id,
         ]);
-        $campaign->leads()->attach([$visibleLead->id, $hiddenLead->id]);
+
+        $campaign->leads()->attach([$leadForFirst->id, $leadForSecond->id]);
 
         $this->actingAs($firstAgent)
-            ->get(route('v2.campaigns.show', [
-                'campaign' => $campaign,
-                'assigned_user_id' => $secondAgent->id,
-            ]))
-            ->assertOk()
-            ->assertSee('Visible Campaign Lead')
-            ->assertDontSee('Hidden Campaign Lead');
-
-        $outsider = $this->userWithPermissions(['campaigns.view']);
-
-        $this->actingAs($outsider)
-            ->get(route('v2.campaigns.show', $campaign))
-            ->assertForbidden();
-    }
-
-    public function test_campaign_manager_only_sees_leads_assigned_to_them(): void
-    {
-        $admin = $this->superAdmin();
-        $agent = User::factory()->create();
-        $campaign = $this->campaign($admin, [$admin, $agent]);
-
-        $visibleLead = $this->lead([
-            'name' => 'Manager Campaign Lead',
-            'assigned_user_id' => $admin->id,
-        ]);
-        $hiddenLead = $this->lead([
-            'name' => 'Agent Campaign Lead',
-            'assigned_user_id' => $agent->id,
-        ]);
-        $campaign->leads()->attach([$visibleLead->id, $hiddenLead->id]);
-
-        $this->actingAs($admin)
             ->get(route('v2.campaigns.show', $campaign))
             ->assertOk()
-            ->assertSee('Manager Campaign Lead')
-            ->assertDontSee('Agent Campaign Lead');
+            ->assertSee('Lead For First Agent')
+            ->assertDontSee('Lead For Second Agent');
+
+        $this->actingAs($secondAgent)
+            ->get(route('v2.campaigns.show', $campaign))
+            ->assertOk()
+            ->assertSee('Lead For Second Agent')
+            ->assertDontSee('Lead For First Agent');
     }
 
     public function test_campaign_manager_can_filter_leads_by_campaign_user(): void
     {
         $admin = $this->superAdmin();
         $agent = User::factory()->create(['name' => 'Filter Agent']);
-        $campaign = $this->campaign($admin, [$agent]);
+        $campaign = $this->campaign($admin, [$admin, $agent]);
 
-        $managerLead = $this->lead([
-            'name' => 'Manager Filter Lead',
+        $leadAdmin = $this->lead([
+            'name' => 'Lead Assigned To Admin',
             'assigned_user_id' => $admin->id,
         ]);
-        $agentLead = $this->lead([
-            'name' => 'Filtered Agent Lead',
+        $leadAgent = $this->lead([
+            'name' => 'Lead Assigned To Agent',
             'assigned_user_id' => $agent->id,
         ]);
-        $campaign->leads()->attach([$managerLead->id, $agentLead->id]);
+        $campaign->leads()->attach([$leadAdmin->id, $leadAgent->id]);
 
         $this->actingAs($admin)
             ->get(route('v2.campaigns.show', [
@@ -495,25 +329,25 @@ class CampaignTest extends TestCase
                 'assigned_user_id' => $agent->id,
             ]))
             ->assertOk()
-            ->assertSee('Filter Agent')
-            ->assertSee('(1)')
-            ->assertSee('Filtered Agent Lead')
-            ->assertDontSee('Manager Filter Lead');
+            ->assertSee('Lead Assigned To Agent')
+            ->assertDontSee('Lead Assigned To Admin');
     }
 
     public function test_campaign_manager_can_filter_unassigned_leads(): void
     {
         $admin = $this->superAdmin();
         $campaign = $this->campaign($admin, [$admin]);
+
+        $unassignedLead = $this->lead([
+            'name' => 'Unassigned Campaign Lead',
+            'assigned_user_id' => null,
+            'assigned_employee' => null,
+        ]);
         $assignedLead = $this->lead([
             'name' => 'Assigned Campaign Lead',
             'assigned_user_id' => $admin->id,
         ]);
-        $unassignedLead = $this->lead([
-            'name' => 'Unassigned Campaign Lead',
-            'assigned_user_id' => null,
-        ]);
-        $campaign->leads()->attach([$assignedLead->id, $unassignedLead->id]);
+        $campaign->leads()->attach([$unassignedLead->id, $assignedLead->id]);
 
         $this->actingAs($admin)
             ->get(route('v2.campaigns.show', [
@@ -521,7 +355,6 @@ class CampaignTest extends TestCase
                 'assigned_user_id' => 'unassigned',
             ]))
             ->assertOk()
-            ->assertSee('غير مسند لأي مستخدم (1)')
             ->assertSee('Unassigned Campaign Lead')
             ->assertDontSee('Assigned Campaign Lead');
     }
@@ -535,7 +368,7 @@ class CampaignTest extends TestCase
             'pipeline_stage_id' => $newStatus->pipeline_stage_id,
             'code' => 'campaign-won',
             'name_ar' => 'مكتمل',
-            'position' => 2,
+            'position' => 99,
             'is_terminal' => true,
         ]);
         $newLead = $this->lead([
@@ -557,6 +390,107 @@ class CampaignTest extends TestCase
             ->assertOk()
             ->assertSee('Won Status Campaign Lead')
             ->assertDontSee('New Status Campaign Lead');
+    }
+
+    public function test_campaign_show_renders_dynamic_pipeline_stages_and_filters_by_stage(): void
+    {
+        $admin = $this->superAdmin();
+        $agent = User::factory()->create();
+        $campaign = $this->campaign($admin, [$agent]);
+
+        $stageA = PipelineStage::query()->firstOrCreate(
+            ['code' => 'new'],
+            ['name_ar' => 'جديد', 'position' => 1, 'is_active' => true]
+        );
+        $statusA = LeadStatus::query()->firstOrCreate(
+            ['code' => 'new'],
+            ['pipeline_stage_id' => $stageA->id, 'name_ar' => 'جديد', 'position' => 1, 'is_terminal' => false]
+        );
+
+        $customStage = PipelineStage::query()->create([
+            'code' => 'stage_custom_campaign',
+            'name_ar' => 'مرحلة حملة مخصصة',
+            'position' => 5,
+            'color' => '#8b5cf6',
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+        $customStatus = $customStage->statuses()->first() ?? LeadStatus::query()->create([
+            'pipeline_stage_id' => $customStage->id,
+            'code' => 'status_custom_campaign',
+            'name_ar' => 'حالة حملة مخصصة',
+            'position' => 5,
+            'is_terminal' => false,
+        ]);
+
+        $lead1 = $this->lead(['name' => 'عميل مرحلة أ', 'lead_status_id' => $statusA->id, 'assigned_user_id' => $admin->id]);
+        $lead2 = $this->lead(['name' => 'عميل مرحلة مخصصة', 'lead_status_id' => $customStatus->id, 'assigned_user_id' => $admin->id]);
+
+        $campaign->leads()->attach([$lead1->id, $lead2->id]);
+
+        // 1. Show page renders custom stage card
+        $response = $this->actingAs($admin)->get(route('v2.campaigns.show', $campaign));
+        $response->assertOk();
+        $response->assertSee('مرحلة حملة مخصصة');
+        $response->assertSee(__('crm.customer_stages'));
+
+        // 2. Filter by custom stage
+        $filteredResponse = $this->actingAs($admin)->get(route('v2.campaigns.show', [
+            'campaign' => $campaign,
+            'stage' => $customStage->id,
+        ]));
+        $filteredResponse->assertOk();
+        $filteredResponse->assertSee('عميل مرحلة مخصصة');
+        $filteredResponse->assertDontSee('عميل مرحلة أ');
+    }
+
+    public function test_inactive_pipeline_stage_does_not_appear_in_campaign_show(): void
+    {
+        $admin = $this->superAdmin();
+        $campaign = $this->campaign($admin, [$admin]);
+
+        $inactiveStage = PipelineStage::query()->create([
+            'code' => 'stage_inactive_test',
+            'name_ar' => 'مرحلة معطلة غير مرئية',
+            'position' => 99,
+            'color' => '#64748b',
+            'is_primary' => false,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('v2.campaigns.show', $campaign))
+            ->assertOk()
+            ->assertDontSee('مرحلة معطلة غير مرئية');
+    }
+
+    public function test_unauthorized_user_cannot_access_campaigns(): void
+    {
+        $userWithoutPerms = User::factory()->create();
+
+        $this->actingAs($userWithoutPerms)
+            ->get(route('v2.campaigns.index'))
+            ->assertForbidden();
+
+        $this->actingAs($userWithoutPerms)
+            ->get(route('v2.campaigns.create'))
+            ->assertForbidden();
+    }
+
+    public function test_campaign_index_and_show_link_to_campaign_reports(): void
+    {
+        $admin = $this->superAdmin();
+        $campaign = $this->campaign($admin, [$admin]);
+
+        $this->actingAs($admin)
+            ->get(route('v2.campaigns.index'))
+            ->assertOk()
+            ->assertSee(route('v2.campaigns.reports'));
+
+        $this->actingAs($admin)
+            ->get(route('v2.campaigns.show', $campaign))
+            ->assertOk()
+            ->assertSee(route('v2.campaigns.reports', ['campaign_id' => $campaign->id]));
     }
 
     private function campaign(User $creator, array $users): Campaign

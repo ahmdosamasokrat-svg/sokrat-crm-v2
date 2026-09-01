@@ -3,6 +3,9 @@
 @section('title', __('crm.edit_user'))
 @section('heading', __('crm.edit_user'))
 @section('subheading', $managedUser->name.' · '.$managedUser->username)
+@section('page-icon', 'bi-person-gear')
+@section('back-url', route('v2.settings.users.index'))
+@section('back-title', __('crm.users'))
 
 @section('content')
 <section class="panel">
@@ -73,8 +76,7 @@
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;grid-column:1/-1">
             <button type="submit" class="btn primary">{{ __('crm.apply_filters') }}</button>
-            <a class="btn" href="{{ route('v2.settings.users.edit', $managedUser) }}">{{ __('crm.reset_filters') }}</a>
-        </div>
+            <a class="btn soft" href="{{ route('v2.settings.users.edit', $managedUser) }}">{{ __('crm.reset_filters') }}</a>
     </form>
 
     @if ($voipStats && isset($voipStats['summary']))

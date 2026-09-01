@@ -154,21 +154,21 @@
 
  .task-kpi-info strong {
   display: block;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   color: #1e293b;
   line-height: 1.2;
+  overflow-wrap: anywhere;
  }
 
  .task-kpi-info span {
   display: block;
   margin-top: 4px;
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
  }
 
  /* Progress bar strip */
@@ -251,7 +251,7 @@
 
  .task-search-input {
   width: 100%;
-  height: 42px;
+  height: 44px;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: #f8fafc;
@@ -271,7 +271,7 @@
  }
 
  .task-select-filter {
-  height: 42px;
+  height: 44px;
   min-width: 140px;
   padding: 0 12px;
   border: 1px solid #cbd5e1;
@@ -298,11 +298,11 @@
  }
 
  .task-scope-pill {
-  min-height: 34px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   background: #f8fafc;
@@ -711,16 +711,17 @@
  }
 
  .task-btn-main {
-  height: 38px;
+  height: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 12px;
-  border-radius: 9px;
+  padding: 0 14px;
+  border-radius: 10px;
   background: #2563eb;
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   text-decoration: none;
   border: none;
@@ -733,15 +734,17 @@
  }
 
  .task-btn-icon {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 10px;
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #475569;
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
   cursor: pointer;
   transition: all .16s;
@@ -762,7 +765,6 @@
  .task-btn-icon.whatsapp:hover {
   background: #dcfce7;
  }
-
  /* Table View */
  .task-table-wrap {
   overflow-x: auto;
@@ -1052,9 +1054,18 @@
  }
 
  @media (max-width: 640px) {
-  .task-kpis-grid { grid-template-columns: 1fr; }
+  .task-kpis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .task-kpi-card { padding: 10px 12px; }
+  .task-kpi-icon { width: 40px; height: 40px; flex: 0 0 40px; font-size: 18px; }
+  .task-kpi-info strong { font-size: 20px; }
+  .task-kpi-info span { font-size: 10px; }
   .task-filters-row { flex-direction: column; align-items: stretch; }
-  .task-actions-toolbar { grid-template-columns: 1fr auto auto; }
+  .task-actions-toolbar { grid-template-columns: 1fr repeat(auto-fill, 44px); gap: 6px; }
+  .task-table-wrap { padding: 8px 10px 16px; -webkit-overflow-scrolling: touch; }
+  .task-table { min-width: 800px; }
+ }
+ @media (max-width: 360px) {
+  .task-kpis-grid { grid-template-columns: 1fr; }
  }
 </style>
 @endpush

@@ -77,6 +77,9 @@ class CrmAccessControlSeeder extends Seeder
                     'quotations.view',
                     'quotations.create',
                     'reports.view',
+                    'technical_support.view',
+                    'technical_support.manage',
+                    'technical_support.reports',
                 ],
             ],
             'sales-agent' => [
@@ -93,6 +96,9 @@ class CrmAccessControlSeeder extends Seeder
                     'tasks.view',
                     'quotations.view',
                     'quotations.create',
+                    'technical_support.view',
+                    'technical_support.manage',
+                    'technical_support.reports',
                 ],
             ],
             'read-only' => [
@@ -109,6 +115,8 @@ class CrmAccessControlSeeder extends Seeder
                     'campaigns.view',
                     'campaigns.reports',
                     'reports.view',
+                    'technical_support.view',
+                    'technical_support.reports',
                 ],
             ],
         ];

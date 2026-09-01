@@ -52,6 +52,10 @@ enum CrmPermission: string
     case CALENDAR_VIEW = 'calendar.view';
     case CALENDAR_MANAGE = 'calendar.manage';
 
+    case TECHNICAL_SUPPORT_VIEW = 'technical_support.view';
+    case TECHNICAL_SUPPORT_MANAGE = 'technical_support.manage';
+    case TECHNICAL_SUPPORT_REPORTS = 'technical_support.reports';
+
     public function module(): string
     {
         return explode('.', $this->value, 2)[0];
@@ -97,6 +101,9 @@ enum CrmPermission: string
             self::VOIP_SETTINGS => 'إدارة ربط السنترال (VoIP)',
             self::CALENDAR_VIEW => 'عرض التقويم والأحداث',
             self::CALENDAR_MANAGE => 'إدارة التقويم والأحداث',
+            self::TECHNICAL_SUPPORT_VIEW => 'عرض خوادم الدعم الفني',
+            self::TECHNICAL_SUPPORT_MANAGE => 'إدارة خوادم وتذاكر الدعم الفني',
+            self::TECHNICAL_SUPPORT_REPORTS => 'عرض تقارير الدعم الفني',
         };
     }
 
@@ -129,6 +136,7 @@ enum CrmPermission: string
             'groups' => 'المجموعات والصلاحيات',
             'voip' => 'اتصالات السنترال (VoIP)',
             'calendar' => 'التقويم والأحداث',
+            'technical_support' => 'الدعم الفني',
         ];
     }
 }

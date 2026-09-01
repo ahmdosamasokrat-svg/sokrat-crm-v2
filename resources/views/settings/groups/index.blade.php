@@ -3,6 +3,15 @@
 @section('title', __('crm.groups'))
 @section('heading', __('crm.groups'))
 @section('subheading', 'اجمع المستخدمين تحت أدوار واضحة ثم امنح الصلاحيات للمجموعة')
+@section('page-icon', 'bi-diagram-2')
+
+@section('top-actions')
+    @can('groups.create')
+        <a class="btn primary" href="{{ route('v2.settings.groups.create') }}">
+            <i class="bi bi-plus-lg"></i> {{ __('crm.new_group') }}
+        </a>
+    @endcan
+@endsection
 
 @section('content')
 <section class="panel">
@@ -41,7 +50,7 @@
                         <td>
                             <div class="actions">
                                 @can('groups.update')
-                                    <a class="btn small" href="{{ route('v2.settings.groups.edit', $group) }}">{{ __('crm.edit') }}</a>
+                                    <a class="btn small soft" href="{{ route('v2.settings.groups.edit', $group) }}">{{ __('crm.edit') }}</a>
                                 @endcan
                                 @can('groups.delete')
                                     @if (!$group->is_system)

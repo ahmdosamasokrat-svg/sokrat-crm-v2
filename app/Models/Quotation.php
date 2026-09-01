@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -27,6 +28,23 @@ class Quotation extends Model
             'grand_total' => 'decimal:2',
             'payload' => 'array',
         ];
+    }
+
+    public function scopeAccessibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->isSuperAdmin()) {
+            return $query;
+        }
+
+        return $query->where('created_by_user_id', $user->getKey());
+    }
+
+    public function isAccessibleTo(User $user): bool
+    {
+        return self::query()
+            ->whereKey($this->getKey())
+            ->accessibleTo($user)
+            ->exists();
     }
 
     public function creator(): BelongsTo

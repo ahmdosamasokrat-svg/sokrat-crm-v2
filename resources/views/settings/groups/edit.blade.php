@@ -3,6 +3,9 @@
 @section('title', __('crm.edit_group'))
 @section('heading', __('crm.edit_group'))
 @section('subheading', $group->name.' · '.$group->code)
+@section('page-icon', 'bi-pencil-square')
+@section('back-url', route('v2.settings.groups.index'))
+@section('back-title', __('crm.groups'))
 
 @section('content')
 <section class="panel">

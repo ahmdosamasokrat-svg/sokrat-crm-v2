@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Lead;
 use App\Models\NotificationOccurrence;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,6 +71,7 @@ class NotificationController extends Controller
                     && ! str_starts_with((string) $occurrence->event_key, 'system.'),
             ];
         });
+
         return response()->json([
             'data' => $items,
             'meta' => [
@@ -92,6 +94,112 @@ class NotificationController extends Controller
             ->count();
 
         return response()->json(['count' => $count]);
+    }
+
+    public function dueFollowups(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $now = now();
+        $todayStart = $now->copy()->startOfDay();
+        $todayEnd = $now->copy()->endOfDay();
+        $limit = 100;
+        $userId = (int) $user->getKey();
+
+        $dueQuery = Lead::query()
+            ->where('assigned_user_id', $userId)
+            ->accessibleTo($user)
+            ->whereNotNull('next_follow_up_at')
+            ->where('next_follow_up_at', '<=', $todayEnd);
+
+        $overdueCount = (clone $dueQuery)
+            ->where('next_follow_up_at', '<', $todayStart)
+            ->count();
+        $todayCount = (clone $dueQuery)
+            ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
+            ->count();
+        $total = $overdueCount + $todayCount;
+
+        $leads = (clone $dueQuery)
+            ->with([
+                'status:id,pipeline_stage_id,code,name_ar,color',
+                'status.stage:id,code,name_ar,color,position,is_active',
+            ])
+            ->orderBy('next_follow_up_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get([
+                'id',
+                'lead_status_id',
+                'name',
+                'company_name',
+                'next_follow_up_at',
+            ]);
+
+        $groups = $leads
+            ->groupBy(static fn (Lead $lead): string => (string) ($lead->status?->pipeline_stage_id ?? 'unassigned'))
+            ->map(function ($stageLeads) use ($todayStart, $userId): array {
+                /** @var Lead $firstLead */
+                $firstLead = $stageLeads->first();
+                $stage = $firstLead->status?->stage;
+                $stageId = $stage?->getKey();
+                $stageColor = (string) ($stage?->color ?: $firstLead->status?->color ?: '#64748b');
+                if (! preg_match('/^#[0-9a-f]{6}$/i', $stageColor)) {
+                    $stageColor = '#64748b';
+                }
+
+                $items = $stageLeads->map(function (Lead $lead) use ($todayStart, $stageId, $userId): array {
+                    $bucket = $lead->next_follow_up_at->lt($todayStart) ? 'overdue' : 'today';
+                    $routeParameters = [
+                        'scope' => $bucket,
+                        'employee_id' => $userId,
+                    ];
+                    if ($stageId !== null) {
+                        $routeParameters['stage_id'] = $stageId;
+                    }
+
+                    return [
+                        'id' => $lead->getKey(),
+                        'name' => $lead->name,
+                        'company_name' => $lead->company_name,
+                        'status' => $lead->status?->localizedName(),
+                        'due_at' => $lead->next_follow_up_at->toIso8601String(),
+                        'bucket' => $bucket,
+                        'action_url' => route('v2.tasks.daily', $routeParameters, false),
+                    ];
+                })->values();
+
+                $overdue = $items->where('bucket', 'overdue')->count();
+                $today = $items->where('bucket', 'today')->count();
+
+                return [
+                    'stage' => [
+                        'id' => $stageId,
+                        'name' => $stage?->localizedName() ?? __('crm.stage_not_specified'),
+                        'color' => $stageColor,
+                        'position' => $stage?->position ?? PHP_INT_MAX,
+                    ],
+                    'counts' => [
+                        'overdue' => $overdue,
+                        'today' => $today,
+                        'total' => $items->count(),
+                    ],
+                    'items' => $items,
+                ];
+            })
+            ->sortBy(static fn (array $group): int => (int) $group['stage']['position'])
+            ->values();
+
+        return response()->json([
+            'data' => $groups,
+            'meta' => [
+                'overdue' => $overdueCount,
+                'today' => $todayCount,
+                'total' => $total,
+                'timezone' => (string) config('app.timezone'),
+                'as_of' => $now->toIso8601String(),
+                'truncated' => $total > $leads->count(),
+            ],
+        ]);
     }
 
     public function read(Request $request, string $notification): JsonResponse

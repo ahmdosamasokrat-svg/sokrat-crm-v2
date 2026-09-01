@@ -10,31 +10,50 @@
   <title>{{ $crmQuotationReadOnly ? 'عرض سعر محفوظ' : 'إنشاء عرض سعر' }} | CRM v2</title>
   <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0" />
+  <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="{{ asset('quotation-generator/styles.css') }}?v=quotation-v36" />
-  <link rel="stylesheet" href="{{ asset('quotation-generator/crm-module.css') }}?v=crm-module-no-sidebar-v5" />
-</head>
-<body>
+  <link rel="stylesheet" href="{{ asset('quotation-generator/crm-module.css') }}?v=crm-module-no-sidebar-v6" />
+  <style>
+    .crm-topbar-menu-btn, .menu-button { display: none; width: 44px; height: 44px; min-height: 44px; min-width: 44px; border-radius: 10px; border: 1px solid #e4e8ee; background: #fff; color: #20283a; font-size: 20px; cursor: pointer; align-items: center; justify-content: center; touch-action: manipulation; }
+
+    @media (max-width: 900px) {
+      .crm-topbar-menu-btn, .menu-button { display: inline-flex; }
+    }
+    @media (max-width: 768px) {
+      .builder-head { flex-direction: column; align-items: stretch; gap: 12px; }
+      .head-actions { width: 100%; justify-content: flex-start; gap: 8px; }
+      .head-actions .btn { min-height: 44px; flex: 1 1 auto; }
+    }
+  </style>
 @include('partials.page-loader')
   <!-- CRM QUOTATION SHARED SIDEBAR V1 START -->
   <div class="crm-quote-shell">
    @include('partials.crm-sidebar')
+   <button class="crm-overlay" id="crmSidebarOverlay" type="button" aria-label="{{ __('crm.close_menu') }}"></button>
    <div class="crm-quote-main">
   <!-- CRM QUOTATION SHARED SIDEBAR V1 END -->
   <div class="app-shell">
     <aside class="builder no-print">
       <div class="builder-scroll">
       <div class="builder-head">
-        <div>
-          <span class="eyebrow">Sokrat Pro Tech</span>
-          <h1>{{ __('crm.quotation_builder') }}</h1>
-          <p>{{ __('crm.quotation_builder_subtitle') }}</p>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="crm-topbar-menu-btn menu-button" id="menu" type="button" aria-label="{{ __('crm.open_menu') }}">
+            <i class="bi bi-list"></i>
+          </button>
+          <div>
+            <span class="eyebrow">Sokrat Pro Tech</span>
+            <h1 style="margin:2px 0 4px;font-size:22px;font-weight:900">{{ __('crm.quotation_builder') }}</h1>
+            <p style="margin:0;font-size:12px;color:var(--muted)">{{ __('crm.quotation_builder_subtitle') }}</p>
+          </div>
         </div>
-        <div class="head-actions">
+        <div class="head-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button type="button" id="loadDemoBtn" class="btn ghost">{{ __('crm.load_demo') }}</button>
           <button type="button" id="resetBtn" class="btn ghost danger-text">{{ __('crm.reset') }}</button>
           <button type="button" id="resetLayoutBtn" class="btn ghost" title="{{ __('crm.reset_panel_width_title') }}">{{ __('crm.default_size') }}</button>
-        </div>
           @include('partials.profile-dropdown')
+        </div>
       </div>
 
       <form id="quoteForm" autocomplete="off">

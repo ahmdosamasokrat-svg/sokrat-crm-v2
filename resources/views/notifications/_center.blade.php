@@ -8,6 +8,7 @@
  data-locale="{{ app()->getLocale() }}"
  data-index-url="{{ route('v2.notifications.index') }}"
  data-count-url="{{ route('v2.notifications.unread-count') }}"
+ @can('tasks.view') data-due-followups-url="{{ route('v2.notifications.due-followups') }}" @endcan
  data-read-all-url="{{ route('v2.notifications.read-all') }}"
  data-base-url="{{ url('/notifications') }}"
  data-preferences-url="{{ route('v2.notifications.preferences.edit') }}"
@@ -20,7 +21,12 @@
  data-label-snooze="{{ __('crm.notification_snooze') }}"
  data-label-snoozed="{{ __('crm.notification_snoozed') }}"
  data-label-load-more="{{ __('crm.load_more') }}"
->
+ data-label-tasks-loading="{{ __('crm.notification_tasks_loading') }}"
+ data-label-tasks-empty="{{ __('crm.notification_tasks_empty') }}"
+ data-label-tasks-overdue="{{ __('crm.notification_tasks_overdue') }}"
+ data-label-tasks-today="{{ __('crm.notification_tasks_today') }}"
+ data-label-tasks-truncated="{{ __('crm.notification_tasks_truncated') }}"
+ >
  <div class="crm-notification-backdrop" data-notification-close hidden></div>
  <section
   class="crm-notification-drawer"
@@ -39,6 +45,19 @@
     <i class="bi bi-x-lg" aria-hidden="true"></i>
    </button>
   </header>
+
+  @can('tasks.view')
+   <section class="crm-notification-tasks" aria-labelledby="crmNotificationTasksTitle">
+    <header class="crm-notification-tasks-head">
+     <div>
+      <h3 id="crmNotificationTasksTitle"><i class="bi bi-list-check" aria-hidden="true"></i>{{ __('crm.notification_my_tasks') }} <span id="crmNotificationTasksTotal" hidden>0</span></h3>
+      <p>{{ __('crm.notification_my_tasks_desc') }}</p>
+     </div>
+     <a href="{{ route('v2.tasks.daily', ['employee_id' => auth()->id()]) }}">{{ __('crm.notification_view_all_tasks') }}</a>
+    </header>
+    <div class="crm-notification-task-list" id="crmNotificationTaskList" aria-live="polite"></div>
+   </section>
+  @endcan
 
   <div class="crm-notification-controls">
    <div class="crm-notification-tabs" role="tablist" aria-label="{{ __('crm.notification_filter') }}">

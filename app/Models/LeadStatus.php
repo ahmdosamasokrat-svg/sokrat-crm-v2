@@ -37,4 +37,17 @@ class LeadStatus extends Model
     {
         return $this->hasMany(Lead::class);
     }
+
+    public function localizedName(?string $locale = null): string
+    {
+        $loc = $locale ?? app()->getLocale();
+        if ($loc === 'en') {
+            $translationKey = 'crm.status_' . str_replace('-', '_', (string) $this->code);
+            if (\Illuminate\Support\Facades\Lang::has($translationKey)) {
+                return __($translationKey);
+            }
+        }
+
+        return (string) $this->name_ar;
+    }
 }

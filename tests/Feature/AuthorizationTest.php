@@ -49,11 +49,13 @@ class AuthorizationTest extends TestCase
 
     public function test_super_admin_group_grants_every_defined_ability(): void
     {
-        $group = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
+        $group = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
         $user = User::factory()->create();
         $user->groups()->attach($group);
 
@@ -79,11 +81,13 @@ class AuthorizationTest extends TestCase
                 CrmPermission::USERS_UPDATE,
             ],
         );
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
         $actor = User::factory()->create();
         $protectedAdmin = User::factory()->create([
             'username' => 'protected-admin',
@@ -113,17 +117,22 @@ class AuthorizationTest extends TestCase
 
     public function test_last_active_super_admin_cannot_remove_own_super_group(): void
     {
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
-        $regularGroup = Group::query()->create([
-            'name' => 'المبيعات',
-            'code' => 'sales',
-        ]);
-        $admin = User::factory()->create(['username' => 'admin']);
-        $admin->groups()->attach($superAdminGroup);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
+        $regularGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales'],
+            [
+                'name' => 'المبيعات',
+                'is_system' => false,
+            ]
+        );
+        $admin = User::query()->where('username', 'admin')->first() ?? User::factory()->create(['username' => 'admin']);
+        $admin->groups()->syncWithoutDetaching([$superAdminGroup->id]);
 
         $this->actingAs($admin)
             ->patch(route('v2.settings.users.update', $admin), [
@@ -147,10 +156,13 @@ class AuthorizationTest extends TestCase
                 CrmPermission::USERS_UPDATE,
             ],
         );
-        $targetGroup = Group::query()->create([
-            'name' => 'Optional Email Users',
-            'code' => 'optional-email-users',
-        ]);
+        $targetGroup = Group::query()->firstOrCreate(
+            ['code' => 'optional-email-users'],
+            [
+                'name' => 'Optional Email Users',
+                'is_system' => false,
+            ]
+        );
         $actor = User::factory()->create();
         $actor->groups()->attach($actorGroup);
         $this->actingAs($actor);
@@ -201,23 +213,28 @@ class AuthorizationTest extends TestCase
 
     public function test_permission_matrix_updates_regular_groups_only(): void
     {
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
-        $regularGroup = Group::query()->create([
-            'name' => 'المبيعات',
-            'code' => 'sales',
-        ]);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
+        $regularGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales'],
+            [
+                'name' => 'المبيعات',
+                'is_system' => false,
+            ]
+        );
         $admin = User::factory()->create();
-        $admin->groups()->attach($superAdminGroup);
+        $admin->groups()->syncWithoutDetaching([$superAdminGroup->id]);
 
         $leadView = $this->permission(CrmPermission::LEADS_VIEW);
         $settingsAccess = $this->permission(
             CrmPermission::SETTINGS_ACCESS,
         );
-        $superAdminGroup->permissions()->attach($settingsAccess);
+        $superAdminGroup->permissions()->syncWithoutDetaching([$settingsAccess->id]);
 
         $this->actingAs($admin)
             ->put(route('v2.settings.permissions.update'), [

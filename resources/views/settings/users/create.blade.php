@@ -3,6 +3,9 @@
 @section('title', __('crm.new_user_title'))
 @section('heading', __('crm.add_user'))
 @section('subheading', __('crm.create_user_subtitle'))
+@section('page-icon', 'bi-person-plus')
+@section('back-url', route('v2.settings.users.index'))
+@section('back-title', __('crm.users'))
 
 @section('content')
 <section class="panel">

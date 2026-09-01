@@ -38,6 +38,7 @@ class Lead extends Model
         'created_by',
         'created_by_user_id',
         'notes',
+        'custom_fields',
         'next_follow_up_at',
     ];
 
@@ -48,6 +49,7 @@ class Lead extends Model
             'users_count' => 'integer',
             'branches_count' => 'integer',
             'lines_count' => 'integer',
+            'custom_fields' => 'array',
             'next_follow_up_at' => 'datetime',
         ];
     }
@@ -134,5 +136,17 @@ class Lead extends Model
         return $this->hasMany(
             LeadFollowup::class
         )->orderByDesc('followed_up_at');
+    }
+
+    public function stageValues(): HasMany
+    {
+        return $this->hasMany(LeadStageFieldValue::class, 'lead_id')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    public function currentStage(): ?PipelineStage
+    {
+        return $this->status?->stage;
     }
 }

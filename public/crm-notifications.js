@@ -16,6 +16,8 @@
 
  const drawer = document.getElementById('crmNotificationDrawer');
  const list = document.getElementById('crmNotificationList');
+ const dueFollowupsList = document.getElementById('crmNotificationTaskList');
+ const dueFollowupsTotal = document.getElementById('crmNotificationTasksTotal');
  const readAll = document.getElementById('crmNotificationReadAll');
  const loadMore = document.getElementById('crmNotificationLoadMore');
  const toast = document.getElementById('crmNotificationToast');
@@ -30,6 +32,7 @@
  let lastPage = 1;
  let unreadCount = null;
  let loading = false;
+ let tasksLoading = false;
  let toastTimer = null;
 
  const request = async (url, options = {}) => {
@@ -86,7 +89,10 @@
    }
    unreadCount = nextCount;
    setBadge(nextCount);
-   if (center.classList.contains('is-open') && filter === 'unread') loadNotifications(1);
+   if (center.classList.contains('is-open')) {
+    if (filter === 'unread') loadNotifications(1);
+    loadDueFollowups();
+   }
   } catch (_) {}
  };
 
@@ -132,6 +138,111 @@
   }
   state.append(wrap);
   return state;
+ };
+
+ const compactStateNode = (icon, title, body = '') => {
+  const state = stateNode(icon, title, body);
+  state.classList.add('is-compact');
+  return state;
+ };
+
+ const dueDateFormatter = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB', {
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+ });
+
+ const createDueTask = item => {
+  const task = document.createElement('a');
+  task.className = `crm-notification-task is-${item.bucket}`;
+  task.href = resolveActionUrl(item.action_url) || '#';
+
+  const icon = document.createElement('span');
+  icon.className = 'crm-notification-task-icon';
+  const iconGlyph = document.createElement('i');
+  iconGlyph.className = item.bucket === 'overdue' ? 'bi bi-exclamation-lg' : 'bi bi-calendar-check';
+  iconGlyph.setAttribute('aria-hidden', 'true');
+  icon.append(iconGlyph);
+
+  const copy = document.createElement('div');
+  copy.className = 'crm-notification-task-copy';
+  const name = document.createElement('strong');
+  name.textContent = item.name || '';
+  const context = document.createElement('span');
+  context.textContent = [item.company_name, item.status].filter(Boolean).join(' · ');
+  copy.append(name, context);
+
+  const due = document.createElement('div');
+  due.className = 'crm-notification-task-due';
+  due.append(document.createTextNode(item.bucket === 'overdue' ? config.labelTasksOverdue : config.labelTasksToday));
+  const time = document.createElement('time');
+  time.dateTime = item.due_at || '';
+  const date = new Date(item.due_at);
+  time.textContent = Number.isNaN(date.getTime()) ? '' : dueDateFormatter.format(date);
+  due.append(time);
+  task.append(icon, copy, due);
+
+  return task;
+ };
+
+ const createTaskCount = (className, label, count) => {
+  const badge = document.createElement('span');
+  badge.className = className;
+  badge.textContent = `${label} ${count}`;
+  return badge;
+ };
+
+ const createDueTaskStage = group => {
+  const stage = document.createElement('section');
+  stage.className = 'crm-notification-task-stage';
+  stage.style.setProperty('--crm-task-stage-color', group.stage?.color || '#64748b');
+  const header = document.createElement('header');
+  header.className = 'crm-notification-task-stage-head';
+  const name = document.createElement('strong');
+  name.className = 'crm-notification-task-stage-name';
+  name.textContent = group.stage?.name || '';
+  const counts = document.createElement('div');
+  counts.className = 'crm-notification-task-counts';
+  if (Number(group.counts?.overdue || 0) > 0) counts.append(createTaskCount('overdue', config.labelTasksOverdue, group.counts.overdue));
+  if (Number(group.counts?.today || 0) > 0) counts.append(createTaskCount('today', config.labelTasksToday, group.counts.today));
+  header.append(name, counts);
+  stage.append(header);
+  (group.items || []).forEach(item => stage.append(createDueTask(item)));
+
+  return stage;
+ };
+
+ const loadDueFollowups = async () => {
+  if (!config.dueFollowupsUrl || !dueFollowupsList || tasksLoading) return;
+  tasksLoading = true;
+  dueFollowupsList.replaceChildren(compactStateNode('bi-arrow-repeat', config.labelTasksLoading));
+  try {
+   const payload = await request(config.dueFollowupsUrl);
+   const total = Number(payload.meta?.total || 0);
+   if (dueFollowupsTotal) {
+    dueFollowupsTotal.textContent = total > 99 ? '99+' : String(total);
+    dueFollowupsTotal.hidden = total === 0;
+   }
+   if (!(payload.data || []).length) {
+    dueFollowupsList.replaceChildren(compactStateNode('bi-check2-circle', config.labelTasksEmpty));
+    return;
+   }
+
+   const fragment = document.createDocumentFragment();
+   (payload.data || []).forEach(group => fragment.append(createDueTaskStage(group)));
+   if (payload.meta?.truncated) {
+    const notice = document.createElement('div');
+    notice.className = 'crm-notification-task-truncated';
+    notice.textContent = config.labelTasksTruncated;
+    fragment.append(notice);
+   }
+   dueFollowupsList.replaceChildren(fragment);
+  } catch (error) {
+   dueFollowupsList.replaceChildren(compactStateNode('bi-exclamation-circle', config.labelError, error.message));
+  } finally {
+   tasksLoading = false;
+  }
  };
 
  const mutate = async (item, action, method = 'PATCH', body = null) => {
@@ -243,6 +354,7 @@
   drawer.setAttribute('aria-hidden', 'false');
   center.querySelector('[data-notification-close]').hidden = false;
   loadNotifications(1);
+  loadDueFollowups();
   setTimeout(() => drawer.querySelector('.crm-notification-close').focus(), 0);
  };
 

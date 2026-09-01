@@ -3,6 +3,15 @@
 @section('title', __('crm.permissions'))
 @section('heading', __('crm.permissions_matrix'))
 @section('subheading', __('crm.permissions_inheritance'))
+@section('page-icon', 'bi-shield-lock')
+
+@if (auth()->user()->can('groups.assign_permissions'))
+    @section('top-actions')
+        <button type="submit" form="permissionsForm" class="btn primary">
+            <i class="bi bi-check2"></i> {{ __('crm.save_permissions') }}
+        </button>
+    @endsection
+@endif
 
 @section('content')
 <section class="panel">
@@ -14,7 +23,7 @@
     </div>
 
     @php($canEditPermissions = auth()->user()->can('groups.assign_permissions'))
-    <form method="POST" action="{{ route('v2.settings.permissions.update') }}">
+    <form method="POST" action="{{ route('v2.settings.permissions.update') }}" id="permissionsForm">
         @csrf
         @method('PUT')
         <div class="table-wrap">

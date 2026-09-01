@@ -29,6 +29,31 @@ use Tests\TestCase;
 class NotificationSystemTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (NotificationRule::query()->count() === 0) {
+            $defaultRules = [
+                ['name_ar' => 'متابعة مستحقة', 'name_en' => 'Follow-up Due', 'event_key' => NotificationRule::EVENT_FOLLOWUP_DUE, 'enabled' => true, 'trigger_offset_minutes' => 15, 'priority' => 'important', 'channels' => ['database']],
+                ['name_ar' => 'متابعة متأخرة', 'name_en' => 'Follow-up Overdue', 'event_key' => NotificationRule::EVENT_FOLLOWUP_OVERDUE, 'enabled' => true, 'trigger_offset_minutes' => 0, 'priority' => 'critical', 'channels' => ['database']],
+                ['name_ar' => 'إعادة جدولة متابعة', 'name_en' => 'Follow-up Rescheduled', 'event_key' => NotificationRule::EVENT_FOLLOWUP_RESCHEDULED, 'enabled' => true, 'trigger_offset_minutes' => 0, 'priority' => 'normal', 'channels' => ['database']],
+                ['name_ar' => 'إسناد عميل', 'name_en' => 'Lead Reassigned', 'event_key' => NotificationRule::EVENT_FOLLOWUP_REASSIGNED, 'enabled' => true, 'trigger_offset_minutes' => 0, 'priority' => 'important', 'channels' => ['database']],
+                ['name_ar' => 'موعد تقويم مستحق', 'name_en' => 'Calendar Event Due', 'event_key' => NotificationRule::EVENT_CALENDAR_DUE, 'enabled' => true, 'trigger_offset_minutes' => 15, 'priority' => 'important', 'channels' => ['database']],
+                ['name_ar' => 'تحديث موعد تقويم', 'name_en' => 'Calendar Event Updated', 'event_key' => NotificationRule::EVENT_CALENDAR_UPDATED, 'enabled' => true, 'trigger_offset_minutes' => 0, 'priority' => 'normal', 'channels' => ['database']],
+                ['name_ar' => 'إلغاء موعد تقويم', 'name_en' => 'Calendar Event Canceled', 'event_key' => NotificationRule::EVENT_CALENDAR_CANCELED, 'enabled' => true, 'trigger_offset_minutes' => 0, 'priority' => 'important', 'channels' => ['database']],
+            ];
+            foreach ($defaultRules as $r) {
+                $channels = $r['channels'];
+                unset($r['channels']);
+                $rule = NotificationRule::query()->firstOrCreate(['event_key' => $r['event_key']], $r);
+                foreach ($channels as $ch) {
+                    $rule->channels()->firstOrCreate(['channel' => $ch]);
+                }
+                $rule->recipients()->firstOrCreate(['recipient_type' => 'assigned_user']);
+            }
+        }
+    }
 
     protected function tearDown(): void
     {
@@ -107,6 +132,86 @@ class NotificationSystemTest extends TestCase
             ->where('source_id', $lead->getKey())
             ->where('recipient_user_id', $recipient->getKey())
             ->count());
+    }
+
+    public function test_due_followups_endpoint_requires_tasks_permission(): void
+    {
+        $this->getJson(route('v2.notifications.due-followups'))->assertUnauthorized();
+
+        $user = $this->userWithPermissions([]);
+        $this->actingAs($user)
+            ->getJson(route('v2.notifications.due-followups'))
+            ->assertForbidden();
+    }
+
+    public function test_due_followups_endpoint_returns_only_the_authenticated_users_current_tasks_grouped_by_stage(): void
+    {
+        $now = Carbon::parse('2026-08-29 12:00:00', 'UTC');
+        Carbon::setTestNow($now);
+        $user = $this->userWithPermissions(['tasks.view', 'leads.scope.all']);
+        $otherUser = $this->userWithPermissions(['tasks.view']);
+        $firstStage = PipelineStage::query()->create([
+            'code' => 'bell-first-stage',
+            'name_ar' => 'المرحلة الأولى',
+            'position' => 1,
+            'color' => '#dc2637',
+            'is_active' => true,
+        ]);
+        $secondStage = PipelineStage::query()->create([
+            'code' => 'bell-second-stage',
+            'name_ar' => 'المرحلة الثانية',
+            'position' => 2,
+            'color' => '#0f7440',
+            'is_active' => true,
+        ]);
+        $firstStatus = $firstStage->statuses()->firstOrFail();
+        $firstStatus->update([
+            'name_ar' => 'حالة أولى',
+            'color' => '#dc2637',
+        ]);
+        $secondStatus = $secondStage->statuses()->firstOrFail();
+        $secondStatus->update([
+            'name_ar' => 'حالة ثانية',
+            'color' => '#0f7440',
+        ]);
+
+        foreach ([
+            [$firstStatus, 'My overdue follow-up', $user, $now->copy()->subDay(), $user],
+            [$secondStatus, 'My follow-up today', $user, $now->copy()->addHour(), $user],
+            [$firstStatus, 'My future follow-up', $user, $now->copy()->addDay(), $user],
+            [$firstStatus, 'Another employee follow-up', $otherUser, $now->copy()->subDay(), $user],
+        ] as [$status, $name, $assignee, $dueAt, $creator]) {
+            Lead::query()->create([
+                'lead_status_id' => $status->getKey(),
+                'name' => $name,
+                'company_name' => $name.' Company',
+                'assigned_user_id' => $assignee->getKey(),
+                'created_by_user_id' => $creator->getKey(),
+                'next_follow_up_at' => $dueAt,
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->getJson(route('v2.notifications.due-followups', ['employee_id' => $otherUser->getKey()]))
+            ->assertOk()
+            ->assertJsonPath('meta.overdue', 1)
+            ->assertJsonPath('meta.today', 1)
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.truncated', false)
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.stage.id', $firstStage->getKey())
+            ->assertJsonPath('data.0.items.0.name', 'My overdue follow-up')
+            ->assertJsonPath('data.0.items.0.bucket', 'overdue')
+            ->assertJsonPath('data.0.items.0.action_url', route('v2.tasks.daily', [
+                'scope' => 'overdue',
+                'employee_id' => $user->getKey(),
+                'stage_id' => $firstStage->getKey(),
+            ], false))
+            ->assertJsonPath('data.1.stage.id', $secondStage->getKey())
+            ->assertJsonPath('data.1.items.0.name', 'My follow-up today')
+            ->assertJsonPath('data.1.items.0.bucket', 'today')
+            ->assertJsonMissing(['name' => 'My future follow-up'])
+            ->assertJsonMissing(['name' => 'Another employee follow-up']);
     }
 
     public function test_quiet_hours_delay_external_delivery_and_queue_claim_is_idempotent(): void

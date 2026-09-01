@@ -3,6 +3,9 @@
 @section('title', $rule->exists ? __('crm.edit_notification_rule') : __('crm.add_notification_rule'))
 @section('heading', $rule->exists ? __('crm.edit_notification_rule') : __('crm.add_notification_rule'))
 @section('subheading', __('crm.notification_rule_form_description'))
+@section('page-icon', 'bi-bell')
+@section('back-url', route('v2.settings.notifications.index'))
+@section('back-title', __('crm.notification_rules'))
 
 @push('head')
 <style>
@@ -76,7 +79,7 @@
     <h3>{{ __('crm.rule_summary') }}</h3>
     <dl><div><dt>{{ __('crm.rule') }}</dt><dd id="rulePreviewName">{{ old(app()->getLocale() === 'en' ? 'name_en' : 'name_ar', $rule->localizedName()) ?: __('crm.untitled_rule') }}</dd></div><div><dt>{{ __('crm.trigger') }}</dt><dd id="rulePreviewEvent"></dd></div><div><dt>{{ __('crm.channels') }}</dt><dd id="rulePreviewChannels"></dd></div></dl>
     <label class="enabled-check"><input type="checkbox" name="enabled" value="1" @checked(old('enabled', $rule->exists ? $rule->enabled : true))><strong>{{ __('crm.enable_rule_now') }}</strong></label>
-    <div class="rule-preview-actions"><button class="btn primary" type="submit"><i class="bi bi-check2" aria-hidden="true"></i>{{ __('crm.save_rule') }}</button><a class="btn" href="{{ route('v2.settings.notifications.index') }}">{{ __('crm.cancel') }}</a></div>
+    <div class="rule-preview-actions"><button class="btn primary" type="submit"><i class="bi bi-check2" aria-hidden="true"></i>{{ __('crm.save_rule') }}</button><a class="btn soft" href="{{ route('v2.settings.notifications.index') }}">{{ __('crm.cancel') }}</a></div>
    </section>
   </aside>
  </div>

@@ -6,6 +6,7 @@ use App\Models\CalendarEvent;
 use App\Models\Group;
 use App\Models\Lead;
 use App\Models\LeadFollowup;
+use App\Models\PipelineStage;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Observers\CalendarEventNotificationObserver;
@@ -16,6 +17,7 @@ use App\Policies\LeadPolicy;
 use App\Policies\QuotationPolicy;
 use App\Policies\UserPolicy;
 use App\Security\CrmPermission;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -29,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Paginator::defaultView('partials.pagination');
+
         Gate::policy(Lead::class, LeadPolicy::class);
         Gate::policy(LeadFollowup::class, LeadFollowupPolicy::class);
         Gate::policy(Quotation::class, QuotationPolicy::class);
@@ -60,9 +64,12 @@ class AppServiceProvider extends ServiceProvider
                         ? Lead::query()->accessibleTo($user)->whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now()->endOfDay())->count()
                         : 0;
 
+                $sidebarPipelineStages = PipelineStage::getActiveStagesForSidebar();
+
                 $view->with([
                     'totalLeads' => $totalLeads,
                     'totalTasks' => $totalTasks,
+                    'sidebarPipelineStages' => $sidebarPipelineStages,
                 ]);
             },
         );

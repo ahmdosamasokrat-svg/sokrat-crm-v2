@@ -3,6 +3,13 @@
 @section('title', __('crm.notification_rules'))
 @section('heading', __('crm.notification_rules'))
 @section('subheading', __('crm.notification_rules_description'))
+@section('page-icon', 'bi-bell')
+
+@section('top-actions')
+    <a class="btn primary" href="{{ route('v2.settings.notifications.create') }}">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> {{ __('crm.add_notification_rule') }}
+    </a>
+@endsection
 
 @push('head')
 <style>
@@ -49,9 +56,9 @@
        <td><div class="recipient-summary">@foreach($rule->recipients->groupBy('recipient_type') as $type => $recipients)<div>{{ __('crm.notification_recipient_'.$type) }}: {{ $recipients->count() }}</div>@endforeach</div></td>
        <td><span class="badge {{ $rule->enabled ? 'active' : 'inactive' }}">{{ $rule->enabled ? __('crm.enabled') : __('crm.disabled') }}</span></td>
        <td><div class="rule-actions">
-        <a class="btn small" href="{{ route('v2.settings.notifications.edit', $rule) }}">{{ __('crm.edit') }}</a>
-        <form method="POST" action="{{ route('v2.settings.notifications.toggle', $rule) }}">@csrf @method('PATCH')<button class="btn small" type="submit">{{ $rule->enabled ? __('crm.disable') : __('crm.enable') }}</button></form>
-        <form method="POST" action="{{ route('v2.settings.notifications.duplicate', $rule) }}">@csrf<button class="btn small" type="submit">{{ __('crm.duplicate') }}</button></form>
+        <a class="btn small soft" href="{{ route('v2.settings.notifications.edit', $rule) }}">{{ __('crm.edit') }}</a>
+        <form method="POST" action="{{ route('v2.settings.notifications.toggle', $rule) }}">@csrf @method('PATCH')<button class="btn small soft" type="submit">{{ $rule->enabled ? __('crm.disable') : __('crm.enable') }}</button></form>
+        <form method="POST" action="{{ route('v2.settings.notifications.duplicate', $rule) }}">@csrf<button class="btn small soft" type="submit">{{ __('crm.duplicate') }}</button></form>
         <form method="POST" action="{{ route('v2.settings.notifications.destroy', $rule) }}" onsubmit="return confirm(@js(__('crm.confirm_delete_notification_rule')))">@csrf @method('DELETE')<button class="btn small danger" type="submit">{{ __('crm.delete') }}</button></form>
        </div></td>
       </tr>

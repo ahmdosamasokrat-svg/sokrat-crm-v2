@@ -41,10 +41,14 @@ class LeadTransferController extends Controller
             $request->query('campaign')
         );
 
+        $stages = $this->stages();
+        $statuses = $this->statuses($stages);
+
         return view(
             'leads.import',
             [
-                'statuses' => $this->statuses(),
+                'statuses' => $statuses,
+                'defaultStatus' => $statuses->first(),
                 'preview' => null,
                 'campaign' => $campaign,
             ]
@@ -163,10 +167,14 @@ class LeadTransferController extends Controller
                 );
         }
 
+        $stages = $this->stages();
+        $statuses = $this->statuses($stages);
+
         return view(
             'leads.import',
             [
-                'statuses' => $this->statuses(),
+                'statuses' => $statuses,
+                'defaultStatus' => $statuses->first(),
                 'preview' => $preview,
                 'campaign' => $campaign,
             ]
@@ -315,6 +323,10 @@ class LeadTransferController extends Controller
                 $campaign
             ): array {
                 $statusIds = LeadStatus::query()
+                    ->whereHas(
+                        'stage',
+                        static fn ($query) => $query->where('is_active', true)
+                    )
                     ->pluck('id')
                     ->map(
                         static fn ($id): int => (int) $id
@@ -501,13 +513,13 @@ class LeadTransferController extends Controller
             ->sort()
             ->values();
 
+        $stages = $this->stages();
+
         return view(
             'leads.export',
             [
-                'statuses' => $this->statuses(),
-                'stages' => PipelineStage::query()
-                    ->orderBy('position')
-                    ->get(),
+                'statuses' => $this->statuses($stages),
+                'stages' => $stages,
                 'sources' => $sources,
                 'employees' => $employees,
                 'columns' => $this->exportColumns(),
@@ -783,12 +795,27 @@ class LeadTransferController extends Controller
         );
     }
 
-    private function statuses()
+    private function stages()
     {
-        return LeadStatus::query()
-            ->with('stage')
+        return PipelineStage::query()
+            ->where('is_active', true)
+            ->with([
+                'statuses' => static fn ($query) => $query
+                    ->orderBy('position')
+                    ->orderBy('id'),
+            ])
             ->orderBy('position')
+            ->orderBy('id')
             ->get();
+    }
+
+    private function statuses($stages = null)
+    {
+        return ($stages ?? $this->stages())
+            ->flatMap(
+                static fn (PipelineStage $stage) => $stage->statuses
+            )
+            ->values();
     }
 
     private function importColumns(): array
@@ -807,6 +834,7 @@ class LeadTransferController extends Controller
             'job_title' => 'المنصب',
             'source' => 'المصدر',
             'status' => 'الحالة',
+            'stage' => 'المرحلة',
             'solution_type' => 'نوع النظام',
             'lines_count' => 'عدد الخطوط',
             'extensions' => 'الملحقات',
@@ -899,6 +927,14 @@ class LeadTransferController extends Controller
                 'status',
                 'status_code',
                 'status code',
+            ],
+
+            'stage' => [
+                'المرحلة',
+                'مرحلة العميل',
+                'stage',
+                'stage_code',
+                'stage code',
             ],
 
             'solution_type' => [
@@ -1083,8 +1119,14 @@ class LeadTransferController extends Controller
             );
         }
 
-        $statuses =
-            $this->statuses();
+        $stages = $this->stages();
+        $statuses = $this->statuses($stages);
+
+        if ($statuses->isEmpty()) {
+            throw new \RuntimeException(
+                'لا توجد مراحل نشطة متاحة للاستيراد.'
+            );
+        }
 
         $statusMap = [];
 
@@ -1101,6 +1143,24 @@ class LeadTransferController extends Controller
                 )
             ] = $status;
         }
+
+        $stageMap = [];
+
+        foreach ($stages as $stage) {
+            $stageMap[
+                $this->normalizeToken(
+                    (string) $stage->code
+                )
+            ] = $stage;
+
+            $stageMap[
+                $this->normalizeToken(
+                    (string) $stage->name_ar
+                )
+            ] = $stage;
+        }
+
+        $defaultStatus = $statuses->first();
 
         $actor = auth()->user();
         $userIdMap = [];
@@ -1296,25 +1356,74 @@ class LeadTransferController extends Controller
             $statusInput =
                 $value('status');
 
-            if ($statusInput === '') {
-                $statusInput = 'new';
-            }
+            $stageInput =
+                $value('stage');
 
-            $statusKey =
-                $this->normalizeToken(
-                    $statusInput
-                );
+            $stage = null;
 
-            $status =
-                $statusMap[
-                    $statusKey
+            if ($stageInput !== '') {
+                $stage = $stageMap[
+                    $this->normalizeToken(
+                        $stageInput
+                    )
                 ] ?? null;
 
-            if ($status === null) {
+                if ($stage === null) {
+                    $errors[] =
+                        'المرحلة "'
+                        .$stageInput
+                        .'" غير موجودة أو غير نشطة.';
+                }
+            }
+
+            $status = null;
+
+            if ($statusInput !== '') {
+                $normalizedStatusInput =
+                    $this->normalizeToken(
+                        $statusInput
+                    );
+
+                $status = $stage !== null
+                    ? $stage->statuses->first(
+                        fn (LeadStatus $candidate): bool => in_array(
+                            $normalizedStatusInput,
+                            [
+                                $this->normalizeToken((string) $candidate->code),
+                                $this->normalizeToken((string) $candidate->name_ar),
+                            ],
+                            true
+                        )
+                    )
+                    : ($statusMap[$normalizedStatusInput] ?? null);
+
+                if ($status === null) {
+                    $errors[] =
+                        'الحالة "'
+                        .$statusInput
+                        .'" غير موجودة في مرحلة نشطة.';
+                }
+            } elseif ($stage !== null) {
+                $status = $stage->statuses->first();
+
+                if ($status === null) {
+                    $errors[] =
+                        'المرحلة "'
+                        .$stageInput
+                        .'" لا تحتوي على حالة متاحة.';
+                }
+            } elseif ($stageInput === '') {
+                $status = $defaultStatus;
+            }
+
+            if (
+                $status !== null
+                && $stage !== null
+                && (int) $status->pipeline_stage_id
+                    !== (int) $stage->id
+            ) {
                 $errors[] =
-                    'الحالة "'
-                    .$statusInput
-                    .'" غير موجودة في النظام.';
+                    'الحالة المحددة لا تتبع المرحلة المحددة.';
             }
 
             $usersCount =
@@ -1683,11 +1792,11 @@ class LeadTransferController extends Controller
                         : '----',
 
                 'status' => $status?->name_ar
-                    ?? $statusInput,
+                    ?? ($statusInput !== '' ? $statusInput : '----'),
 
                 'stage' => $status?->stage
                     ?->name_ar
-                    ?? '----',
+                    ?? ($stageInput !== '' ? $stageInput : '----'),
 
                 'state' => $state,
 

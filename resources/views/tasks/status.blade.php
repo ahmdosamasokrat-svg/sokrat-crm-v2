@@ -269,18 +269,19 @@
  }
 
  .task-status-nav a{
-  min-height:34px;
+  min-height:40px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:6px 11px;
+  padding:8px 14px;
   border:1px solid var(--line);
-  border-radius:9px;
+  border-radius:10px;
   background:#fafbfc;
   color:#657186;
   text-decoration:none;
-  font-size:11px;
-  font-weight:900
+  font-size:12px;
+  font-weight:900;
+  white-space:nowrap
  }
 
  .task-status-nav a.active{
@@ -589,16 +590,15 @@
 
  @media(max-width:650px){
   .task-status-nav{
-   overflow:auto;
-   flex-wrap:nowrap
+   overflow-x:auto;
+-webkit-overflow-scrolling:touch;
+   flex-wrap:nowrap;
+   padding:8px;
+   gap:6px
   }
 
   .task-status-nav a{
    flex:0 0 auto
-  }
-
-  .task-status-meta{
-   grid-template-columns:1fr
   }
  }
 
@@ -1102,19 +1102,14 @@
 
  @media(max-width:760px){
   .task-card-actions{
-   grid-template-columns:
-    repeat(2,minmax(0,1fr))!important
+   grid-template-columns:1fr!important;
+   gap:6px!important
   }
 
+  .task-card-actions a,
+  .task-card-actions button,
   .task-call-btn{
-   grid-column:1/-1
-  }
- }
-
- @media(max-width:520px){
-  .task-card-actions{
-   grid-template-columns:
-    1fr!important
+   min-height:44px!important
   }
 
   .task-call-btn{
@@ -1442,22 +1437,18 @@
           data-call-and-followup="1"
           data-followup-url="{{ route(
            'v2.leads.followups.index',
-           $lead
+           [
+            'lead' => $lead,
+            'channel' => 'call',
+           ]
           ) }}"
-          href="tel:{{
-           preg_replace(
-            '/[^0-9+]/',
-            '',
-            (string) $lead->phone
-           )
-          }}"
-          onclick="
-           window.open(
-            this.dataset.followupUrl,
-            '_blank',
-            'noopener,noreferrer'
-           );
-          "
+          href="{{ route(
+           'v2.leads.followups.index',
+           [
+            'lead' => $lead,
+            'channel' => 'call',
+           ]
+          ) }}"
           title="{{ __('crm.call_and_followup') }}"
           aria-label="{{ __('اتصال بالعميل') }} {{ $lead->name }} {{ __('وفتح تسجيل المتابعة') }}"
          >

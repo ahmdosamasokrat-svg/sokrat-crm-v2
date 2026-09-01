@@ -20,8 +20,8 @@ class QuotationController extends Controller
             )
         );
 
-        $query =
-            Quotation::query();
+        $query = Quotation::query()
+            ->accessibleTo($request->user());
 
         if ($term !== '') {
             $query->where(
@@ -80,6 +80,8 @@ class QuotationController extends Controller
     public function show(
         Quotation $quotation
     ): View {
+        abort_unless($quotation->isAccessibleTo(request()->user()), 404);
+
         return view(
             'quotations.builder',
             compact(
@@ -300,8 +302,7 @@ class QuotationController extends Controller
         $subtotal = 0.0;
 
         foreach (
-            $validated['items']
-            as &$item
+            $validated['items'] as &$item
         ) {
             $item['qty'] =
                 (float)
@@ -334,8 +335,7 @@ class QuotationController extends Controller
         $adjustmentTotal = 0.0;
 
         foreach (
-            $validated['adjustments']
-            as &$adjustment
+            $validated['adjustments'] as &$adjustment
         ) {
             $adjustment['value'] =
                 (float)
@@ -361,66 +361,53 @@ class QuotationController extends Controller
 
         $quotation =
             Quotation::create([
-                'quotation_no' =>
-                    $validated[
+                'quotation_no' => $validated[
                         'quotationNo'
                     ],
 
-                'client_name' =>
-                    $validated[
+                'client_name' => $validated[
                         'clientName'
                     ],
 
-                'location' =>
-                    $validated[
+                'location' => $validated[
                         'location'
                     ] ?? null,
 
-                'prepared_by' =>
-                    $validated[
+                'prepared_by' => $validated[
                         'preparedBy'
                     ] ?? null,
 
-                'quote_date' =>
-                    $validated[
+                'quote_date' => $validated[
                         'quoteDate'
                     ],
 
-                'system_title' =>
-                    $validated[
+                'system_title' => $validated[
                         'systemTitle'
                     ] ?? null,
 
-                'grand_total' =>
-                    round(
-                        $grandTotal,
-                        2
-                    ),
+                'grand_total' => round(
+                    $grandTotal,
+                    2
+                ),
 
-                'payload' =>
-                    $validated,
+                'payload' => $validated,
 
-                'created_by' =>
-                    auth()->user()->name,
-                'created_by_user_id' =>
-                    $request->user()->id,
+                'created_by' => auth()->user()->name,
+                'created_by_user_id' => $request->user()->id,
             ]);
 
         return response()->json(
             [
                 'ok' => true,
 
-                'id' =>
-                    $quotation->id,
+                'id' => $quotation->id,
 
-                'message' =>
-                    'تم حفظ عرض السعر بنجاح.',
+                'message' => 'تم حفظ عرض السعر بنجاح.',
 
-                'redirect' =>
-                    route(
-                        'v2.quotations.show',
-                        $quotation
-                    ),
+                'redirect' => route(
+                    'v2.quotations.show',
+                    $quotation
+                ),
             ],
             201
         );

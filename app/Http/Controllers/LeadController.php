@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
+use App\Models\PipelineStage;
 use App\Models\Campaign;
 use App\Models\User;
 use App\Security\CrmPermission;
@@ -28,63 +29,64 @@ class LeadController extends Controller
         $this->assertCrmV2Database();
         $user = $request->user();
 
+        $pipelineStages = PipelineStage::query()
+            ->with(['statuses' => static fn ($q) => $q->orderBy('position')])
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        $leadCountBase = Lead::query()->accessibleTo($user);
+        $leadsByStatus = (clone $leadCountBase)
+            ->selectRaw('lead_status_id, count(*) as total')
+            ->groupBy('lead_status_id')
+            ->pluck('total', 'lead_status_id')
+            ->all();
+
+        foreach ($pipelineStages as $stage) {
+            $stageTotal = 0;
+            foreach ($stage->statuses as $status) {
+                $stageTotal += (int) ($leadsByStatus[$status->id] ?? 0);
+            }
+            $stage->leads_count = $stageTotal;
+        }
+
         $statuses = LeadStatus::query()
-            ->with([
-                'stage:id,name_ar',
-            ])
-            ->withCount([
-                'leads as leads_count' => static fn ($query) => $query
-                    ->accessibleTo($user),
-            ])
+            ->with(['stage:id,name_ar'])
+            ->whereHas('stage', static fn ($q) => $q->where('is_active', true))
             ->orderBy('position')
             ->get();
 
+        foreach ($statuses as $status) {
+            $status->leads_count = (int) ($leadsByStatus[$status->id] ?? 0);
+        }
+
         $filters = [
-            'q' => mb_substr(
-                trim((string) $request->query('q', '')),
-                0,
-                150
-            ),
-            'status' => mb_substr(
-                trim((string) $request->query('status', '')),
-                0,
-                50
-            ),
-            'employee' => mb_substr(
-                trim((string) $request->query('employee', '')),
-                0,
-                150
-            ),
-            'source' => mb_substr(
-                trim((string) $request->query('source', '')),
-                0,
-                100
-            ),
-            'follow_up' => mb_substr(
-                trim((string) $request->query('follow_up', '')),
-                0,
-                20
-            ),
-            'sort' => mb_substr(
-                trim((string) $request->query('sort', 'latest')),
-                0,
-                20
-            ),
+            'q' => mb_substr(trim((string) $request->query('q', '')), 0, 150),
+            'stage' => mb_substr(trim((string) $request->query('stage', '')), 0, 50),
+            'status' => mb_substr(trim((string) $request->query('status', '')), 0, 50),
+            'employee' => mb_substr(trim((string) $request->query('employee', '')), 0, 150),
+            'source' => mb_substr(trim((string) $request->query('source', '')), 0, 100),
+            'follow_up' => mb_substr(trim((string) $request->query('follow_up', '')), 0, 20),
+            'sort' => mb_substr(trim((string) $request->query('sort', 'latest')), 0, 20),
         ];
 
-        $statusCodes = $statuses
-            ->pluck('code')
-            ->all();
+        $selectedStage = null;
+        if ($filters['stage'] !== '') {
+            $selectedStage = $pipelineStages->firstWhere('id', (int) $filters['stage'])
+                ?? $pipelineStages->firstWhere('code', $filters['stage']);
+            if ($selectedStage === null) {
+                $filters['stage'] = '';
+            }
+        }
 
-        if (
-            $filters['status'] !== ''
-            && ! in_array(
-                $filters['status'],
-                $statusCodes,
-                true
-            )
-        ) {
-            $filters['status'] = '';
+        $selectedStatus = null;
+        if ($filters['status'] !== '') {
+            $selectedStatus = $statuses->firstWhere('code', $filters['status'])
+                ?? $statuses->firstWhere('id', (int) $filters['status']);
+            if ($selectedStatus === null) {
+                $filters['status'] = '';
+            }
         }
 
         $allowedFollowUpFilters = [
@@ -186,16 +188,11 @@ class LeadController extends Controller
             );
         }
 
-        if ($filters['status'] !== '') {
-            $query->whereHas(
-                'status',
-                function ($statusQuery) use ($filters): void {
-                    $statusQuery->where(
-                        'code',
-                        $filters['status']
-                    );
-                }
-            );
+        if ($selectedStage !== null) {
+            $stageStatusIds = $selectedStage->statuses->pluck('id')->all();
+            $query->whereIn('lead_status_id', $stageStatusIds);
+        } elseif ($selectedStatus !== null) {
+            $query->where('lead_status_id', $selectedStatus->id);
         }
 
         if ($filters['employee'] !== '') {
@@ -297,8 +294,7 @@ class LeadController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $totalLeads = (int) $statuses
-            ->sum('leads_count');
+        $totalLeads = (int) (clone $leadCountBase)->count();
 
         $activeQuery = array_filter(
             $filters,
@@ -307,13 +303,15 @@ class LeadController extends Controller
         );
 
         $queryWithoutStatus = $activeQuery;
-
-        unset($queryWithoutStatus['status']);
+        unset($queryWithoutStatus['status'], $queryWithoutStatus['stage']);
 
         return view(
             'leads.index',
             compact(
                 'leads',
+                'pipelineStages',
+                'selectedStage',
+                'selectedStatus',
                 'statuses',
                 'employees',
                 'sources',
@@ -357,13 +355,27 @@ class LeadController extends Controller
             ->get(['id', 'name', 'starts_at']);
         $campaign = $this->campaignForManualLead($request);
 
+        $activeStages = PipelineStage::query()
+            ->where('is_active', true)
+            ->with(['activeFields', 'statuses'])
+            ->orderBy('position')
+            ->get();
+
         $statuses = LeadStatus::query()
+            ->with('stage')
             ->orderBy('position')
             ->get([
                 'id',
+                'pipeline_stage_id',
                 'code',
                 'name_ar',
             ]);
+
+        $statusGroups = $statuses->groupBy(
+            static fn (LeadStatus $status): string => trim((string) $status->stage?->name_ar) !== ''
+                ? (string) $status->stage?->name_ar
+                : 'بدون مرحلة'
+        );
 
         $sources = Lead::query()
             ->accessibleTo($actor)
@@ -381,6 +393,8 @@ class LeadController extends Controller
             'leads.create',
             compact(
                 'statuses',
+                'statusGroups',
+                'activeStages',
                 'sources',
                 'assignedEmployee',
                 'canAssignLead',
@@ -848,20 +862,30 @@ class LeadController extends Controller
             'quotation_file_path' => $quotationPath,
         ];
 
+        $stage = $status->stage;
+        $normalizedStageValues = [];
+        if ($stage !== null) {
+            $rawStageInputs = $request->input('stage_fields', []);
+            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+        }
+
         try {
             $createdLead = DB::transaction(
-                static function () use ($campaign, $leadData): Lead {
+                static function () use ($campaign, $leadData, $stage, $normalizedStageValues, $actor): Lead {
                     $lead = Lead::query()->create($leadData);
 
                     $campaign?->leads()->attach($lead->id);
+
+                    if ($stage !== null && ! empty($normalizedStageValues)) {
+                        \App\Support\StageFieldSchema::persistValues($lead, $stage, $normalizedStageValues, null, $actor);
+                    }
 
                     return $lead;
                 }
             );
         } catch (\Throwable $exception) {
             if ($quotationPath !== null) {
-                Storage::disk('local')
-                    ->delete($quotationPath);
+                Storage::disk('local')->delete($quotationPath);
             }
 
             throw $exception;
@@ -935,32 +959,101 @@ class LeadController extends Controller
             ->with([
                 'status.stage',
                 'assignedUser:id,name',
+                'creator:id,name',
+                'stageValues.field',
+                'stageValues.stage',
+                'stageValues.createdByUser:id,name',
+                'followups.user:id,name',
+                'followups.fromStatus.stage',
+                'followups.toStatus.stage',
+                'statusHistory.changedByUser:id,name',
+                'statusHistory.fromStatus.stage',
+                'statusHistory.toStatus.stage',
+                'statusHistory.stageFieldValues.field',
             ])
             ->findOrFail(
                 (int) $lead
             );
         Gate::authorize('view', $leadRecord);
 
-        $latestFollowups = $request->user()->can(
-            'leads.followups.view'
-        )
-            ? LeadFollowup::query()
-                ->with([
-                    'fromStatus.stage',
-                    'toStatus.stage',
-                    'user:id,name',
-                ])
-                ->where(
-                    'lead_id',
-                    $leadRecord->id
-                )
-                ->orderByDesc(
-                    'followed_up_at'
-                )
-                ->orderByDesc('id')
-                ->limit(5)
-                ->get()
+        $latestFollowups = $request->user()->can('leads.followups.view')
+            ? $leadRecord->followups->take(5)
             : collect();
+
+        // Build unified chronological timeline
+        $timelineEvents = collect();
+
+        if ($request->user()->can('leads.followups.view')) {
+            foreach ($leadRecord->followups as $followup) {
+                $timelineEvents->push([
+                    'type' => 'followup',
+                    'timestamp' => $followup->followed_up_at ?? $followup->created_at,
+                    'employee' => $followup->user?->name ?? $followup->employee_name ?? 'موظف',
+                    'from_status' => $followup->fromStatus?->name_ar,
+                    'to_status' => $followup->toStatus?->name_ar,
+                    'communication_type' => $followup->communication_type,
+                    'details' => $followup->outcome,
+                    'next_follow_up' => $followup->next_follow_up_at,
+                    'field_changes' => $followup->field_changes,
+                ]);
+            }
+
+            foreach ($leadRecord->statusHistory as $history) {
+                $stageValuesForHistory = $history->stageFieldValues
+                    ->filter(static fn ($v) => $v->field === null || $v->field->show_in_history)
+                    ->map(static fn ($v) => [
+                        'label' => $v->field ? $v->field->localizedLabel() : $v->field_key,
+                        'value' => $v->formattedValue(),
+                    ])
+                    ->all();
+
+                $alreadyIncluded = false;
+                foreach ($timelineEvents as $key => $item) {
+                    if ($item['type'] === 'followup' && abs(($item['timestamp']?->timestamp ?? 0) - ($history->changed_at?->timestamp ?? 0)) < 60) {
+                        $alreadyIncluded = true;
+                        if (! empty($stageValuesForHistory)) {
+                            $timelineEvents[$key]['stage_values'] = $stageValuesForHistory;
+                        }
+                        break;
+                    }
+                }
+
+                if (! $alreadyIncluded) {
+                    $timelineEvents->push([
+                        'type' => 'status_change',
+                        'timestamp' => $history->changed_at ?? $history->created_at,
+                        'employee' => $history->changedByUser?->name ?? $history->changed_by ?? 'النظام',
+                        'from_status' => $history->fromStatus?->name_ar,
+                        'to_status' => $history->toStatus?->name_ar,
+                        'communication_type' => null,
+                        'details' => $history->note,
+                        'next_follow_up' => null,
+                        'field_changes' => null,
+                        'stage_values' => $stageValuesForHistory,
+                    ]);
+                }
+            }
+        }
+
+        $stageHistoryGroups = $leadRecord->stageValues
+            ->filter(static fn ($val) => $val->field === null || $val->field->show_in_history)
+            ->groupBy(static fn ($val) => ($val->pipeline_stage_id ?? 0).'_'.($val->lead_status_history_id ?? $val->created_at?->format('Y-m-d_H:i') ?? '0'))
+            ->map(static function ($group) {
+                $first = $group->first();
+
+                return [
+                    'stage' => $first->stage,
+                    'actor' => $first->createdByUser?->name ?? 'النظام',
+                    'date' => $first->created_at,
+                    'values' => $group->map(static fn ($v) => [
+                        'label' => $v->field ? $v->field->localizedLabel() : $v->field_key,
+                        'value' => $v->formattedValue(),
+                    ]),
+                ];
+            })
+            ->values();
+
+        $timelineEvents = $timelineEvents->sortByDesc('timestamp')->values();
 
         $followupCommunicationTypes = [
             'call' => 'اتصال هاتفي',
@@ -1184,6 +1277,8 @@ class LeadController extends Controller
                 'callPhone' => $callPhone,
                 'whatsappPhone' => $whatsappPhone,
                 'backQuery' => $backQuery,
+                'timelineEvents' => $timelineEvents,
+                'stageHistoryGroups' => $stageHistoryGroups,
             ]
         );
     }
@@ -1254,6 +1349,13 @@ class LeadController extends Controller
                 .$quotationFileName
                 .' — ارفع ملفًا جديدًا لاستبداله.'
             : 'لا يوجد ملف حالي — الحد الأقصى 2MB.';
+        $currentStage = $leadRecord->status?->stage;
+        $stageFields = $currentStage ? \App\Support\StageFieldSchema::getFieldsForStage($currentStage, true) : collect();
+        $latestStageValues = $leadRecord->stageValues()
+            ->where('pipeline_stage_id', $leadRecord->status?->pipeline_stage_id)
+            ->pluck('value', 'field_key')
+            ->all();
+
 
         return view(
             'leads.edit',
@@ -1269,6 +1371,8 @@ class LeadController extends Controller
                 'hasQuotationFile' => $hasQuotationFile,
                 'quotationFileName' => $quotationFileName,
                 'quotationFileHelpText' => $quotationFileHelpText,
+                'stageFields' => $stageFields,
+                'latestStageValues' => $latestStageValues,
             ]
         );
     }
@@ -2095,14 +2199,27 @@ class LeadController extends Controller
             $leadData['assigned_user_id'] = $assignee->id;
             $leadData['assigned_employee'] = $assignedEmployee;
         }
+        $stage = $status->stage;
+        $normalizedStageValues = [];
+        if ($stage !== null) {
+            $rawStageInputs = $request->input('stage_fields', []);
+            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+        }
+
 
         try {
             DB::transaction(
                 static function () use (
                     $leadRecord,
-                    $leadData
+                    $leadData,
+                    $stage,
+                    $normalizedStageValues,
+                    $actor
                 ): void {
                     $leadRecord->update($leadData);
+                    if ($stage !== null && ! empty($normalizedStageValues)) {
+                        \App\Support\StageFieldSchema::persistValues($leadRecord, $stage, $normalizedStageValues, null, $actor);
+                    }
                 }
             );
         } catch (\Throwable $exception) {

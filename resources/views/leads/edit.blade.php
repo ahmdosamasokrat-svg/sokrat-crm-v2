@@ -884,14 +884,7 @@
 
   .is-hidden{display:none!important}
 
-  .crm-overlay{
-   display:none;
-   position:fixed;
-   inset:0;
-   border:0;
-   background:#11182770;
-   z-index:70
-  }
+
 
   @media(max-width:1000px){
    .crm-app{display:block}
@@ -1007,31 +1000,19 @@
  aria-label="{{ __('crm.close_menu') }}"
 ></button>
 
-<div class="crm-app">
+<div class="crm-app lead-edit-page">
  @include('partials.crm-sidebar')
 
  <main class="crm-main">
   <div class="shell">
-   <header class="topbar">
-    <button
-     class="menu-button"
-     id="crmMenuButton"
-     type="button"
-     aria-controls="crmSidebar"
-     aria-expanded="false"
-    >
-     ☰
-    </button>
-
-    <div class="page-title">
-     <h1>تعديل بيانات العميل</h1>
-     <p>
-      {{ __('crm.enter_lead_basics') }}
-     </p>
-    </div>
-
-    @include('partials.profile-dropdown')
-   </header>
+   @include('partials.topbar', [
+       'title' => 'تعديل بيانات العميل',
+       'subtitle' => __('crm.enter_lead_basics'),
+       'icon' => 'bi-pencil-square',
+       'backUrl' => route('v2.leads'),
+       'backTitle' => __('crm.back_to_leads'),
+       'actions' => '<a href="' . route('v2.leads') . '" class="btn soft"><i class="bi bi-x-lg"></i> ' . __('crm.cancel') . '</a>',
+   ])
 
    <article class="form-card">
     <div class="form-hero">
@@ -1238,6 +1219,22 @@
        </div>
       </div>
      </section>
+     @if (($stageFields ?? collect())->isNotEmpty())
+     <section class="form-section reveal-panel" id="stageQuestionsSection" style="margin-top:20px;">
+      <div class="section-head">
+       <h3><i class="bi bi-ui-checks"></i> {{ __('crm.stage_questions') }}</h3>
+       <p>{{ __('crm.stage_questions_desc') ?: 'بيانات وأسئلة مرتبطة بمرحلة العميل الحالية.' }}</p>
+      </div>
+      <div class="section-body" style="padding:16px;">
+       @include('partials.stage-field-inputs', [
+        'fields' => $stageFields,
+        'recordValues' => old('stage_fields', $latestStageValues ?? []),
+        'prefix' => 'stage_fields',
+        'scope' => 'lead_edit',
+       ])
+      </div>
+     </section>
+     @endif
 
      <section
       class="form-section conditional reveal-panel is-hidden"

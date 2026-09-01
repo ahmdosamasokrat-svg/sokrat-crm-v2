@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'tailscale' => [
+        'binary' => env('TAILSCALE_BINARY', '/usr/bin/tailscale'),
+    ],
+
 ];

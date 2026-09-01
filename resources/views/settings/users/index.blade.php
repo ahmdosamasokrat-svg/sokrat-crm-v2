@@ -3,6 +3,15 @@
 @section('title', __('crm.users'))
 @section('heading', __('crm.users'))
 @section('subheading', __('crm.users_subtitle'))
+@section('page-icon', 'bi-people')
+
+@section('top-actions')
+    @can('users.create')
+        <a class="btn primary" href="{{ route('v2.settings.users.create') }}">
+            <i class="bi bi-plus-lg"></i> {{ __('crm.new_user') }}
+        </a>
+    @endcan
+@endsection
 
 @section('content')
 <section class="panel" data-ar-label="{{ __('crm.users_legacy', [], 'ar') }}">
@@ -17,11 +26,11 @@
     </div>
 
     <form class="toolbar" method="GET" action="{{ route('v2.settings.users.index') }}">
-        <div class="search">
-            <input type="search" name="q" value="{{ $search }}" placeholder="{{ __('crm.user_search_placeholder') }}">
-            <button class="btn soft">{{ __('crm.search') }}</button>
+        <div class="search" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="search" name="q" value="{{ $search }}" placeholder="{{ __('crm.user_search_placeholder') }}" style="min-height:44px; min-width:200px; flex:1;">
+            <button class="btn soft" style="min-height:44px;">{{ __('crm.search') }}</button>
             @if ($search !== '')
-                <a class="btn" href="{{ route('v2.settings.users.index') }}">{{ __('crm.cancel') }}</a>
+                <a class="btn soft" href="{{ route('v2.settings.users.index') }}" style="min-height:44px;">{{ __('crm.cancel') }}</a>
             @endif
         </div>
     </form>
@@ -36,6 +45,8 @@
                     <th>{{ __('crm.voip_extension') }}</th>
                     @endif
                     <th>{{ __('crm.groups') }}</th>
+                    <th>{{ __('crm.status') }}</th>
+                    <th>{{ __('crm.last_login') }}</th>
                     <th>{{ __('crm.actions') }}</th>
                 </tr>
             </thead>
@@ -73,7 +84,7 @@
                             <div class="actions">
                                 @if (!$managedUser->isSuperAdmin() || auth()->user()->isSuperAdmin())
                                 @can('users.update')
-                                    <a class="btn small" href="{{ route('v2.settings.users.edit', $managedUser) }}">{{ __('crm.edit') }}</a>
+                                    <a class="btn small soft" href="{{ route('v2.settings.users.edit', $managedUser) }}">{{ __('crm.edit') }}</a>
                                 @endcan
                                 @can('users.activate')
                                     @if (!auth()->user()->is($managedUser))

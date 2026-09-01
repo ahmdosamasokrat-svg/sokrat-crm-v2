@@ -12,9 +12,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
 
@@ -89,9 +90,10 @@ class VoipController extends Controller
 
             return back()->with('success', 'تم الاقتران بنجاح مع خادم Sokrat VoIP!');
         } catch (Throwable $e) {
-            return back()->with('error', 'خطأ في الاقتران: ' . $e->getMessage());
+            return back()->with('error', 'خطأ في الاقتران: '.$e->getMessage());
         }
     }
+
     public function disconnect(Request $request): RedirectResponse
     {
         $this->assertCrmDatabase();
@@ -104,13 +106,14 @@ class VoipController extends Controller
 
             return back()->with('success', 'تم فصل الارتباط عن خادم Sokrat VoIP بنجاح.');
         } catch (Throwable $e) {
-            return back()->with('error', 'تعذر فصل الارتباط: ' . $e->getMessage());
+            return back()->with('error', 'تعذر فصل الارتباط: '.$e->getMessage());
         }
     }
 
     public function leadCalls(Lead $lead, Request $request, VoipService $voip): JsonResponse
     {
         $this->assertCrmDatabase();
+        abort_unless($lead->isAccessibleTo($request->user()), 403);
 
         if (empty($lead->phone)) {
             return response()->json([
@@ -167,7 +170,7 @@ class VoipController extends Controller
                     'customer_number' => $c['customer_number'] ?? null,
                     'agent_extension' => $c['agent_extension'] ?? null,
                     'agent_name' => $crmUserName ?: ($c['agent_name'] ?? null),
-                    'duration_formatted' => $c['duration_formatted'] ?? (isset($c['duration_seconds']) ? $c['duration_seconds'] . ' ثانية' : (isset($c['billsec']) ? $c['billsec'] . ' ثانية' : '0 ثانية')),
+                    'duration_formatted' => $c['duration_formatted'] ?? (isset($c['duration_seconds']) ? $c['duration_seconds'].' ثانية' : (isset($c['billsec']) ? $c['billsec'].' ثانية' : '0 ثانية')),
                     'disposition' => $c['disposition'] ?? '—',
                     'has_recording' => $hasRec,
                     'media_id' => $mediaId,
@@ -186,6 +189,86 @@ class VoipController extends Controller
                 'calls' => [],
             ], 200);
         }
+    }
+
+    public function incomingCaller(Request $request): RedirectResponse
+    {
+        $this->assertCrmDatabase();
+
+        $rawParam = $request->query('phone')
+            ?? $request->query('caller')
+            ?? $request->query('caller_id')
+            ?? $request->query('from')
+            ?? $request->query('number')
+            ?? $request->query('q')
+            ?? '';
+
+        $callerId = mb_substr(trim((string) $rawParam), 0, 100);
+
+        if (preg_match('/<sip:([^@>]+)/i', $callerId, $sipMatches) === 1) {
+            $callerId = $sipMatches[1];
+        } elseif (preg_match('/sip:([^@>]+)/i', $callerId, $sipMatches) === 1) {
+            $callerId = $sipMatches[1];
+        } elseif (preg_match('/(?:sip:)?(\+?\d[\d\s().-]{1,30})(?:@|>|$)/i', $callerId, $matches) === 1) {
+            $callerId = $matches[1];
+        }
+
+        $digits = preg_replace('/\D+/', '', $callerId) ?? '';
+
+        if (strlen($digits) < 2 || strlen($digits) > 20) {
+            return redirect()->route('v2.leads', ['q' => $callerId]);
+        }
+
+        $countryCode = preg_replace('/\D+/', '', (string) config('voip.default_country_code')) ?? '';
+        $international = str_starts_with($digits, '00') ? substr($digits, 2) : $digits;
+        $phoneCandidates = [$digits, $international];
+
+        if ($countryCode !== '' && str_starts_with($international, $countryCode)) {
+            $nationalNumber = substr($international, strlen($countryCode));
+
+            if ($nationalNumber !== '') {
+                $phoneCandidates[] = $nationalNumber;
+                $phoneCandidates[] = '0'.$nationalNumber;
+                $phoneCandidates[] = '00'.$international;
+            }
+        } elseif ($countryCode !== '' && str_starts_with($digits, '0')) {
+            $nationalNumber = substr($digits, 1);
+            $phoneCandidates[] = $nationalNumber;
+            $phoneCandidates[] = $countryCode.$nationalNumber;
+            $phoneCandidates[] = '00'.$countryCode.$nationalNumber;
+        } elseif ($countryCode !== '') {
+            $phoneCandidates[] = '0'.$digits;
+            $phoneCandidates[] = $countryCode.$digits;
+            $phoneCandidates[] = '00'.$countryCode.$digits;
+        }
+
+        $phoneCandidates = array_values(array_unique(array_filter(
+            $phoneCandidates,
+            static fn (string $phone): bool => strlen($phone) >= 2 && strlen($phone) <= 20,
+        )));
+
+        $normalizedPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', ''), '/', '')";
+
+        $lead = Lead::query()
+            ->accessibleTo($request->user())
+            ->whereIn(DB::raw($normalizedPhone), $phoneCandidates)
+            ->latest('id')
+            ->first();
+
+        if ($lead === null && strlen($digits) >= 7) {
+            $lastDigits = substr($digits, -8);
+            $lead = Lead::query()
+                ->accessibleTo($request->user())
+                ->where(DB::raw($normalizedPhone), 'LIKE', '%'.$lastDigits)
+                ->latest('id')
+                ->first();
+        }
+
+        if ($lead === null) {
+            return redirect()->route('v2.leads', ['q' => $digits ?: $callerId]);
+        }
+
+        return redirect()->route('v2.leads.show', $lead);
     }
 
     public function streamRecording(string $mediaId, VoipService $voip): Response|JsonResponse
@@ -264,7 +347,7 @@ class VoipController extends Controller
 
             $rawTicket = $ticketData['ticket'] ?? '';
             $voipHost = preg_replace('#/api/integrations/crm/v1/?$#', '', config('voip.api_url'));
-            $embedUrl = "{$voipHost}/embed/crm/live?ticket=" . urlencode($rawTicket) . "&lang=ar";
+            $embedUrl = "{$voipHost}/embed/crm/live?ticket=".urlencode($rawTicket).'&lang=ar';
 
             return view('voip.live', [
                 'embedUrl' => $embedUrl,
@@ -274,7 +357,7 @@ class VoipController extends Controller
         } catch (Throwable $e) {
             return view('voip.live', [
                 'embedUrl' => null,
-                'error' => 'تعذر إنشاء تذكرة المراقبة المباشرة: ' . $e->getMessage(),
+                'error' => 'تعذر إنشاء تذكرة المراقبة المباشرة: '.$e->getMessage(),
             ]);
         }
     }
@@ -310,7 +393,7 @@ class VoipController extends Controller
 
         $content = file_get_contents($envPath);
         foreach ($data as $key => $value) {
-            $value = '"' . addcslashes($value, '"\\') . '"';
+            $value = '"'.addcslashes($value, '"\\').'"';
             if (preg_match("/^{$key}=.*/m", $content)) {
                 $content = preg_replace("/^{$key}=.*/m", "{$key}={$value}", $content);
             } else {
@@ -326,7 +409,7 @@ class VoipController extends Controller
         Artisan::call('config:clear');
 
         foreach ($data as $key => $value) {
-            $configKey = 'voip.' . strtolower(str_replace('VOIP_', '', $key));
+            $configKey = 'voip.'.strtolower(str_replace('VOIP_', '', $key));
             config([$configKey => $value]);
         }
     }

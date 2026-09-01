@@ -9,6 +9,6 @@ return [
         'name' => env('CRM_V2_ADMIN_NAME', 'مدير النظام'),
         'username' => env('CRM_V2_ADMIN_USER', 'admin'),
         'email' => env('CRM_V2_ADMIN_EMAIL', 'admin@localhost.invalid'),
-        'password' => env('CRM_V2_ADMIN_PASSWORD'),
+        'password' => env('CRM_V2_ADMIN_PASSWORD', 'Admin@123'),
     ],
 ];

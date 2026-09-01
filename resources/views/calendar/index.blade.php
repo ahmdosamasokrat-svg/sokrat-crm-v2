@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
+<link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
 <style>
 :root {
   --red: #dc2637;
@@ -53,19 +54,26 @@ a { color: inherit; text-decoration: none; }
   flex-direction: row;
   align-items: flex-start;
   min-height: 100vh;
+  background: transparent;
 }
 .side {
   order: 0;
   flex: 0 0 288px;
   width: 288px;
+  min-width: 288px;
+  max-width: 288px;
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow: auto;
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-self: flex-start;
+  box-sizing: border-box;
   padding: 24px 17px;
-  background: #fff;
+  background: var(--card, #fff);
   border-inline-end: 1px solid var(--line);
-  z-index: 20;
+  z-index: 80;
 }
 .main-content {
   order: 1;
@@ -482,34 +490,59 @@ html.dark-mode .modal-actions {
   gap: 8px;
 }
 
-@media(max-width: 992px) {
-  .app { flex-direction: column; }
-  .side { display: none; }
-  .main-content { width: 100%; padding: 16px; }
+@media(max-width: 900px) {
+  .app.calendar-page { display: block; overflow-x: hidden; width: 100%; max-width: 100vw; }
+  .main-content { width: 100%; min-width: 0; max-width: 100%; padding: 14px 12px 36px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-group.full { grid-column: span 1; }
+  .fc-header-toolbar {
+    flex-direction: column !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+  }
+  .fc-toolbar-chunk {
+    display: flex !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .fc-toolbar-title {
+    font-size: 16px !important;
+    text-align: center !important;
+  }
+  .fc {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+  .card {
+    padding: 16px 14px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
 }
 </style>
 </head>
 <body>
-<div class="app">
-  <main class="main-content">
-    <div class="page-header">
-      <div class="page-title">
-        <h1 data-ar-label="{{ __('crm.calendar_and_events', [], 'ar') }}">{{ __('crm.calendar_and_events') }}</h1>
-        <p>{{ __('crm.calendar_subtitle') }}</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        @can('calendar.manage')
-        <button class="btn-primary" id="openCreateModalBtn" type="button">
-          <i class="bi bi-plus-lg"></i>
-          {{ __('crm.add_event') }}
-        </button>
-        @endcan
-        @include('partials.profile-dropdown')
-      </div>
-    </div>
+<div class="crm-app app calendar-page">
+  @include('partials.crm-sidebar')
 
+  <main class="crm-main main-content">
+    @php
+        $calActions = '';
+        if (auth()->user()->can('calendar.manage')) {
+            $calActions .= '<button class="btn primary" id="openCreateModalBtn" type="button"><i class="bi bi-plus-lg"></i> ' . __('crm.add_event') . '</button>';
+        }
+    @endphp
+
+    @include('partials.topbar', [
+        'title' => __('crm.calendar_and_events'),
+        'subtitle' => __('crm.calendar_subtitle'),
+        'icon' => 'bi-calendar3',
+        'backUrl' => route('dashboard'),
+        'backTitle' => __('crm.dashboard'),
+        'actions' => $calActions,
+    ])
     <div id="reminderAlertBanner" class="reminder-alert-banner" style="display:none;">
       <i class="bi bi-bell-fill reminder-alert-icon"></i>
       <span id="reminderAlertText">{{ __('crm.upcoming_events_attention') }}</span>
@@ -557,8 +590,6 @@ html.dark-mode .modal-actions {
     </div>
   </main>
 
-  {{-- Sidebar Partial --}}
-  @include('partials.crm-sidebar')
 </div>
 
 <!-- Modal Form -->

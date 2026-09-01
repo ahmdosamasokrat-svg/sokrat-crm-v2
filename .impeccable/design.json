@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-26T00:00:00Z",
+  "title": "Design System: SokratCRM",
+  "extensions": {
+    "colorMeta": {
+      "primary-red": {
+        "role": "primary",
+        "displayName": "Primary Red",
+        "canonical": "#dc2637"
+      },
+      "primary-red-dark": {
+        "role": "primary",
+        "displayName": "Dark Primary Red",
+        "canonical": "#b81829"
+      },
+      "page": {
+        "role": "neutral",
+        "displayName": "Page",
+        "canonical": "#f4f6fa"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#ffffff"
+      },
+      "surface-soft": {
+        "role": "neutral",
+        "displayName": "Soft Surface",
+        "canonical": "#f8fafc"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#172033"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#596579"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Border",
+        "canonical": "#e4e8ef"
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Success",
+        "canonical": "#0f7440"
+      },
+      "success-surface": {
+        "role": "tertiary",
+        "displayName": "Success Surface",
+        "canonical": "#e9f8ef"
+      },
+      "neutral-state-surface": {
+        "role": "neutral",
+        "displayName": "Neutral State Surface",
+        "canonical": "#eef1f5"
+      },
+      "dark-page": {
+        "role": "neutral",
+        "displayName": "Dark Page",
+        "canonical": "#151922"
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Dark Surface",
+        "canonical": "#202631"
+      },
+      "dark-surface-soft": {
+        "role": "neutral",
+        "displayName": "Dark Soft Surface",
+        "canonical": "#272e3a"
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Dark Ink",
+        "canonical": "#f3f5f8"
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "Dark Muted",
+        "canonical": "#aeb7c6"
+      },
+      "dark-border": {
+        "role": "neutral",
+        "displayName": "Dark Border",
+        "canonical": "#333b49"
+      },
+      "dark-success": {
+        "role": "tertiary",
+        "displayName": "Dark Success",
+        "canonical": "#57d58c"
+      },
+      "dark-success-surface": {
+        "role": "tertiary",
+        "displayName": "Dark Success Surface",
+        "canonical": "#173c2a"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page Headline",
+        "purpose": "Page titles; use normal letter spacing in RTL."
+      },
+      "title": {
+        "displayName": "Compact Title",
+        "purpose": "Card identities, alerts, and entity names."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory and supporting interface copy."
+      },
+      "label": {
+        "displayName": "Operational Label",
+        "purpose": "Table headers, filters, metrics, state badges, and metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 14px 38px rgba(17,24,39,.06)",
+        "purpose": "Primary light-mode panels and the continuous status strip."
+      },
+      {
+        "name": "control",
+        "value": "0 6px 18px rgba(17,24,39,.04)",
+        "purpose": "Secondary refresh action."
+      },
+      {
+        "name": "selected-filter",
+        "value": "0 3px 12px rgba(17,24,39,.08)",
+        "purpose": "Active segment within a soft filter group."
+      },
+      {
+        "name": "active-navigation",
+        "value": "0 12px 27px #dc26372c",
+        "purpose": "Active sidebar navigation item."
+      },
+      {
+        "name": "dropdown",
+        "value": "0 18px 45px rgba(15,23,42,.16)",
+        "purpose": "Profile dropdown and temporary elevated menus."
+      },
+      {
+        "name": "dark-panel",
+        "value": "0 18px 42px rgba(0,0,0,.24)",
+        "purpose": "Technical Support panels in dark mode."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "160ms ease-out",
+        "purpose": "Table-row background feedback."
+      },
+      {
+        "name": "control",
+        "value": "180ms ease-out",
+        "purpose": "Button transform, border, and color feedback."
+      },
+      {
+        "name": "sidebar-resize",
+        "value": "200ms cubic-bezier(.4,0,.2,1)",
+        "purpose": "Desktop sidebar collapse and expansion."
+      },
+      {
+        "name": "mobile-drawer",
+        "value": "250ms ease",
+        "purpose": "Mobile sidebar entry and exit."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "table-tight",
+        "value": "1080px"
+      },
+      {
+        "name": "mobile-shell",
+        "value": "900px"
+      },
+      {
+        "name": "single-column",
+        "value": "620px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Secondary Refresh Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Bordered 44px action for refreshing an operational status view.",
+      "html": "<button class=\"ds-refresh\" type=\"button\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"M20 12a8 8 0 1 1-2.34-5.66L20 8.68M20 4v4.68h-4.68\"/></svg><span>Refresh status</span></button>",
+      "css": ".ds-refresh { min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 15px; border:1px solid #e4e8ef; border-radius:11px; background:#fff; color:#172033; font:800 11px Tajawal,Tahoma,Arial,sans-serif; box-shadow:0 6px 18px rgba(17,24,39,.04); cursor:pointer; transition:transform .18s ease-out,border-color .18s ease-out,color .18s ease-out; } .ds-refresh svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; } .ds-refresh:hover { border-color:#e8aab1; color:#dc2637; transform:translateY(-1px); } .ds-refresh:focus-visible { outline:3px solid rgba(220,38,55,.28); outline-offset:3px; } .ds-refresh:active { transform:none; }"
+    },
+    {
+      "name": "Device Search Field",
+      "kind": "input",
+      "refersTo": "search-input",
+      "description": "Direction-aware search field for names, operating systems, and IP addresses.",
+      "html": "<label class=\"ds-search\"><span>Search devices</span><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-4-4\"/></svg><input type=\"search\" placeholder=\"Search name or IP address\"></label>",
+      "css": ".ds-search { position:relative; display:block; max-width:520px; color:#596579; font:700 11px Tajawal,Tahoma,Arial,sans-serif; } .ds-search > span { display:block; margin-bottom:6px; } .ds-search svg { position:absolute; inset-inline-start:14px; bottom:14px; width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; pointer-events:none; } .ds-search input { width:100%; height:44px; padding:0 14px 0 42px; border:1px solid #e4e8ef; border-radius:11px; background:#f8fafc; color:#172033; font:400 13px Tajawal,Tahoma,Arial,sans-serif; outline:none; } [dir=rtl] .ds-search input { padding:0 42px 0 14px; } .ds-search input:focus { border-color:#dc2637; box-shadow:0 0 0 3px rgba(220,38,55,.09); background:#fff; } .ds-search input::placeholder { color:#687487; }"
+    },
+    {
+      "name": "Status Filter Group",
+      "kind": "chip",
+      "refersTo": "filter-active",
+      "description": "Compact segmented control for all, online, and offline device states.",
+      "html": "<div class=\"ds-filters\" role=\"group\" aria-label=\"Devices\"><button class=\"ds-filter is-active\" type=\"button\" aria-pressed=\"true\">All</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Online</button><button class=\"ds-filter\" type=\"button\" aria-pressed=\"false\">Offline</button></div>",
+      "css": ".ds-filters { display:inline-flex; align-items:center; gap:6px; padding:4px; border-radius:11px; background:#f8fafc; } .ds-filter { min-height:44px; padding:0 13px; border:0; border-radius:8px; background:transparent; color:#596579; font:800 12px Tajawal,Tahoma,Arial,sans-serif; cursor:pointer; } .ds-filter:hover { color:#172033; } .ds-filter.is-active { background:#fff; color:#dc2637; box-shadow:0 3px 12px rgba(17,24,39,.08); } .ds-filter:focus-visible { outline:3px solid rgba(220,38,55,.28); outline-offset:2px; } .ds-filter:active { transform:translateY(1px); }"
+    },
+    {
+      "name": "Network Status Strip",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "One continuous source-identity panel with adjacent device-state metrics.",
+      "html": "<section class=\"ds-network\"><div class=\"ds-network-identity\"><span class=\"ds-network-icon\">N</span><div><span>Network name</span><strong>example.tailnet</strong></div></div><div class=\"ds-network-metric\"><span>Devices</span><strong>18</strong></div><div class=\"ds-network-metric ds-online\"><span>Online</span><strong><i></i>14</strong></div><div class=\"ds-network-metric ds-offline\"><span>Offline</span><strong><i></i>4</strong></div></section>",
+      "css": ".ds-network { display:flex; align-items:stretch; overflow:hidden; border:1px solid #e4e8ef; border-radius:16px; background:#fff; color:#172033; box-shadow:0 14px 38px rgba(17,24,39,.06); font-family:Tajawal,Tahoma,Arial,sans-serif; } .ds-network-identity { flex:1; min-width:260px; display:flex; align-items:center; gap:14px; padding:20px 22px; } .ds-network-icon { width:47px; height:47px; display:grid; place-items:center; flex:0 0 47px; border-radius:13px; background:#fff0f2; color:#b81829; font-weight:900; } .ds-network span { display:block; color:#596579; font-size:11px; font-weight:700; } .ds-network strong { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:23px; font-variant-numeric:tabular-nums; } .ds-network-identity strong { font-size:15px; overflow-wrap:anywhere; } .ds-network-metric { min-width:112px; display:flex; flex-direction:column; justify-content:center; padding:17px 22px; border-inline-start:1px solid #e4e8ef; } .ds-network-metric i { width:9px; height:9px; border-radius:50%; background:#9aa3b1; } .ds-network-metric.ds-online i { background:#0f7440; box-shadow:0 3px 10px rgba(22,131,74,.26); } .ds-network-metric.ds-offline strong { color:#596579; } @media (max-width:700px) { .ds-network { flex-wrap:wrap; } .ds-network-identity { flex-basis:100%; } .ds-network-metric { flex:1; min-width:0; border-top:1px solid #e4e8ef; } }"
+    },
+    {
+      "name": "Online Status Badge",
+      "kind": "chip",
+      "refersTo": "status-online",
+      "description": "Pill status label reserved for current online state.",
+      "html": "<span class=\"ds-status-online\">Online</span>",
+      "css": ".ds-status-online { display:inline-flex; align-items:center; gap:7px; padding:6px 9px; border-radius:999px; background:#e9f8ef; color:#0f7440; font:900 11px Tajawal,Tahoma,Arial,sans-serif; } .ds-status-online::before { content:\"\"; width:7px; height:7px; border-radius:50%; background:#0f7440; }"
+    },
+    {
+      "name": "Active Sidebar Navigation Item",
+      "kind": "nav",
+      "refersTo": "navigation-item-active",
+      "description": "Current-location treatment in the shared CRM sidebar.",
+      "html": "<a class=\"ds-nav-active\" href=\"#\"><span class=\"ds-nav-icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"M4 10.5 12 4l8 6.5V20H4Z\"/></svg></span><span>Dashboard</span></a>",
+      "css": ".ds-nav-active { min-height:49px; display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid #cf2031; border-radius:13px; background:linear-gradient(135deg,#e83243,#c91d2e); color:#fff; box-shadow:0 12px 27px #dc26372c; font:700 16px Tajawal,Tahoma,Arial,sans-serif; text-decoration:none; transition:transform .2s ease,box-shadow .2s ease; } .ds-nav-icon { width:32px; height:32px; display:grid; place-items:center; flex:0 0 32px; border-radius:10px; background:#ffffff2b; } .ds-nav-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; } .ds-nav-active:hover { transform:translateX(-2px); box-shadow:0 14px 30px #dc263738; } [dir=ltr] .ds-nav-active:hover { transform:translateX(2px); } .ds-nav-active:focus-visible { outline:3px solid rgba(220,38,55,.28); outline-offset:3px; } .ds-nav-active:active { transform:none; }"
+    }
+  ],
+  "narrative": {
+    "overview": "SokratCRM uses one shared bilingual operational interface across Arabic and English. The current system is defined by a fixed or collapsible sidebar, a light gray page canvas, white bordered surfaces, red interaction emphasis, compact controls, and green reserved for live or successful state.\n\nNew operational surfaces extend this incumbent system locally. They retain the shared sidebar and Tajawal font foundation, use logical CSS properties so RTL and LTR layouts mirror correctly, and keep task-specific data ahead of decorative or disconnected summary content.",
+    "keyCharacteristics": [
+      "Tajawal is the shared Arabic and Latin interface family; technical addresses remain monospace.",
+      "White panels and soft-gray data regions sit on a pale-gray page canvas.",
+      "Red identifies active navigation, focus, selection, and primary action emphasis.",
+      "Green is limited to online, active, or successful state.",
+      "Controls are compact, bordered, and generally 40–44px high.",
+      "Light and dark modes preserve the same hierarchy and state roles."
+    ],
+    "rules": [
+      {
+        "name": "The State Color Rule",
+        "body": "Red communicates interaction or product emphasis; green communicates current positive state. Do not exchange those meanings.",
+        "section": "colors"
+      },
+      {
+        "name": "The Script Rule",
+        "body": "Use Tajawal for both interface languages, remove Latin-specific negative tracking in RTL, and isolate IP addresses or machine values with LTR direction.",
+        "section": "typography"
+      },
+      {
+        "name": "The Reading Order Rule",
+        "body": "Preserve the same semantic order across breakpoints; change the table's visual layout without duplicating or reordering its facts.",
+        "section": "layout"
+      },
+      {
+        "name": "The Border-First Rule",
+        "body": "Use the established one-pixel border for ordinary separation; add shadow only when a complete surface or temporary layer must separate from the page.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do inherit the shared sidebar, profile controls, Tajawal font assets, light/dark theme behavior, and direction-aware layout.",
+      "Do lead operational pages with the primary task context and place the main data surface immediately after it.",
+      "Do use neutral surfaces and borders for structure, red for interaction emphasis, and green only for positive live state.",
+      "Do preserve visible empty, unavailable, and no-match states inside the main data region.",
+      "Do retain keyboard focus, Escape-to-close behavior, focus restoration, and reduced-motion support."
+    ],
+    "donts": [
+      "Don't replace the continuous status strip with disconnected metric cards when the metrics describe one shared source.",
+      "Don't use green as decoration, navigation emphasis, or a general secondary accent.",
+      "Don't introduce a second interface font or apply the interface family to icons and technical monospace values.",
+      "Don't hard-code left/right alignment where logical inline properties can preserve Arabic and English layouts.",
+      "Don't add strong shadow to every nested region; ordinary hierarchy is border- and tone-led."
+    ]
+  }
+}

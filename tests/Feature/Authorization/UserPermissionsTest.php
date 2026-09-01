@@ -41,30 +41,38 @@ class UserPermissionsTest extends TestCase
             );
         }
 
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
         $superAdminGroup->permissions()->sync(Permission::pluck('id'));
 
-        $salesManagerGroup = Group::query()->create([
-            'name' => 'مدير المبيعات',
-            'code' => 'sales-manager',
-            'is_system' => false,
-        ]);
+        $salesManagerGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales-manager'],
+            [
+                'name' => 'مدير المبيعات',
+                'is_system' => false,
+            ]
+        );
 
-        $salesAgentGroup = Group::query()->create([
-            'name' => 'موظف المبيعات',
-            'code' => 'sales-agent',
-            'is_system' => false,
-        ]);
+        $salesAgentGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales-agent'],
+            [
+                'name' => 'موظف المبيعات',
+                'is_system' => false,
+            ]
+        );
 
-        $readOnlyGroup = Group::query()->create([
-            'name' => 'مشاهدة فقط',
-            'code' => 'read-only',
-            'is_system' => false,
-        ]);
+        $readOnlyGroup = Group::query()->firstOrCreate(
+            ['code' => 'read-only'],
+            [
+                'name' => 'مشاهدة فقط',
+                'is_system' => false,
+            ]
+        );
 
         $this->superAdmin = User::factory()->create(['is_active' => true]);
         $this->superAdmin->groups()->attach($superAdminGroup);

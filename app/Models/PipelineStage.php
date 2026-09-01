@@ -1,18 +1,170 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Lang;
 
 class PipelineStage extends Model
 {
+    public const SIDEBAR_CACHE_KEY = 'crm.sidebar.active_pipeline_stages';
+    public const DASHBOARD_CACHE_KEY = 'crm.dashboard.active_pipeline_stages';
+
+    protected static function booted(): void
+    {
+        static::created(static function (PipelineStage $stage): void {
+            static::clearSidebarCache();
+            $stage->ensureDefaultStatus();
+        });
+
+        static::updated(static function (PipelineStage $stage): void {
+            static::clearSidebarCache();
+            if ($stage->statuses()->count() === 1) {
+                $defaultStatus = $stage->statuses()->first();
+                if ($defaultStatus !== null) {
+                    $defaultStatus->update([
+                        'name_ar' => $stage->name_ar,
+                        'color' => $stage->color,
+                    ]);
+                }
+            }
+        });
+
+        static::deleted(static function (PipelineStage $stage): void {
+            static::clearSidebarCache();
+            LeadStatus::query()
+                ->where('pipeline_stage_id', $stage->id)
+                ->whereDoesntHave('leads')
+                ->delete();
+        });
+    }
+
+    public function ensureDefaultStatus(): LeadStatus
+    {
+        $existing = $this->statuses()->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $byCode = LeadStatus::query()->where('code', $this->code)->first();
+        if ($byCode !== null) {
+            $byCode->update([
+                'pipeline_stage_id' => $this->id,
+                'name_ar' => $this->name_ar,
+                'color' => $this->color ?: $byCode->color,
+            ]);
+
+            return $byCode;
+        }
+
+        $maxPosition = (int) (LeadStatus::query()->max('position') ?? 0);
+        $nextPosition = $maxPosition + 1;
+
+        return LeadStatus::query()->create([
+            'pipeline_stage_id' => $this->id,
+            'code' => $this->code,
+            'name_ar' => $this->name_ar,
+            'position' => $nextPosition,
+            'color' => $this->color ?: '#3478f6',
+            'is_terminal' => false,
+        ]);
+    }
+
+    public static function repairOrphanStages(): int
+    {
+        $orphans = self::query()->whereDoesntHave('statuses')->get();
+        $repaired = 0;
+        foreach ($orphans as $orphan) {
+            $orphan->ensureDefaultStatus();
+            $repaired++;
+        }
+        return $repaired;
+    }
+
+    public static function activeOrdered(): Collection
+    {
+        return self::query()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public static function getActiveStagesForSidebar(): Collection
+    {
+        $cached = Cache::remember(
+            self::SIDEBAR_CACHE_KEY,
+            now()->addHours(24),
+            static fn () => self::query()
+                ->where('is_active', true)
+                ->orderBy('position')
+                ->orderBy('id')
+                ->get(['id', 'code', 'name_ar', 'color', 'icon', 'position', 'is_primary', 'is_active'])
+                ->toArray()
+        );
+
+        return self::hydrate(is_array($cached) ? $cached : []);
+    }
+
+    public static function clearSidebarCache(): void
+    {
+        Cache::forget(self::SIDEBAR_CACHE_KEY);
+        Cache::forget(self::DASHBOARD_CACHE_KEY);
+        Cache::forget('crm.dashboard.pipeline_stages');
+    }
+
+    public function localizedName(?string $locale = null): string
+    {
+        $loc = $locale ?? app()->getLocale();
+        if ($loc === 'en') {
+            $stageMap = [
+                'new' => 'New',
+                'no_answer' => 'No Answer',
+                'no-answer' => 'No Answer',
+                'interested' => 'Interested',
+                'not_interested' => 'Not Interested',
+                'not-interested' => 'Not Interested',
+                'meeting' => 'Meeting',
+                'quotation' => 'Quotation',
+                'discussion' => 'Discussion',
+                'contract_closed' => 'Contract Closed',
+                'execution' => 'Execution',
+                'start' => 'Start',
+                'interest' => 'Interest',
+                'negotiation' => 'Negotiation',
+                'closing_execution' => 'Closing & Execution',
+                'donor' => 'Donor',
+            ];
+
+            if (isset($stageMap[$this->code])) {
+                return $stageMap[$this->code];
+            }
+
+            if ($this->code && Lang::has('crm.stage_'.$this->code)) {
+                return __('crm.stage_'.$this->code);
+            }
+            if ($this->code && Lang::has('crm.status_'.$this->code)) {
+                return __('crm.status_'.$this->code);
+            }
+        }
+
+        return (string) ($this->name_ar ?: $this->code);
+    }
+
     protected $fillable = [
         'code',
         'name_ar',
         'description_ar',
         'position',
         'color',
+        'icon',
+        'is_primary',
         'is_active',
     ];
 
@@ -20,13 +172,66 @@ class PipelineStage extends Model
     {
         return [
             'position' => 'integer',
+            'is_primary' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
 
+    public function isPrimary(): bool
+    {
+        return (bool) $this->is_primary;
+    }
+
+    public function hasLeads(): bool
+    {
+        return $this->leads()->exists();
+    }
+
+    public function leadsCount(): int
+    {
+        return $this->leads()->count();
+    }
+
+    public function canBeDeleted(): bool
+    {
+        return ! $this->isPrimary() && ! $this->hasLeads();
+    }
+
     public function statuses(): HasMany
     {
-        return $this->hasMany(LeadStatus::class)
+        return $this->hasMany(LeadStatus::class, 'pipeline_stage_id')
             ->orderBy('position');
+    }
+
+    public function leads(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Lead::class,
+            LeadStatus::class,
+            'pipeline_stage_id',
+            'lead_status_id',
+            'id',
+            'id'
+        );
+    }
+
+    public function fields(): HasMany
+    {
+        return $this->hasMany(PipelineStageField::class, 'pipeline_stage_id')
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    public function activeFields(): HasMany
+    {
+        return $this->hasMany(PipelineStageField::class, 'pipeline_stage_id')
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    public function stageValues(): HasMany
+    {
+        return $this->hasMany(LeadStageFieldValue::class, 'pipeline_stage_id');
     }
 }

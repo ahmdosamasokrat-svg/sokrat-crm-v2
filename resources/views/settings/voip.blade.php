@@ -3,6 +3,7 @@
 @section('title', __('crm.voip_settings'))
 @section('heading', __('crm.voip_connection_settings'))
 @section('subheading', __('crm.voip_connection_subtitle'))
+@section('page-icon', 'bi-telephone')
 
 @section('content')
 <section class="grid stats-grid" style="margin-bottom:20px">
@@ -47,7 +48,7 @@
         @if($isConfigured)
             <form method="POST" action="{{ route('v2.settings.voip.disconnect') }}" onsubmit="return confirm('هل أنت تأكد من رغبتك في فصل الارتباط عن سيرفر السنترال؟ سيتم حذف بيانات الاعتماد وتوقيف الربط.')">
                 @csrf
-                <button type="submit" class="btn danger soft" style="color:#b42332;border-color:#f1bbc1;background:#fff0f1">
+                <button type="submit" class="btn small danger soft">
                     {{ __('crm.disconnect_pbx') }}
                 </button>
             </form>

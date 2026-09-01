@@ -3,10 +3,13 @@
         'dashboard'
     );
 
-    $crmSidebarLeadsActive = request()->routeIs(
-        'v2.leads',
-        'v2.leads.*'
-    );
+    $crmSidebarKanbanActive = request()->routeIs('v2.leads.kanban');
+
+    $crmSidebarLeadsActive = ! $crmSidebarKanbanActive
+        && request()->routeIs(
+            'v2.leads',
+            'v2.leads.*'
+        );
 
     $crmSidebarTasksActive = request()->routeIs(
         'v2.followups',
@@ -24,6 +27,10 @@
     $crmSidebarSettingsActive = request()->routeIs(
         'v2.settings',
         'v2.settings.*'
+    );
+
+    $crmSidebarTechnicalSupportActive = request()->routeIs(
+        'v2.technical-support.*'
     );
 
     $crmSidebarLeadCount = isset($totalLeads)
@@ -54,7 +61,9 @@
  })();
 </script>
 @endonce
+@unless($crmSidebarAssetsLoaded ?? false)
 @once
+
 <link
  rel="stylesheet"
  href="{{ asset('crm-sidebar-shared.css') . '?v=' . time() }}"
@@ -66,6 +75,7 @@
  href="{{ asset('css/tajawal.css') }}?v=1.0.0"
 >
 @endonce
+@endunless
 {{-- CRM SHARED SIDEBAR ASSET V1 END --}}
 
 <aside class="crm-side side" id="crmSidebar">
@@ -101,6 +111,7 @@
  </p>
 
  <nav class="crm-side-nav nav">
+  @can('dashboard.view')
   <a
    class="crm-link link {{ $crmSidebarDashboardActive ? 'active' : '' }}"
    href="{{ route('dashboard') }}"
@@ -108,7 +119,17 @@
    <span class="crm-ico ico"><i class="bi bi-house-add"></i></span>
    <span class="crm-label label">{{ __('crm.dashboard') }}</span>
   </a>
+  @endcan
 
+  @can('leads.view')
+  <a
+   class="crm-link link {{ $crmSidebarKanbanActive ? 'active' : '' }}"
+   href="{{ route('v2.leads.kanban') }}">
+   <span class="crm-ico ico"><i class="bi bi-kanban"></i></span>
+   <span class="crm-label label">{{ __('crm.kanban') }}</span>
+  </a>
+  @endcan
+  @if(auth()->user()?->can('leads.view') || auth()->user()?->can('leads.create') || auth()->user()?->can('leads.import') || auth()->user()?->can('leads.export'))
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarLeadsActive ? 'active' : '' }}"
@@ -124,9 +145,11 @@
      {{ __('crm.leads') }}
     </span>
 
+    @can('leads.view')
     <span class="crm-count count">
      {{ number_format($crmSidebarLeadCount) }}
     </span>
+    @endcan
 
     <span class="crm-arrow arrow">⌄</span>
    </button>
@@ -137,38 +160,47 @@
    >
     <div class="crm-sub-inner">
      <nav>
+      @can('leads.view')
       <a
        class="{{ request()->routeIs('v2.leads') ? 'active' : '' }}"
        href="{{ route('v2.leads') }}"
       >
        {{ __('crm.view_leads') }}
       </a>
+      @endcan
 
+      @can('leads.create')
       <a
        class="{{ request()->routeIs('v2.leads.create') ? 'active' : '' }}"
        href="{{ route('v2.leads.create') }}"
       >
        {{ __('crm.add_lead') }}
       </a>
+      @endcan
 
+      @can('leads.import')
       <a
        class="{{ request()->routeIs('v2.leads.import') ? 'active' : '' }}"
        href="{{ route('v2.leads.import') }}"
       >
        {{ __('crm.import_leads') }}
       </a>
+      @endcan
 
+      @can('leads.export')
       <a
        class="{{ request()->routeIs('v2.leads.export') ? 'active' : '' }}"
        href="{{ route('v2.leads.export') }}"
       >
        {{ __('crm.export_leads') }}
       </a>
+      @endcan
      </nav>
     </div>
    </div>
   </div>
-
+  @endif
+  @can('tasks.view')
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarTasksActive ? 'active' : '' }}"
@@ -195,78 +227,25 @@
     <div class="crm-sub-inner">
      <nav>
       <a
-       class="{{ request()->routeIs('v2.tasks.daily', 'v2.tasks.upcoming', 'v2.followups.scope') ? 'active' : '' }}"
+       class="{{ request()->routeIs('v2.tasks.daily', 'v2.tasks.upcoming', 'v2.followups.scope') && !request()->filled('stage_id') ? 'active' : '' }}"
        href="{{ route('v2.tasks.daily') }}"
       >
        {{ __('crm.daily_tasks') }}
       </a>
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'new' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'new']) }}"
-      >
-       {{ __('crm.status_new') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'no-answer' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'no-answer']) }}"
-      >
-       {{ __('crm.status_no_answer') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'interested' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'interested']) }}"
-      >
-       {{ __('crm.status_interested') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'not-interested' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'not-interested']) }}"
-      >
-       {{ __('crm.status_not_interested') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'meeting' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'meeting']) }}"
-      >
-       {{ __('crm.status_meeting') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'quotation' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'quotation']) }}"
-      >
-       {{ __('crm.status_quotation') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'discussion' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'discussion']) }}"
-      >
-       {{ __('crm.status_discussion') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'contract-closing' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'contract-closing']) }}"
-      >
-       {{ __('crm.status_contract_closing') }}
-      </a>
-
-      <a
-       class="crm-task-status-link {{ request()->routeIs('v2.tasks.status') && (string) request()->route('status') === 'execution' ? 'active' : '' }}"
-       href="{{ route('v2.tasks.status', ['status' => 'execution']) }}"
-      >
-       {{ __('crm.status_execution') }}
-      </a>
+      @foreach (($sidebarPipelineStages ?? []) as $sidebarStage)
+       <a
+        class="crm-task-status-link {{ request()->routeIs('v2.tasks.daily') && (string) request('stage_id') === (string) $sidebarStage->id ? 'active' : '' }}"
+        href="{{ route('v2.tasks.daily', ['stage_id' => $sidebarStage->id]) }}"
+       >
+        {{ $sidebarStage->localizedName() }}
+       </a>
+      @endforeach
      </nav>
     </div>
    </div>
   </div>
-
+  @endcan
+  @if(auth()->user()?->can('campaigns.view') || auth()->user()?->can('campaigns.create') || auth()->user()?->can('campaigns.reports'))
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarCampaignsActive ? 'active' : '' }}"
@@ -291,31 +270,38 @@
    >
     <div class="crm-sub-inner">
      <nav>
+      @can('campaigns.view')
       <a
        class="{{ request()->routeIs('v2.campaigns.index') ? 'active' : '' }}"
        href="{{ route('v2.campaigns.index') }}"
       >
        {{ __('crm.view_campaigns') }}
       </a>
+      @endcan
 
+      @can('campaigns.create')
       <a
        class="{{ request()->routeIs('v2.campaigns.create') ? 'active' : '' }}"
        href="{{ route('v2.campaigns.create') }}"
       >
        {{ __('crm.add_campaign') }}
       </a>
+      @endcan
 
+      @can('campaigns.reports')
       <a
        class="{{ request()->routeIs('v2.campaigns.reports') ? 'active' : '' }}"
        href="{{ route('v2.campaigns.reports') }}"
       >
        {{ __('crm.campaign_reports') }}
       </a>
+      @endcan
      </nav>
     </div>
    </div>
   </div>
-
+  @endif
+  @if(auth()->user()?->can('quotations.view') || auth()->user()?->can('quotations.create'))
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarQuotationsActive ? 'active' : '' }}"
@@ -340,13 +326,16 @@
    >
     <div class="crm-sub-inner">
      <nav>
+      @can('quotations.create')
       <a
        class="{{ request()->routeIs('v2.quotations.create') ? 'active' : '' }}"
        href="{{ route('v2.quotations.create') }}"
       >
        {{ __('crm.create_quotation') }}
       </a>
+      @endcan
 
+      @can('quotations.view')
       <a
        class="{{
         request()->routeIs(
@@ -360,11 +349,12 @@
       >
        {{ __('crm.quotations') }}
       </a>
+      @endcan
      </nav>
     </div>
    </div>
   </div>
-
+  @endif
   @can('calendar.view')
   <a
    class="crm-link link {{ request()->routeIs('v2.calendar.*') ? 'active' : '' }}"
@@ -387,6 +377,50 @@
   @endcan
   @endif
 
+  @if(auth()->user()?->can('technical_support.view') || auth()->user()?->can('technical_support.reports'))
+  <div>
+   <button
+    class="crm-toggle toggle {{ $crmSidebarTechnicalSupportActive ? 'active' : '' }}"
+    type="button"
+    data-crm-menu="crmTechnicalSupportMenu"
+    data-menu="crmTechnicalSupportMenu"
+    aria-expanded="{{ $crmSidebarTechnicalSupportActive ? 'true' : 'false' }}"
+    aria-controls="crmTechnicalSupportMenu"
+   >
+    <span class="crm-ico ico"><i class="bi bi-headset"></i></span>
+    <span class="crm-label label">{{ __('crm.technical_support') }}</span>
+    <span class="crm-arrow arrow">⌄</span>
+   </button>
+
+   <div
+    class="crm-sub sub {{ $crmSidebarTechnicalSupportActive ? 'open' : '' }}"
+    id="crmTechnicalSupportMenu"
+   >
+    <div class="crm-sub-inner">
+     <nav>
+      @can('technical_support.view')
+      <a
+       class="{{ request()->routeIs('v2.technical-support.reports') ? '' : ($crmSidebarTechnicalSupportActive ? 'active' : '') }}"
+       href="{{ route('v2.technical-support.index') }}"
+      >
+       {{ __('crm.support_servers') }}
+      </a>
+      @endcan
+      @can('technical_support.reports')
+      <a
+       class="{{ request()->routeIs('v2.technical-support.reports') ? 'active' : '' }}"
+       href="{{ route('v2.technical-support.reports') }}"
+      >
+       {{ __('crm.support_reports') }}
+      </a>
+      @endcan
+     </nav>
+    </div>
+   </div>
+  </div>
+  @endif
+
+  @can('settings.access')
   <a
    class="crm-link link {{ $crmSidebarSettingsActive ? 'active' : '' }}"
    href="{{ route('v2.settings') }}"
@@ -394,19 +428,19 @@
    <span class="crm-ico ico"><i class="bi bi-toggles"></i></span>
    <span class="crm-label label">{{ __('crm.settings') }}</span>
   </a>
- </nav>
+  @endcan
 
 </aside>
+
+<button class="crm-overlay overlay" id="crmSidebarOverlay" type="button" aria-label="{{ __('crm.close_menu') ?? 'Close Menu' }}"></button>
 
 @once
 @include('notifications._center')
 @endonce
 
-
 @once
-<script src="{{ asset('quotation-generator/crm-sidebar.js') }}?v=crm-sidebar-collapse-v1"></script>
+<script src="{{ asset('quotation-generator/crm-sidebar.js') }}?v=crm-sidebar-drawer-v2"></script>
 @endonce
-
 <!-- CRM TASK SIDEBAR ACTIVE STATUS START -->
 <style>
  .crm-task-status-link.active{

@@ -46,18 +46,23 @@ class LeadPermissionsTest extends TestCase
         }
 
         // Setup groups
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'description' => 'Super Admin',
+                'is_system' => true,
+            ]
+        );
         $superAdminGroup->permissions()->sync(Permission::pluck('id'));
 
-        $salesManagerGroup = Group::query()->create([
-            'name' => 'مدير المبيعات',
-            'code' => 'sales-manager',
-            'is_system' => false,
-        ]);
+        $salesManagerGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales-manager'],
+            [
+                'name' => 'مدير المبيعات',
+                'is_system' => false,
+            ]
+        );
         $managerPermCodes = [
             'dashboard.view', 'leads.view', 'leads.create', 'leads.update', 'leads.delete',
             'leads.scope.all', 'leads.assign',
@@ -66,11 +71,13 @@ class LeadPermissionsTest extends TestCase
         ];
         $salesManagerGroup->permissions()->sync(Permission::whereIn('code', $managerPermCodes)->pluck('id'));
 
-        $salesAgentGroup = Group::query()->create([
-            'name' => 'موظف المبيعات',
-            'code' => 'sales-agent',
-            'is_system' => false,
-        ]);
+        $salesAgentGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales-agent'],
+            [
+                'name' => 'موظف المبيعات',
+                'is_system' => false,
+            ]
+        );
         $agentPermCodes = [
             'dashboard.view', 'leads.view', 'leads.create', 'leads.update',
             'leads.followups.view', 'leads.followups.create', 'tasks.view',
@@ -78,11 +85,13 @@ class LeadPermissionsTest extends TestCase
         ];
         $salesAgentGroup->permissions()->sync(Permission::whereIn('code', $agentPermCodes)->pluck('id'));
 
-        $readOnlyGroup = Group::query()->create([
-            'name' => 'مشاهدة فقط',
-            'code' => 'read-only',
-            'is_system' => false,
-        ]);
+        $readOnlyGroup = Group::query()->firstOrCreate(
+            ['code' => 'read-only'],
+            [
+                'name' => 'مشاهدة فقط',
+                'is_system' => false,
+            ]
+        );
         $readOnlyPermCodes = [
             'leads.scope.all',
             'dashboard.view', 'leads.view', 'leads.followups.view', 'tasks.view',
@@ -104,22 +113,26 @@ class LeadPermissionsTest extends TestCase
         $this->readOnlyUser->groups()->attach($readOnlyGroup);
 
         // Create Pipeline Stage and Lead Status
-        $stage = PipelineStage::query()->create([
-            'code' => 'start',
-            'name_ar' => 'البداية',
-            'position' => 1,
-            'color' => '#3478f6',
-            'is_active' => true,
-        ]);
+        $stage = PipelineStage::query()->firstOrCreate(
+            ['code' => 'start'],
+            [
+                'name_ar' => 'البداية',
+                'position' => 1,
+                'color' => '#3478f6',
+                'is_active' => true,
+            ]
+        );
 
-        $status = LeadStatus::query()->create([
-            'code' => 'new',
-            'pipeline_stage_id' => $stage->id,
-            'name_ar' => 'جديد',
-            'position' => 1,
-            'color' => '#3478f6',
-            'is_terminal' => false,
-        ]);
+        $status = LeadStatus::query()->firstOrCreate(
+            ['code' => 'new'],
+            [
+                'pipeline_stage_id' => $stage->id,
+                'name_ar' => 'جديد',
+                'position' => 1,
+                'color' => '#3478f6',
+                'is_terminal' => false,
+            ]
+        );
 
         $this->lead = Lead::query()->create([
             'lead_status_id' => $status->id,

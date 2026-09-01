@@ -7,6 +7,7 @@ namespace Tests\Feature\Authorization;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Models\Group;
 use App\Models\Permission;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Security\CrmPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,31 +38,36 @@ class QuotationPermissionsTest extends TestCase
             );
         }
 
-        $superAdminGroup = Group::query()->create([
-            'name' => 'مدير النظام',
-            'code' => Group::SUPER_ADMIN_CODE,
-            'is_system' => true,
-        ]);
+        $superAdminGroup = Group::query()->firstOrCreate(
+            ['code' => Group::SUPER_ADMIN_CODE],
+            [
+                'name' => 'مدير النظام',
+                'is_system' => true,
+            ]
+        );
         $superAdminGroup->permissions()->sync(Permission::pluck('id'));
 
-        $salesAgentGroup = Group::query()->create([
-            'name' => 'موظف المبيعات',
-            'code' => 'sales-agent',
-            'is_system' => false,
-        ]);
+        $salesAgentGroup = Group::query()->firstOrCreate(
+            ['code' => 'sales-agent'],
+            [
+                'name' => 'موظف المبيعات',
+                'is_system' => false,
+            ]
+        );
         $salesAgentGroup->permissions()->sync(
             Permission::whereIn('code', ['dashboard.view', 'quotations.view', 'quotations.create'])->pluck('id')
         );
 
-        $readOnlyGroup = Group::query()->create([
-            'name' => 'مشاهدة فقط',
-            'code' => 'read-only',
-            'is_system' => false,
-        ]);
+        $readOnlyGroup = Group::query()->firstOrCreate(
+            ['code' => 'read-only'],
+            [
+                'name' => 'مشاهدة فقط',
+                'is_system' => false,
+            ]
+        );
         $readOnlyGroup->permissions()->sync(
             Permission::whereIn('code', ['dashboard.view', 'quotations.view'])->pluck('id')
         );
-
         $this->superAdmin = User::factory()->create(['is_active' => true]);
         $this->superAdmin->groups()->attach($superAdminGroup);
 
@@ -98,5 +104,62 @@ class QuotationPermissionsTest extends TestCase
         $this->actingAs($this->salesAgent)
             ->get(route('v2.quotations.create'))
             ->assertOk();
+    }
+
+    public function test_employee_only_sees_and_opens_own_quotations(): void
+    {
+        $ownQuotation = $this->createQuotation(
+            $this->salesAgent,
+            'Employee quotation',
+        );
+        $otherQuotation = $this->createQuotation(
+            $this->superAdmin,
+            'Administrator quotation',
+        );
+
+        $this->actingAs($this->salesAgent)
+            ->get(route('v2.quotations.index'))
+            ->assertOk()
+            ->assertSeeText($ownQuotation->client_name)
+            ->assertDontSeeText($otherQuotation->client_name);
+
+        $this->actingAs($this->salesAgent)
+            ->get(route('v2.quotations.show', $otherQuotation))
+            ->assertNotFound();
+    }
+
+    public function test_super_admin_sees_and_opens_every_quotation(): void
+    {
+        $employeeQuotation = $this->createQuotation(
+            $this->salesAgent,
+            'Employee quotation visible to admin',
+        );
+        $adminQuotation = $this->createQuotation(
+            $this->superAdmin,
+            'Administrator quotation visible to admin',
+        );
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('v2.quotations.index'))
+            ->assertOk()
+            ->assertSeeText($employeeQuotation->client_name)
+            ->assertSeeText($adminQuotation->client_name);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('v2.quotations.show', $employeeQuotation))
+            ->assertOk();
+    }
+
+    private function createQuotation(User $creator, string $clientName): Quotation
+    {
+        return Quotation::query()->create([
+            'quotation_no' => 'Q-'.uniqid(),
+            'client_name' => $clientName,
+            'quote_date' => now()->toDateString(),
+            'grand_total' => 100,
+            'payload' => ['items' => []],
+            'created_by' => $creator->name,
+            'created_by_user_id' => $creator->getKey(),
+        ]);
     }
 }

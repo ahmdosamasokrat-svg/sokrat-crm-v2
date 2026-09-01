@@ -8,6 +8,8 @@ use App\Http\Requests\StoreCampaignRequest;
 use App\Models\Campaign;
 use App\Models\Lead;
 use App\Models\LeadStatus;
+use App\Models\PipelineStage;
+use Illuminate\Database\Eloquent\Builder;
 use App\Models\User;
 use App\Security\CrmPermission;
 use App\Security\LeadAssignment;
@@ -315,6 +317,29 @@ class CampaignController extends Controller
                     : (string) $row->assigned_user_id => (int) $row->lead_count,
             ]);
 
+        $pipelineStages = PipelineStage::activeOrdered()->load('statuses:id,pipeline_stage_id,name_ar,code');
+
+        $baseCampaignLeadsQuery = DB::table('campaign_lead')
+            ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
+            ->where('campaign_lead.campaign_id', $campaign->id);
+
+        if ($showUnassigned) {
+            $baseCampaignLeadsQuery->whereNull('leads.assigned_user_id');
+        } elseif ($selectedAssignee !== null) {
+            $baseCampaignLeadsQuery->where('leads.assigned_user_id', $selectedAssignee->id);
+        }
+
+        $stageLeadCounts = (clone $baseCampaignLeadsQuery)
+            ->join('lead_statuses', 'lead_statuses.id', '=', 'leads.lead_status_id')
+            ->selectRaw('lead_statuses.pipeline_stage_id, COUNT(*) as aggregate')
+            ->groupBy('lead_statuses.pipeline_stage_id')
+            ->pluck('aggregate', 'pipeline_stage_id')
+            ->all();
+
+        foreach ($pipelineStages as $stage) {
+            $stage->campaign_leads_count = (int) ($stageLeadCounts[$stage->id] ?? 0);
+        }
+
         $statuses = LeadStatus::query()
             ->withCount([
                 'leads as campaign_leads_count' => static function (
@@ -343,10 +368,17 @@ class CampaignController extends Controller
             ->with('stage:id,name_ar')
             ->orderBy('position')
             ->get(['id', 'pipeline_stage_id', 'code', 'name_ar', 'color']);
-        $selectedStatus = $statuses->firstWhere(
-            'code',
-            trim((string) $request->query('status', '')),
-        );
+
+        $statusParam = trim((string) $request->query('status', ''));
+        $stageParam = trim((string) $request->query('stage', ''));
+
+        $selectedStatus = $statusParam !== ''
+            ? ($statuses->firstWhere('code', $statusParam) ?? $statuses->firstWhere('id', (int) $statusParam))
+            : null;
+
+        $selectedStage = $stageParam !== ''
+            ? ($pipelineStages->firstWhere('code', $stageParam) ?? $pipelineStages->firstWhere('id', (int) $stageParam))
+            : null;
 
         $leadsQuery = $campaign->leads()
             ->with([
@@ -361,7 +393,11 @@ class CampaignController extends Controller
             $leadsQuery->where('assigned_user_id', $selectedAssignee->id);
         }
 
-        if ($selectedStatus !== null) {
+        if ($selectedStage !== null) {
+            $leadsQuery->whereHas('status', function (Builder $sq) use ($selectedStage): void {
+                $sq->where('pipeline_stage_id', $selectedStage->id);
+            });
+        } elseif ($selectedStatus !== null) {
             $leadsQuery->where('lead_status_id', $selectedStatus->id);
         }
 
@@ -389,6 +425,8 @@ class CampaignController extends Controller
             'selectedAssignee',
             'showUnassigned',
             'assignmentCounts',
+            'pipelineStages',
+            'selectedStage',
             'statuses',
             'selectedStatus',
         ));

@@ -6,10 +6,12 @@ use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
 use App\Models\LeadStatusHistory;
+use App\Models\PipelineStage;
 use App\Models\User;
 use App\Security\CrmPermission;
 use App\Security\LeadAssignment;
 use App\Support\CrmDatabaseGuard;
+use App\Support\FollowupCustomerFieldSchema;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -188,6 +190,13 @@ class LeadFollowupController extends Controller
                 ->contains('id', $campaign->id),
         );
 
+        $activeStages = PipelineStage::query()
+            ->where('is_active', true)
+            ->with(['activeFields', 'statuses'])
+            ->orderBy('position')
+            ->get();
+        $customerFields = FollowupCustomerFieldSchema::fields();
+
         return view(
             'leads.followups.index',
             [
@@ -206,6 +215,9 @@ class LeadFollowupController extends Controller
                 'manageableCampaigns' => $manageableCampaigns,
                 'campaignAssignees' => $campaignAssignees,
                 'currentCampaign' => $currentCampaign,
+                'activeStages' => $activeStages,
+                'customerFields' => $customerFields,
+                'customerFieldValues' => FollowupCustomerFieldSchema::currentValues($leadRecord, $customerFields),
             ]
         );
     }
@@ -279,28 +291,12 @@ class LeadFollowupController extends Controller
                     ]
             );
 
-        $businessStatusCodes = [
-            'interested',
-            'no_answer',
-            'meeting',
-            'quotation',
-            'discussion',
-            'contract_closed',
-            'execution',
-        ];
-
         $quotationStageCodes = [
             'quotation',
             'discussion',
             'contract_closed',
             'execution',
         ];
-
-        $hasBusinessDetails = in_array(
-            $status->code,
-            $businessStatusCodes,
-            true
-        );
 
         $isQuotationStage = in_array(
             $status->code,
@@ -399,51 +395,7 @@ class LeadFollowupController extends Controller
                     $requiresNextFollowUp
                         ? 'required'
                         : 'nullable',
-                    'date_format:Y-m-d\TH:i',
-                ],
-
-                'company_name' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'activity' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
-
-                'governorate' => [
-                    'nullable',
-                    'string',
-                    'max:100',
-                ],
-
-                'address' => [
-                    'nullable',
-                    'string',
-                    'max:255',
-                ],
-
-                'users_count' => [
-                    'nullable',
-                    'integer',
-                    'min:0',
-                    'max:1000000',
-                ],
-
-                'branches_count' => [
-                    'nullable',
-                    'integer',
-                    'min:0',
-                    'max:1000000',
-                ],
-
-                'job_title' => [
-                    'nullable',
-                    'string',
-                    'max:150',
+                    'date',
                 ],
 
                 'disinterest_reason' => [
@@ -556,6 +508,14 @@ class LeadFollowupController extends Controller
                     .'غير مدعومة.',
             ]
         );
+        $targetStage = $status->stage;
+        $normalizedStageValues = [];
+        if ($targetStage !== null) {
+            $rawStageInputs = $request->input('stage_fields', []);
+            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($targetStage, $rawStageInputs, $request->user());
+        }
+        $normalizedCustomerFields = FollowupCustomerFieldSchema::validateAndExtract($request->all());
+
 
         $nullableText = static function (
             mixed $value
@@ -569,19 +529,6 @@ class LeadFollowupController extends Controller
             return $value === ''
                 ? null
                 : $value;
-        };
-
-        $integerOrNull = static function (
-            mixed $value
-        ): ?int {
-            if (
-                $value === null
-                || $value === ''
-            ) {
-                return null;
-            }
-
-            return (int) $value;
         };
 
         $employeeName =
@@ -616,19 +563,18 @@ class LeadFollowupController extends Controller
                     ]
             ) !== ''
         ) {
-            $nextFollowUpAt =
-                Carbon::createFromFormat(
-                    'Y-m-d\TH:i',
-                    (string)
-                        $validated[
-                            'next_follow_up_at'
-                        ],
-                    (string)
-                        config(
-                            'app.timezone',
-                            'UTC'
-                        )
+            try {
+                $nextFollowUpAt = Carbon::parse(
+                    (string) $validated['next_follow_up_at'],
+                    (string) config('app.timezone', 'UTC')
                 );
+            } catch (\Throwable) {
+                $nextFollowUpAt = Carbon::createFromFormat(
+                    'Y-m-d\TH:i',
+                    (string) $validated['next_follow_up_at'],
+                    (string) config('app.timezone', 'UTC')
+                );
+            }
         }
 
         /*
@@ -682,62 +628,6 @@ class LeadFollowupController extends Controller
         }
 
         $stageData = [
-            'company_name' => $hasBusinessDetails
-                    ? $nullableText(
-                        $validated[
-                            'company_name'
-                        ] ?? null
-                    )
-                    : null,
-
-            'activity' => $hasBusinessDetails
-                    ? $nullableText(
-                        $validated[
-                            'activity'
-                        ] ?? null
-                    )
-                    : null,
-
-            'governorate' => $hasBusinessDetails
-                    ? $nullableText(
-                        $validated[
-                            'governorate'
-                        ] ?? null
-                    )
-                    : null,
-
-            'address' => $hasBusinessDetails
-                    ? $nullableText(
-                        $validated[
-                            'address'
-                        ] ?? null
-                    )
-                    : null,
-
-            'users_count' => $hasBusinessDetails
-                    ? $integerOrNull(
-                        $validated[
-                            'users_count'
-                        ] ?? null
-                    )
-                    : null,
-
-            'branches_count' => $hasBusinessDetails
-                    ? $integerOrNull(
-                        $validated[
-                            'branches_count'
-                        ] ?? null
-                    )
-                    : null,
-
-            'job_title' => $hasBusinessDetails
-                    ? $nullableText(
-                        $validated[
-                            'job_title'
-                        ] ?? null
-                    )
-                    : null,
-
             'disinterest_reason' => $status->code
                     === 'not_interested'
                         ? $nullableText(
@@ -810,13 +700,6 @@ class LeadFollowupController extends Controller
         ];
 
         $fieldLabels = [
-            'company_name' => 'اسم الشركة',
-            'activity' => 'النشاط',
-            'governorate' => 'المحافظة',
-            'address' => 'العنوان',
-            'users_count' => 'عدد المستخدمين',
-            'branches_count' => 'عدد الفروع',
-            'job_title' => 'المنصب',
             'disinterest_reason' => 'سبب عدم الاهتمام',
             'solution_type' => 'نوع النظام',
             'lines_count' => 'عدد الخطوط',
@@ -880,7 +763,11 @@ class LeadFollowupController extends Controller
                     $formatChangeValue,
                     $uploadedQuotationName,
                     $campaign,
-                    $targetUser
+                    $targetUser,
+                    $targetStage,
+                    $normalizedStageValues,
+                    $normalizedCustomerFields,
+                    $request
                 ): Lead {
                     $lockedLead =
                         Lead::query()
@@ -898,6 +785,10 @@ class LeadFollowupController extends Controller
                         (int) $status->id;
 
                     $fieldChanges = [];
+                    $customerFieldUpdate = FollowupCustomerFieldSchema::prepareUpdates(
+                        $lockedLead,
+                        $normalizedCustomerFields,
+                    );
 
                     if ($campaign !== null && $targetUser !== null) {
                         $oldCampaignName = $lockedLead->campaigns()
@@ -991,6 +882,8 @@ class LeadFollowupController extends Controller
                         ];
                     }
 
+                    $fieldChanges = array_merge($fieldChanges, $customerFieldUpdate['changes']);
+
                     LeadFollowup::query()
                         ->create(
                             [
@@ -1049,6 +942,7 @@ class LeadFollowupController extends Controller
                     $lockedLead->update(
                         array_merge(
                             $stageData,
+                            $customerFieldUpdate['attributes'],
                             [
                                 'lead_status_id' => $newStatusId,
 
@@ -1063,6 +957,9 @@ class LeadFollowupController extends Controller
 
                     if ($campaign !== null) {
                         $lockedLead->campaigns()->sync([$campaign->id]);
+                    }
+                    if ($targetStage !== null && ! empty($normalizedStageValues)) {
+                        \App\Support\StageFieldSchema::persistValues($lockedLead, $targetStage, $normalizedStageValues, null, $request->user());
                     }
 
                     return $lockedLead;

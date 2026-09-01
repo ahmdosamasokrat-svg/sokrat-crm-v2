@@ -1,2888 +1,1174 @@
 <!doctype html>
 <html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
- <meta charset="utf-8">
- <meta
-  name="viewport"
-  content="width=device-width,initial-scale=1"
- >
-
- <title>
-  تسجيل متابعة {{ $lead->name }} | CRM v2
- </title>
- <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
-
- <style>
-  :root{
-   --red:#dc2637;
-   --dark:#182033;
-   --muted:#7e899b;
-   --line:#e4e8ef;
-   --bg:#f4f6f9;
-   --card:#fff;
-   --blue:#2c66ad;
-   --shadow:0 18px 45px #17203310
-  }
-
-  html.dark-mode{
-   --dark:#f4f4f5;
-   --text:#a1a1aa;
-   --muted:#a1a1aa;
-   --line:rgba(255,255,255,.08);
-   --bg:#121214;
-   --card:rgba(24,24,27,.75);
-   --shadow:0 10px 30px rgba(0,0,0,.5)
-  }
-
-  *{
-   box-sizing:border-box
-  }
-
-  body{
-   margin:0;
-   background:var(--bg);
-   color:var(--dark);
-   font-family:var(--font-primary)
-  }
-
-  button,
-  input,
-  select,
-  textarea{
-   font-family:inherit
-  }
-
-  .crm-app{
-   min-height:100vh;
-   display:flex;
-   }
-
-  .crm-main{
-   min-width:0;
-   flex:1
-  }
-
-  .crm-side{
-   position:sticky;
-   top:0;
-   flex:0 0 288px;
-   width:288px;
-   min-width:288px;
-   height:100vh;
-   overflow:auto;
-   padding:24px 17px;
-   border-inline-end:1px solid var(--line);
-   background:#fff;
-   z-index:80
-  }
-
-  .crm-side-overlay{
-   display:none
-  }
-
-  .brand,
-  .crm-side-brand{
-   display:flex;
-   align-items:center;
-   gap:11px;
-   text-decoration:none
-  }
-
-  .crm-side-brand{
-   padding:4px 8px 20px;
-   margin-bottom:17px;
-   border-bottom:1px solid var(--line)
-  }
-
-  .logo,
-  .crm-side-brand .logo{
-   width:58px;
-   height:58px;
-   display:block;
-   object-fit:contain
-  }
-
-  .crm-side-brand strong{
-   display:block;
-   color:var(--red);
-   font:900 22px var(--font-primary)
-  }
-
-  .crm-side-brand small{
-   display:block;
-   margin-top:5px;
-   color:var(--muted);
-   font-size:10px
-  }
-
-  .crm-side-caption{
-   margin:0 10px 10px;
-   color:#9aa2b0;
-   font-size:10px;
-   font-weight:bold
-  }
-
-  .crm-side-nav{
-   display:grid;
-   gap:5px
-  }
-
-  .crm-link,
-  .crm-toggle{
-   width:100%;
-   min-height:49px;
-   display:flex;
-   align-items:center;
-   gap:10px;
-   padding:8px 10px;
-   border:1px solid transparent;
-   border-radius:13px;
-   background:transparent;
-   color:#566175;
-   text-decoration:none;
-   text-align:start;
-   font-size:13px;
-   cursor:pointer;
-   transition:.2s
-  }
-
-  .crm-link:hover,
-  .crm-toggle:hover{
-   color:var(--red);
-   background:#fff5f6;
-   transform:translateX(-2px)
-  }
-
-  .crm-link.active,
-  .crm-toggle.active{
-   border-color:#cf2031;
-   background:linear-gradient(
-    135deg,
-    #e83243,
-    #c91d2e
-   );
-   color:#fff;
-   box-shadow:0 12px 27px #dc26372c
-  }
-
-  .crm-ico{
-   width:32px;
-   height:32px;
-   flex:0 0 32px;
-   display:grid;
-   place-items:center;
-   border-radius:10px;
-   background:#f0f2f6;
-   font-size:17px
-  }
-
-  .crm-link.active .crm-ico,
-  .crm-toggle.active .crm-ico{
-   background:#ffffff2b
-  }
-
-  .crm-label{
-   min-width:0;
-   flex:1
-  }
-
-  .crm-count{
-   min-width:24px;
-   height:24px;
-   display:grid;
-   place-items:center;
-   padding:0 6px;
-   border-radius:99px;
-   background:#eef0f4;
-   color:#7e8796;
-   font:800 10px var(--font-primary)
-  }
-
-  .crm-toggle.active .crm-count{
-   color:#fff;
-   background:#ffffff2b
-  }
-
-  .crm-arrow{
-   color:#a2a9b5;
-   font-size:11px;
-   transition:.2s
-  }
-
-  .crm-toggle.active .crm-arrow{
-   color:#fff
-  }
-
-  .crm-toggle[aria-expanded="true"]
-  .crm-arrow{
-   transform:rotate(180deg)
-  }
-
-  .crm-sub{
-   display:grid;
-   grid-template-rows:0fr;
-   transition:.22s
-  }
-
-  .crm-sub.open{
-   grid-template-rows:1fr
-  }
-
-  .crm-sub-inner{
-   min-height:0;
-   overflow:hidden
-  }
-
-  .crm-sub nav{
-   display:grid;
-   gap:2px;
-   margin:3px 28px 7px 0;
-   padding-inline-start:14px;
-   border-inline-start:1px solid var(--line)
-  }
-
-  .crm-sub a{
-   padding:8px 10px;
-   border-radius:8px;
-   color:#788294;
-   text-decoration:none;
-   font-size:11px;
-   font-weight:bold
-  }
-
-  .crm-sub a:hover,
-  .crm-sub a.active{
-   color:var(--red);
-   background:#fff0f2
-  }
-
-  .topbar{
-   min-height:76px;
-   display:flex;
-   align-items:center;
-   gap:15px;
-   position:sticky;
-   top:0;
-   z-index:30;
-   padding:13px 24px;
-   border-bottom:1px solid var(--line);
-   background:#fff
-  }
-
-  .menu-button{
-   width:42px;
-   height:42px;
-   display:none;
-   place-items:center;
-   border:1px solid var(--line);
-   border-radius:11px;
-   background:#fff;
-   color:var(--dark);
-   font-size:20px;
-   cursor:pointer
-  }
-
-  .page-title{
-   min-width:0;
-   flex:1
-  }
-
-  .page-title h1{
-   margin:0;
-   font-size:22px
-  }
-
-  .page-title p{
-   margin:5px 0 0;
-   color:var(--muted);
-   font-size:12px
-  }
-
-  .user-tools{
-   display:flex;
-   align-items:center;
-   gap:9px
-  }
-
-  .user-chip{
-   min-height:40px;
-   display:flex;
-   align-items:center;
-   padding:7px 12px;
-   border:1px solid var(--line);
-   border-radius:11px;
-   background:#fafbfc;
-   color:#586477;
-   font-size:12px;
-   font-weight:800
-  }
-
-  .logout-button{
-   min-height:40px;
-   padding:7px 12px;
-   border:1px solid #efc3c7;
-   border-radius:10px;
-   background:#fff5f6;
-   color:#b62231;
-   font-size:11px;
-   font-weight:900;
-   cursor:pointer
-  }
-
-  .shell{
-   width:min(1420px,calc(100% - 38px));
-   margin:23px auto 45px
-  }
-
-  .client-card{
-   overflow:hidden;
-   margin-bottom:18px;
-   border:1px solid var(--line);
-   border-radius:19px;
-   background:var(--card);
-   box-shadow:var(--shadow)
-  }
-  html.dark-mode .client-card{
-   background:var(--bg-card,rgba(24,24,27,.75))!important;
-   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
-   backdrop-filter:var(--glass-blur,blur(16px))!important;
-   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
-   box-shadow:var(--shadow-card,0 10px 30px rgba(0,0,0,.5))!important;
-   color:var(--text-primary,#f4f4f5)!important
-  }
-
-  .client-head{
-   display:flex;
-   align-items:center;
-   gap:17px;
-   padding:22px;
-   background:linear-gradient(
-    125deg,
-    #171f31,
-    #303b50
-   );
-   color:#fff
-  }
-  html.dark-mode .client-head{
-   background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02))!important;
-   border-bottom:1px solid rgba(255,255,255,.08)!important
-  }
-
-  .client-avatar{
-   width:66px;
-   height:66px;
-   display:grid;
-   place-items:center;
-   flex:0 0 66px;
-   border:3px solid #ffffff55;
-   border-radius:21px;
-   background:#fff;
-   color:var(--red);
-   font-size:28px;
-   font-weight:900
-  }
-  html.dark-mode .client-avatar{
-   background:rgba(255,255,255,.12)!important;
-   border-color:rgba(255,255,255,.2)!important;
-   color:#f87171!important
-  }
-
-  .client-copy{
-   min-width:0;
-   flex:1
-  }
-
-  .client-copy small{
-   color:#f0a1aa;
-   font-size:10px;
-   font-weight:900
-  }
-  html.dark-mode .client-copy small{color:#f87171!important}
-
-  .client-copy h2{
-   margin:7px 0 6px;
-   font-size:24px
-  }
-  html.dark-mode .client-copy h2{color:#ffffff!important}
-
-  .client-copy p{
-   margin:0;
-   color:#cbd2de;
-   font-size:12px
-  }
-  html.dark-mode .client-copy p{color:#d4d4d8!important}
-
-  .client-actions{
-   display:flex;
-   flex-wrap:wrap;
-   gap:8px
-  }
-
-  .header-action{
-   min-height:41px;
-   display:inline-flex;
-   align-items:center;
-   justify-content:center;
-   padding:8px 13px;
-   border:1px solid #ffffff55;
-   border-radius:10px;
-   background:#ffffff12;
-   color:#fff;
-   text-decoration:none;
-   font-size:11px;
-   font-weight:900
-  }
-  html.dark-mode .header-action{
-   background:rgba(255,255,255,.08)!important;
-   border-color:rgba(255,255,255,.14)!important;
-   color:#f4f4f5!important
-  }
-  html.dark-mode .header-action.primary{
-   background:linear-gradient(135deg,#e83243,#c91d2e)!important;
-   border-color:#ef4444!important;
-   color:#ffffff!important
-  }
-  .header-action{
-   min-height:41px;
-   display:inline-flex;
-   align-items:center;
-   justify-content:center;
-   padding:8px 13px;
-   border:1px solid #ffffff55;
-   border-radius:10px;
-   background:#ffffff12;
-   color:#fff;
-   text-decoration:none;
-   font-size:11px;
-   font-weight:900
-  }
-
-  .header-action.primary{
-   border-color:#fff;
-   background:#fff;
-   color:#273149
-  }
-
-  .client-data{
-   display:grid;
-   grid-template-columns:
-    repeat(4,minmax(0,1fr));
-   gap:1px;
-   background:var(--line)
-  }
-
-  .client-data-item{
-   min-width:0;
-   padding:15px;
-   background:#fff
-  }
-  html.dark-mode .client-data{
-   background:rgba(255,255,255,.08)!important
-  }
-  html.dark-mode .client-data-item{
-   background:rgba(24,24,27,.9)!important
-  }
-
-  .client-data-item small{
-   display:block;
-   margin-bottom:6px;
-   color:#9099a8;
-   font-size:9px;
-   font-weight:800
-  }
-  html.dark-mode .client-data-item small{
-   color:var(--text-muted,#a1a1aa)!important
-  }
-
-  .client-data-item strong{
-   display:block;
-   color:#3c4658;
-   font-size:12px;
-   line-height:1.7;
-   overflow-wrap:anywhere
-  }
-  html.dark-mode .client-data-item strong{
-   color:var(--text-primary,#f4f4f5)!important
-  }
-
-  .workspace{
-   display:grid;
-   grid-template-columns:
-    minmax(0,1.05fr)
-    minmax(340px,.95fr);
-   gap:18px;
-   align-items:start
-  }
-
-  .panel{
-   overflow:hidden;
-   border:1px solid var(--line);
-   border-radius:17px;
-   background:#fff;
-   box-shadow:var(--shadow)
-  }
-  html.dark-mode .panel{
-   background:var(--bg-card,rgba(24,24,27,.75))!important;
-   border:var(--border-glass,1px solid rgba(255,255,255,.08))!important;
-   backdrop-filter:var(--glass-blur,blur(16px))!important;
-   -webkit-backdrop-filter:var(--glass-blur,blur(16px))!important;
-   box-shadow:var(--shadow-glass)!important;
-   color:var(--text-primary,#f4f4f5)!important
-  }
-
-  .panel-head{
-   padding:17px 19px;
-   border-bottom:1px solid var(--line);
-   background:#fafbfc
-  }
-  html.dark-mode .panel-head{
-   background:rgba(255,255,255,.03)!important;
-   border-bottom:1px solid rgba(255,255,255,.08)!important
-  }
-  html.dark-mode .panel-head h3{color:#f4f4f5!important;font-weight:800!important}
-  html.dark-mode .panel-head p{color:var(--text-muted,#a1a1aa)!important}
-  html.dark-mode .panel-body{color:var(--text-primary,#f4f4f5)!important}
-   margin-bottom:15px;
-   padding:13px 15px;
-   border:1px solid #a9d8bd;
-   border-radius:11px;
-   background:#effaf3;
-   color:#237448;
-   font-size:12px;
-   font-weight:900
-  }
-
-  .error-box{
-   margin-bottom:15px;
-   padding:13px 15px;
-   border:1px solid #efb7bd;
-   border-radius:11px;
-   background:#fff3f4;
-   color:#a92735;
-   font-size:11px;
-   line-height:1.8
-  }
-
-  .form-grid{
-   display:grid;
-   grid-template-columns:
-    repeat(2,minmax(0,1fr));
-   gap:15px
-  }
-
-  .field{
-   min-width:0
-  }
-
-  .field.full{
-   grid-column:1/-1
-  }
-
-  .field label{
-   display:block;
-   margin-bottom:7px;
-   color:#4f5b6f;
-   font-size:11px;
-   font-weight:900
-  }
-  html.dark-mode .field label{
-   color:#e4e4e7!important;
-   font-weight:700!important
-  }
-
-  .field small{
-   display:block;
-   margin-top:6px;
-   color:#929baa;
-   font-size:9px;
-   line-height:1.7
-  }
-  html.dark-mode .field small{
-   color:var(--text-muted,#a1a1aa)!important
-  }
-
-  .control{
-   width:100%;
-   min-height:45px;
-   padding:10px 12px;
-   border:1px solid #dbe0e8;
-   border-radius:11px;
-   background:#fff;
-   color:#303b4f;
-   font-size:12px;
-   outline:none
-  }
-  html.dark-mode .control{
-   background:var(--bg-input,rgba(39,39,42,.65))!important;
-   border:1px solid rgba(255,255,255,.14)!important;
-   color:#f4f4f5!important
-  }
-
-  .control:focus{
-   border-color:#8eacd5;
-   box-shadow:0 0 0 3px #2c66ad13
-  }
-  html.dark-mode .control:focus{
-   border-color:rgba(239,68,68,.6)!important;
-   background:rgba(39,39,42,.95)!important;
-   box-shadow:0 0 0 3px rgba(239,68,68,.2)!important
-  }
-  html.dark-mode .control option{
-   background:#18181b!important;
-   color:#f4f4f5!important
-  }
-
-  textarea.control{
-   min-height:145px;
-   resize:vertical;
-   line-height:1.8
-  }
-
-  .employee-display{
-   min-height:45px;
-   display:flex;
-   align-items:center;
-   padding:10px 12px;
-   border:1px dashed #cbd3df;
-   border-radius:11px;
-   background:#f8f9fb;
-   color:#48556a;
-   font-size:12px;
-   font-weight:900
-  }
-  html.dark-mode .employee-display{
-   background:rgba(255,255,255,.04)!important;
-   border-color:rgba(255,255,255,.15)!important;
-   color:#f4f4f5!important
-  }
-  .submit-row{
-   display:flex;
-   justify-content:flex-end;
-   margin-top:17px
-  }
-
-  .submit-button{
-   min-height:46px;
-   padding:9px 20px;
-   border:1px solid #c91d2e;
-   border-radius:11px;
-   background:linear-gradient(
-    135deg,
-    #e83243,
-    #c91d2e
-   );
-   color:#fff;
-   font-size:12px;
-   font-weight:900;
-   cursor:pointer;
-   box-shadow:0 11px 24px #dc26372a
-  }
-
-  .timeline{
-   display:grid;
-   gap:12px
-  }
-
-  .timeline-item{
-   position:relative;
-   padding:15px;
-   border:1px solid var(--line);
-   border-radius:13px;
-   background:#fff
-  }
-  html.dark-mode .timeline-item{
-   background:rgba(255,255,255,.03)!important;
-   border:1px solid rgba(255,255,255,.08)!important;
-   border-radius:13px!important
-  }
-
-  .timeline-top{
-   display:flex;
-   align-items:flex-start;
-   justify-content:space-between;
-   gap:12px;
-   margin-bottom:11px
-  }
-
-  .timeline-employee{
-   color:#283449;
-   font-size:12px;
-   font-weight:900
-  }
-  html.dark-mode .timeline-employee{
-   color:#f4f4f5!important;
-   font-weight:800!important
-  }
-
-  .timeline-date{
-   color:#929baa;
-   font-size:9px;
-   white-space:nowrap
-  }
-  html.dark-mode .timeline-date{
-   color:var(--text-muted,#a1a1aa)!important
-  }
-
-  .timeline-badges{
-   display:flex;
-   flex-wrap:wrap;
-   gap:6px;
-   margin-bottom:10px
-  }
-
-  .timeline-badge{
-   display:inline-flex;
-   align-items:center;
-   padding:5px 8px;
-   border-radius:999px;
-   background:#f0f3f8;
-   color:#59677d;
-   font-size:9px;
-   font-weight:900
-  }
-  html.dark-mode .timeline-badge{
-   background:rgba(255,255,255,.08)!important;
-   color:#d4d4d8!important;
-   border:1px solid rgba(255,255,255,.1)!important
-  }
-
-  .timeline-badge.channel{
-   background:#eef5fd;
-   color:#285e9d
-  }
-  html.dark-mode .timeline-badge.channel{
-   background:rgba(59,130,246,.15)!important;
-   color:#60a5fa!important;
-   border:1px solid rgba(59,130,246,.3)!important
-  }
-
-  .timeline-outcome{
-   margin:0;
-   color:#4d596d;
-   font-size:11px;
-   line-height:1.9;
-   white-space:pre-wrap;
-   overflow-wrap:anywhere
-  }
-  html.dark-mode .timeline-outcome{
-   color:#e4e4e7!important
-  }
-
-  .timeline-next{
-   margin-top:10px;
-   padding-top:9px;
-   border-top:1px solid #eef1f5;
-   color:#7c8798;
-   font-size:9px
-  }
-  html.dark-mode .timeline-next{
-   border-top-color:rgba(255,255,255,.08)!important;
-   color:var(--text-muted,#a1a1aa)!important
-  }
-
-  .empty-state{
-   padding:32px 18px;
-   border:1px dashed #d4dae3;
-   border-radius:13px;
-   background:#fafbfc;
-   color:#7e8999;
-   text-align:center;
-   font-size:11px;
-   line-height:1.9
-  }
-  html.dark-mode .empty-state{
-   background:rgba(255,255,255,.02)!important;
-   border-color:rgba(255,255,255,.1)!important;
-   color:var(--text-muted,#a1a1aa)!important
-  }
-
-  @media(max-width:1100px){
-   .crm-side{
-    position:fixed;
-    right:0;
-    top:0;
-    width:min(288px,calc(100vw - 45px));
-    min-width:0;
-    max-width:none;
-    transform:translateX(105%);
-    transition:.25s;
-    box-shadow:-20px 0 55px #17203325
-   }
-
-   body.crm-side-open .crm-side{
-    transform:none
-   }
-
-   .crm-side-overlay{
-    position:fixed;
-    inset:0;
-    z-index:70;
-    border:0;
-    background:#11182788
-   }
-
-   body.crm-side-open
-   .crm-side-overlay{
-    display:block
-   }
-
-   .menu-button{
-    display:grid
-   }
-
-   .workspace{
-    grid-template-columns:1fr
-   }
-  }
-
-  @media(max-width:800px){
-   .shell{
-    width:calc(100% - 18px);
-    margin-top:12px
-   }
-
-   .topbar{
-    padding:11px
-   }
-
-   .user-chip{
-    display:none
-   }
-
-   .client-head{
-    align-items:flex-start;
-    flex-wrap:wrap
-   }
-
-   .client-actions{
-    width:100%
-   }
-
-   .client-data{
-    grid-template-columns:
-     repeat(2,minmax(0,1fr))
-   }
-  }
-
-  @media(max-width:560px){
-   .page-title p{
-    display:none
-   }
-
-   .client-data,
-   .form-grid{
-    grid-template-columns:1fr
-   }
-
-   .field.full{
-    grid-column:auto
-   }
-
-   .client-actions{
-    flex-direction:column
-   }
-
-   .header-action{
-    width:100%
-   }
-
-   .timeline-top{
-    flex-direction:column
-   }
-  }
- 
-  /* FOLLOW-UP EDITABLE STAGE DATA START */
-
-  .followup-stage-editor{
-   grid-column:1/-1;
-   overflow:hidden;
-   margin:4px 0;
-   border:1px solid #dfe5ed;
-   border-radius:15px;
-   background:#fff
-  }
-
-  .followup-stage-editor.is-hidden,
-  .followup-detail-panel.is-hidden{
-   display:none!important
-  }
-
-  .followup-editor-head{
-   padding:16px 18px;
-   border-bottom:1px solid #e7eaf0;
-   background:#f8fafc
-  }
-
-  .followup-editor-head h3{
-   margin:0;
-   color:#29364b;
-   font-size:18px
-  }
-
-  .followup-editor-head p{
-   margin:6px 0 0;
-   color:#7d8899;
-   font-size:12px;
-   line-height:1.8
-  }
-
-  .followup-editor-grid{
-   display:grid;
-   grid-template-columns:
-    repeat(2,minmax(0,1fr));
-   gap:14px;
-   padding:17px
-  }
-
-  .followup-detail-panel{
-   margin:0 17px 17px;
-   padding:16px;
-   border:1px solid #e5e9f0;
-   border-radius:12px;
-   background:#fafbfc
-  }
-
-  .followup-stage-editor
-  .field.full{
-   grid-column:1/-1
-  }
-
-  .followup-stage-editor textarea.control{
-   min-height:105px;
-   resize:vertical
-  }
-
-  .followup-file-help{
-   display:block;
-   margin-top:7px;
-   color:#808b9c;
-   font-size:11px;
-   line-height:1.7
-  }
-
-  .followup-quotation-preview{
-   display:inline-flex;
-   align-items:center;
-   margin-top:9px;
-   padding:7px 10px;
-   border:1px solid #bdd2eb;
-   border-radius:9px;
-   background:#eef6ff;
-   color:#285f9e;
-   text-decoration:none;
-   font-size:12px;
-   font-weight:900
-  }
-
-  .timeline-field-changes{
-   margin-top:13px;
-   padding:13px;
-   border:1px solid #dce6f2;
-   border-radius:11px;
-   background:#f7faff
-  }
-
-  .timeline-field-changes>strong{
-   display:block;
-   margin-bottom:9px;
-   color:#31465f;
-   font-size:13px
-  }
-
-  .timeline-change-list{
-   display:grid;
-   gap:8px;
-   margin:0;
-   padding:0;
-   list-style:none
-  }
-
-  .timeline-change-item{
-   display:grid;
-   gap:5px;
-   padding:9px 10px;
-   border-radius:9px;
-   background:#fff
-  }
-
-  .timeline-change-label{
-   color:#69778b;
-   font-size:12px;
-   font-weight:900
-  }
-
-  .timeline-change-values{
-   display:flex;
-   align-items:center;
-   flex-wrap:wrap;
-   gap:7px;
-   font-size:13px
-  }
-
-  .timeline-change-old{
-   color:#a05961;
-   text-decoration:line-through
-  }
-
-  .timeline-change-new{
-   color:#247047;
-   font-weight:900
-  }
-
-  .latest-followups-panel .panel-head{
-   padding:20px 21px
-  }
-
-  .latest-followups-panel .panel-head h3{
-   font-size:23px
-  }
-
-  .latest-followups-panel .panel-head p{
-   font-size:14px;
-   line-height:1.7
-  }
-
-  .latest-followups-panel .panel-body{
-   padding:21px
-  }
-
-  .latest-followups-panel .timeline{
-   gap:15px
-  }
-
-  .latest-followups-panel .timeline-item{
-   padding:18px;
-   border-radius:15px
-  }
-
-  .latest-followups-panel
-  .timeline-employee{
-   font-size:17px
-  }
-
-  .latest-followups-panel
-  .timeline-date{
-   font-size:13px
-  }
-
-  .latest-followups-panel
-  .timeline-badge{
-   padding:7px 10px;
-   font-size:13px
-  }
-
-  .latest-followups-panel
-  .timeline-outcome{
-   font-size:16px;
-   line-height:2
-  }
-
-  .latest-followups-panel
-  .timeline-next{
-   font-size:13px;
-   line-height:1.8
-  }
-
-  .latest-followups-panel
-  .empty-state{
-   font-size:15px
-  }
-
-  @media(max-width:650px){
-   .followup-editor-grid{
-    grid-template-columns:1fr
-   }
-
-   .followup-stage-editor
-   .field.full{
-    grid-column:auto
-   }
-  }
-
-  /* FOLLOW-UP EDITABLE STAGE DATA END */
-
-
-  /* FOLLOW-UP STAGE COLOR START */
-
-  .latest-followups-panel .timeline-item{
-   border-inline-start:
-    4px solid
-    var(--timeline-stage-color,#64748b)
-  }
-
-  .timeline-stage-badge{
-   position:relative;
-   padding-inline-start:22px!important;
-   border-color:
-    var(--timeline-stage-color,#64748b)!important;
-   color:
-    var(--timeline-stage-color,#64748b)!important;
-   background:#fff!important
-  }
-
-  .timeline-stage-badge::before{
-   content:"";
-   position:absolute;
-   right:8px;
-   top:50%;
-   width:8px;
-   height:8px;
-   border-radius:50%;
-   background:
-    var(--timeline-stage-color,#64748b);
-   transform:translateY(-50%)
-  }
-
-  /* FOLLOW-UP STAGE COLOR END */
-
-
-
-/* CRM KANBAN POPUP MODE START */
-
-body.kanban-followup-popup{
- background:#f5f6f8
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{{ __('crm.app_name', ['default' => 'SokratCRM']) }} — {{ __('crm.followup_for_lead', ['name' => $lead->name]) }}</title>
+<link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
+<link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+
+<style>
+:root {
+  --red: #dc2637;
+  --red-hover: #b81829;
+  --dark: #182033;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  --radius: 16px;
+  --font-primary: var(--font-primary, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
 }
 
-body.kanban-followup-popup .crm-side,
-body.kanban-followup-popup .crm-side-overlay,
+html.dark-mode {
+  --dark: #f1f5f9;
+  --muted: #94a3b8;
+  --line: #334155;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--dark);
+  font-family: var(--font-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+button, input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
+
+.crm-app { display: flex; min-height: 100vh; }
+.crm-main { flex: 1; min-width: 0; padding: 24px 32px 60px; }
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.topbar h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--dark);
+}
+.topbar p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--dark);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+html.dark-mode .btn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--line);
+  color: var(--dark);
+}
+html.dark-mode .btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #475569;
+}
+.btn.primary {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(220, 38, 55, 0.25);
+}
+.btn.primary:hover {
+  background: var(--red-hover);
+  border-color: var(--red-hover);
+  color: #fff;
+}
+.btn.soft {
+  background: #f1f5f9;
+  border-color: transparent;
+  color: #334155;
+}
+html.dark-mode .btn.soft {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+.btn.soft:hover {
+  background: #e2e8f0;
+}
+.btn.small {
+  height: 38px;
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+.topbar-left .btn.small {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+}
+
+/* Client Identity Card */
+.client-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.client-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.client-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.client-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: #fef2f2;
+  color: var(--red);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.client-copy h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--dark);
+}
+.client-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.client-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Client Quick Data Grid */
+.client-data {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.client-data-item {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.client-data-item small {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.client-data-item strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Workspace Layout (2 Columns) */
+.workspace {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Panels */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-head p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.panel-body {
+  padding: 20px;
+}
+
+/* Form Elements */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field.full {
+  grid-column: 1 / -1;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.field label .required {
+  color: var(--red);
+}
+.control {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--card);
+  color: var(--dark);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+textarea.control {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.control:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(220, 38, 55, 0.12);
+}
+html.dark-mode .control {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: var(--line);
+  color: var(--dark);
+}
+.field small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Communication Channel Selector */
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 8px;
+}
+.channel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--dark);
+  text-align: center;
+}
+.channel-card i {
+  font-size: 18px;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+.channel-card:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+.channel-card.active {
+  border-color: var(--red);
+  background: #fef2f2;
+  color: var(--red);
+}
+.channel-card.active i {
+  color: var(--red);
+}
+html.dark-mode .channel-card.active {
+  background: rgba(220, 38, 55, 0.15);
+  border-color: rgba(220, 38, 55, 0.4);
+}
+
+/* Sub-sections / Accordions */
+.followup-stage-editor {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+.followup-stage-editor.is-hidden {
+  display: none !important;
+}
+.followup-editor-head {
+  margin-bottom: 12px;
+}
+.followup-editor-head h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.followup-editor-head p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.followup-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.followup-detail-panel.is-hidden {
+  display: none !important;
+}
+
+/* Quick presets for next followup */
+.presets-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.preset-chip {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.preset-chip:hover {
+  border-color: var(--dark);
+  color: var(--dark);
+}
+
+/* Timeline */
+.timeline {
+  position: relative;
+  padding-inline-start: 24px;
+  margin: 0;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: 7px;
+  width: 2px;
+  background: var(--line);
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 18px;
+}
+.timeline-dot {
+  position: absolute;
+  inset-inline-start: -24px;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px var(--line);
+}
+.timeline-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.timeline-employee {
+  font-weight: 800;
+  color: var(--dark);
+  font-size: 13px;
+}
+.timeline-date {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.timeline-body {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.6;
+}
+html.dark-mode .timeline-body { color: #d4d4d8; }
+.timeline-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #e0f2fe;
+  color: #0369a1;
+  margin-inline-start: 6px;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #475569;
+}
+.badge.active { background: #dcfce7; color: #166534; }
+
+/* Alerts */
+.flash-success {
+  padding: 12px 16px;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+.error-box {
+  padding: 14px 18px;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.error-box strong { display: block; margin-bottom: 6px; }
+.error-box ul { margin: 0; padding-inline-start: 20px; }
+
+/* Kanban popup embedded mode */
+body.kanban-followup-popup {
+  background: transparent !important;
+}
+body.kanban-followup-popup .crm-app {
+  min-height: auto;
+  display: block;
+}
+body.kanban-followup-popup .crm-main {
+  padding: 14px;
+}
+body.kanban-followup-popup .crm-topbar,
 body.kanban-followup-popup .topbar,
-body.kanban-followup-popup
- .latest-followups-panel{
- display:none!important
+body.kanban-followup-popup .latest-followups-panel,
+body.kanban-followup-popup .crm-side {
+  display: none !important;
+}
+body.kanban-followup-popup .workspace {
+  grid-template-columns: 1fr;
+}
+body.kanban-followup-popup .client-card {
+  margin-bottom: 14px;
+  box-shadow: none;
+}
+body.kanban-followup-popup .client-actions {
+  display: none !important;
 }
 
-body.kanban-followup-popup .crm-app{
- display:block!important;
- min-height:auto!important
+@media(max-width: 1024px) {
+  .workspace { grid-template-columns: 1fr; }
 }
-
-body.kanban-followup-popup .crm-main{
- width:100%!important;
- min-width:0!important;
- margin:0!important
+@media(max-width: 768px) {
+  .crm-main { padding: 16px 12px 60px; min-width: 0; width: 100%; max-width: 100%; }
+  .topbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .top-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+  .top-actions .btn { flex: 1 1 auto; min-height: 44px; }
+  .form-grid, .followup-editor-grid { grid-template-columns: 1fr; }
+  .client-head { flex-direction: column; align-items: stretch; gap: 14px; }
+  .client-actions { width: 100%; justify-content: stretch; flex-wrap: wrap; gap: 8px; }
+  .client-actions .btn { flex: 1 1 auto; min-height: 44px; }
 }
-
-body.kanban-followup-popup .shell{
- width:100%!important;
- max-width:none!important;
- margin:0!important;
- padding:14px!important
-}
-
-body.kanban-followup-popup .workspace{
- display:block!important
-}
-
-body.kanban-followup-popup .client-card{
- margin-bottom:12px!important;
- border-radius:14px!important;
- box-shadow:none!important
-}
-
-body.kanban-followup-popup .client-head{
- min-height:auto!important;
- padding:14px 16px!important
-}
-
-body.kanban-followup-popup .client-avatar{
- width:48px!important;
- height:48px!important;
- flex-basis:48px!important;
- border-radius:14px!important;
- font-size:21px!important
-}
-
-body.kanban-followup-popup .client-copy h2{
- margin:4px 0!important;
- font-size:19px!important
-}
-
-body.kanban-followup-popup .client-actions{
- display:none!important
-}
-
-body.kanban-followup-popup .client-data{
- grid-template-columns:
-  repeat(4,minmax(0,1fr))!important
-}
-
-body.kanban-followup-popup .panel{
- border-radius:14px!important;
- box-shadow:none!important
-}
-
-body.kanban-followup-popup
- #lead_status_id:disabled{
- opacity:1!important;
- background:#f2f4f7!important;
- color:#39465a!important;
- cursor:not-allowed
-}
-
-@media(max-width:760px){
- body.kanban-followup-popup
-  .client-data{
-  grid-template-columns:
-   repeat(2,minmax(0,1fr))!important
- }
-}
-
-/* CRM KANBAN POPUP MODE END */
-
 </style>
 </head>
+<body class="{{ request()->boolean('kanban_popup') ? 'kanban-followup-popup' : '' }}">
+@include('partials.page-loader')
+<div class="crm-app lead-followups-page">
+    @include('partials.crm-sidebar')
 
-<body
- @if (
-  request()->boolean(
-   'kanban_popup'
-  )
- )
-  class="kanban-followup-popup"
- @endif
->
- @unless (
-  request()->boolean(
-   'kanban_popup'
-  )
- )
-  @include('partials.page-loader')
- @endunless
-
- <div class="crm-app">
-  @include('partials.crm-sidebar')
-
-  <button
-   class="crm-side-overlay"
-   id="crmSidebarOverlay"
-   type="button"
-   aria-label="{{ __('crm.close_menu') }}"
-  ></button>
-
-  <main class="crm-main">
-   <header class="topbar">
-    <button
-     class="menu-button"
-     id="crmMenuButton"
-     type="button"
-     aria-controls="crmSidebar"
-     aria-expanded="false"
-     aria-label="{{ __('crm.open_menu') }}"
-    >
-     ☰
-    </button>
-
-    <div class="page-title">
-     <h1>{{ __('crm.record_lead_followup') }}</h1>
-     <p>
-      {{ __('crm.followup_subtitle') }}
-     </p>
-    </div>
-
-     @include('partials.profile-dropdown')
-   </header>
-
-   <div class="shell">
-    <section class="client-card">
-     <div class="client-head">
-      <div
-       class="client-avatar"
-       aria-hidden="true"
-      >
-       {{ mb_substr((string) $lead->name, 0, 1) }}
-      </div>
-
-      <div class="client-copy">
-       <small>
-        العميل رقم #{{ $lead->id }}
-       </small>
-
-       <h2>{{ $lead->name }}</h2>
-
-       <p>
-        {{
-         $lead->company_name
-         ?: '----'
-        }}
-        —
-        {{
-         $lead->source
-         ?: '----'
-        }}
-       </p>
-      </div>
-
-      <div class="client-actions">
-       <a
-        class="header-action primary"
-        href="{{ route('v2.leads') }}"
-       >
-        {{ __('crm.back_to_leads_short') }}
-       </a>
-
-       <a
-        class="header-action"
-        href="{{ route(
-         'v2.leads.show',
-         $lead
-        ) }}"
-       >
-        {{ __('crm.view_lead_data') }}
-       </a>
-
-       @if ($callPhone)
-        <a
-         class="header-action"
-         href="callto:{{ $callPhone }}"
-        >
-         {{ __('crm.call_action') }}
-        </a>
-       @endif
-      </div>
-     </div>
-
-     <div class="client-data">
-      <div class="client-data-item">
-       <small>{{ __('crm.phone') }}</small>
-       <strong>
-        {{ $lead->phone ?: '----' }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.email') }}</small>
-       <strong>
-        {{ $lead->email ?: '----' }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.activity') }}</small>
-       <strong>
-        {{ $lead->activity ?: '----' }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.governorate') }}</small>
-       <strong>
-        {{ $lead->governorate ?: '----' }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.current_status') }}</small>
-       <strong>
-        {{
-         $lead->status?->name_ar
-         ?? '----'
-        }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.current_stage') }}</small>
-       <strong>
-        {{
-         $lead->status?->stage?->name_ar
-         ?? '----'
-        }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.responsible_employee') }}</small>
-       <strong>
-        {{
-         $lead->assignedUser?->name
-         ?? $lead->assigned_employee
-         ?: '----'
-        }}
-       </strong>
-      </div>
-
-      <div class="client-data-item">
-       <small>{{ __('crm.next_followup') }}</small>
-       <strong>
-        {{
-         $lead->next_follow_up_at
-          ?->format('d/m/Y - h:i A')
-         ?? '----'
-        }}
-       </strong>
-      </div>
-     </div>
-    </section>
-
-    @if (session('success'))
-     <div class="flash-success">
-      {{ session('success') }}
-     </div>
-    @endif
-
-    @if ($errors->any())
-     <div class="error-box">
-      <strong>
-       {{ __('crm.review_followup_data') }}
-      </strong>
-
-      <ul>
-       @foreach ($errors->all() as $error)
-        <li>{{ $error }}</li>
-       @endforeach
-      </ul>
-     </div>
-    @endif
-
-    <div class="workspace">
-     @can('leads.followups.create')
-     <section class="panel">
-      <header class="panel-head">
-       <h3>{{ __('crm.new_followup_data') }}</h3>
-       <p>
-        الموظف المسجل:
-        {{ $currentEmployee }}
-       </p>
-      </header>
-
-      <div class="panel-body">
-       <form
-        method="POST"
-         enctype="multipart/form-data"
-        action="{{ route(
-         'v2.leads.followups.store',
-         $lead
-        ) }}"
-       >
-        @csrf
-
-
-        @if (
-         request()->boolean(
-          'kanban_popup'
-         )
-        )
-         <input
-          type="hidden"
-          name="kanban_popup"
-          value="1"
-         >
-        @endif
-
+    <main class="crm-main">
         @php
-         $selectedStatusId = (int) old(
-          'lead_status_id',
-          $defaultStatusId
-           ?? $lead->lead_status_id
-         );
-
-         $selectedCommunicationType =
-          (string) old(
-           'communication_type',
-           $defaultCommunicationType
-          );
+            $followupTopActions = '<a href="' . route('v2.leads.show', $lead) . '" class="btn soft"><i class="bi bi-eye"></i> ' . __('crm.view_lead_data') . '</a>';
+            if ($callPhone) {
+                $followupTopActions .= '<a href="tel:' . $callPhone . '" class="btn primary"><i class="bi bi-telephone-outbound"></i> ' . __('crm.call_action') . '</a>';
+            }
+            $visibleCustomerAttributes = ($customerFields ?? collect())->keyBy('lead_attribute');
         @endphp
 
-         <div class="form-grid">
-         <div class="field">
-          <label for="lead_status_id">
-           {{ __('crm.status_stage') }}
-          </label>
-
-          <select
-           class="control"
-           id="lead_status_id"
-           name="lead_status_id"
-           required
-           @if (
-            request()->boolean(
-             'kanban_popup'
-            )
-           )
-            disabled
-           @endif
-          >
-           @foreach (
-            $statusGroups
-            as $stageName => $stageStatuses
-           )
-            <optgroup label="{{ $stageName }}">
-             @foreach ($stageStatuses as $status)
-              <option
-               value="{{ $status->id }}"
-               data-stage-name="{{ $status->stage?->name_ar ?? '----' }}"
-               data-stage-description="{{ $status->stage?->description_ar ?? '----' }}"
-               data-stage-code="{{ $status->stage?->code ?? '----' }}"
-               data-stage-position="{{ $status->stage?->position ?? '----' }}"
-               data-stage-color="{{ $status->stage?->color ?? '#64748b' }}"
-               data-status-name="{{ $status->name_ar }}"
-               data-status-code="{{ $status->code }}"
-               data-status-color="{{ $status->color ?? '#64748b' }}"
-               data-terminal="{{ $status->is_terminal ? '1' : '0' }}"
-               @selected(
-                $selectedStatusId
-                === (int) $status->id
-               )
-              >
-               {{ $status->name_ar }}
-              </option>
-             @endforeach
-            </optgroup>
-           @endforeach
-          </select>
-
-          @if (
-           request()->boolean(
-            'kanban_popup'
-           )
-          )
-           <input
-            type="hidden"
-            name="lead_status_id"
-            value="{{ $selectedStatusId }}"
-           >
-          @endif
-
-
-          
-
-          <small>
-           @if (
-            request()->boolean(
-             'kanban_popup'
-            )
-           )
-            الحالة الجديدة محددة تلقائيًا
-            من العمود الذي تم نقل العميل إليه.
-           @else
-            اختيار الحالة يحدد المرحلة الجديدة
-            للعميل.
-           @endif
-          </small>
-          </div>
-
-          @if ($manageableCampaigns->isNotEmpty())
-           <div class="field">
-            <label for="followupCampaign">{{ __('crm.campaign') }}</label>
-            <select class="control" id="followupCampaign" name="campaign_id">
-             <option value="">{{ __('crm.no_campaign_change') }}</option>
-             @foreach ($manageableCampaigns as $campaignOption)
-              <option
-               value="{{ $campaignOption->id }}"
-               data-user-ids="{{ implode(',', $campaignOption->users->modelKeys()) }}"
-               @selected(
-                (int) old('campaign_id', $currentCampaign?->id)
-                 === (int) $campaignOption->id
-               )
-              >
-               {{ $campaignOption->name }}
-              </option>
-             @endforeach
-            </select>
-            <small>{{ __('crm.followup_campaign_hint') }}</small>
-           </div>
-
-           <div class="field">
-            <label for="followupAssignedUser">{{ __('crm.campaign_responsible_employee') }}</label>
-            <select class="control" id="followupAssignedUser" name="assigned_user_id">
-             <option value="">{{ __('crm.select_responsible_employee') }}</option>
-             @foreach ($campaignAssignees as $assignee)
-              <option
-               value="{{ $assignee->id }}"
-               data-user-id="{{ $assignee->id }}"
-               @selected(
-                (int) old('assigned_user_id', $lead->assigned_user_id)
-                 === (int) $assignee->id
-               )
-              >
-               {{ $assignee->name }}
-              </option>
-             @endforeach
-            </select>
-            <small>تظهر فقط مستخدمو الحملة المسموح لك بالإسناد إليهم.</small>
-           </div>
-          @endif
-
-          <!-- FOLLOW-UP EDITABLE STAGE DATA START -->
-
-         <section
-          class="followup-stage-editor is-hidden"
-          id="businessDetailsSection"
-         >
-          <header class="followup-editor-head">
-           <div>
-            <h3>{{ __('crm.company_lead_data') }}</h3>
-            <p>
-             عدّل البيانات الحالية ثم اضغط حفظ المتابعة.
-            </p>
-           </div>
-          </header>
-
-          <div class="followup-editor-grid">
-           <div class="field">
-            <label for="companyName">
-             {{ __('crm.company_name') }}
-            </label>
-
-            <input
-             class="control"
-             id="companyName"
-             type="text"
-             name="company_name"
-             value="{{ old(
-              'company_name',
-              $lead->company_name
-             ) }}"
-             maxlength="150"
-            >
-           </div>
-
-           <div class="field">
-            <label for="activity">
-             {{ __('crm.activity') }}
-            </label>
-
-            <input
-             class="control"
-             id="activity"
-             type="text"
-             name="activity"
-             value="{{ old(
-              'activity',
-              $lead->activity
-             ) }}"
-             maxlength="150"
-            >
-           </div>
-
-           <div class="field">
-            <label for="governorate">
-             {{ __('crm.governorate') }}
-            </label>
-
-            <input
-             class="control"
-             id="governorate"
-             type="text"
-             name="governorate"
-             value="{{ old(
-              'governorate',
-              $lead->governorate
-             ) }}"
-             maxlength="100"
-            >
-           </div>
-
-           <div class="field full">
-            <label for="address">
-             {{ __('crm.address') }}
-            </label>
-
-            <input
-             class="control"
-             id="address"
-             type="text"
-             name="address"
-             value="{{ old(
-              'address',
-              $lead->address
-             ) }}"
-             maxlength="255"
-            >
-           </div>
-
-           <div class="field">
-            <label for="usersCount">
-             {{ __('crm.user_count') }}
-            </label>
-
-            <input
-             class="control"
-             id="usersCount"
-             type="number"
-             name="users_count"
-             value="{{ old(
-              'users_count',
-              $lead->users_count
-             ) }}"
-             min="0"
-             max="1000000"
-            >
-           </div>
-
-           <div class="field">
-            <label for="branchesCount">
-             {{ __('crm.branch_count') }}
-            </label>
-
-            <input
-             class="control"
-             id="branchesCount"
-             type="number"
-             name="branches_count"
-             value="{{ old(
-              'branches_count',
-              $lead->branches_count
-             ) }}"
-             min="0"
-             max="1000000"
-            >
-           </div>
-
-           <div class="field">
-            <label for="jobTitle">
-             {{ __('crm.job_title') }}
-            </label>
-
-            <input
-             class="control"
-             id="jobTitle"
-             type="text"
-             name="job_title"
-             value="{{ old(
-              'job_title',
-              $lead->job_title
-             ) }}"
-             maxlength="150"
-            >
-           </div>
-          </div>
-         </section>
-
-         <section
-          class="followup-stage-editor is-hidden"
-          id="notInterestedSection"
-         >
-          <header class="followup-editor-head">
-           <div>
-            <h3>{{ __('crm.not_interested_reason') }}</h3>
-            <p>
-             سجّل سبب عدم اهتمام العميل.
-            </p>
-           </div>
-          </header>
-
-          <div class="followup-editor-grid">
-           <div class="field full">
-            <label for="disinterestReason">
-             {{ __('crm.not_interested_reason') }}
-             <span class="required">*</span>
-            </label>
-
-            <textarea
-             class="control"
-             id="disinterestReason"
-             name="disinterest_reason"
-             maxlength="5000"
-            >{{ old(
-             'disinterest_reason',
-             $lead->disinterest_reason
-            ) }}</textarea>
-           </div>
-          </div>
-         </section>
-
-         <section
-          class="followup-stage-editor is-hidden"
-          id="quotationSection"
-         >
-          <header class="followup-editor-head">
-           <div>
-            <h3>{{ __('crm.quotation_data') }}</h3>
-            <p>
-             تظهر في عرض سعر، مناقشة،
-             تقفيل عقد وتنفيذ.
-            </p>
-           </div>
-          </header>
-
-          <div class="followup-editor-grid">
-           <div class="field">
-            <label for="solutionType">
-             {{ __('crm.system_type') }}
-             <span class="required">*</span>
-            </label>
-
-            <select
-             class="control"
-             id="solutionType"
-             name="solution_type"
-            >
-             <option value="">
-              {{ __('crm.select_system_type') }}
-             </option>
-
-             <option
-              value="call_center"
-              @selected(
-               old(
-                'solution_type',
-                $lead->solution_type
-               ) === 'call_center'
-              )
-             >
-              Call Center
-             </option>
-
-             <option
-              value="erp"
-              @selected(
-               old(
-                'solution_type',
-                $lead->solution_type
-               ) === 'erp'
-              )
-             >
-              ERP
-             </option>
-            </select>
-           </div>
-
-           <div class="field">
-            <label for="quotationFile">
-             ملف عرض السعر
-
-             @if ($hasQuotationFile)
-              <span class="optional">
-               (يوجد ملف حالي)
-              </span>
-             @else
-              <span class="required">*</span>
-             @endif
-            </label>
-
-            <input
-             class="control"
-             id="quotationFile"
-             type="file"
-             name="quotation_file"
-             accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-            >
-
-            <small
-             class="followup-file-help"
-             id="quotationFileHelp"
-            >
-             {{ $quotationFileHelpText }}
-            </small>
-
-            @if ($hasQuotationFile)
-             <a
-              class="followup-quotation-preview"
-              href="{{ route(
-               'v2.leads.quotation.preview',
-               $lead
-              ) }}"
-              target="_blank"
-              rel="noopener noreferrer"
-             >
-              👁 معاينة الملف الحالي
-             </a>
-            @endif
-           </div>
-          </div>
-
-          <div
-           class="followup-editor-grid followup-detail-panel is-hidden"
-           id="callCenterFields"
-          >
-           <div class="field">
-            <label for="linesCount">
-             {{ __('crm.line_count') }}
-             <span class="required">*</span>
-            </label>
-
-            <input
-             class="control"
-             id="linesCount"
-             type="number"
-             name="lines_count"
-             value="{{ old(
-              'lines_count',
-              $lead->lines_count
-             ) }}"
-             min="1"
-             max="1000000"
-            >
-           </div>
-
-           <div class="field full">
-            <label for="extensions">
-             {{ __('crm.accessories') }}
-             <span class="required">*</span>
-            </label>
-
-            <textarea
-             class="control"
-             id="extensions"
-             name="extensions"
-             maxlength="5000"
-            >{{ old(
-             'extensions',
-             $lead->extensions
-            ) }}</textarea>
-           </div>
-          </div>
-
-          <div
-           class="followup-editor-grid followup-detail-panel is-hidden"
-           id="erpFields"
-          >
-           <div class="field full">
-            <label for="departments">
-             {{ __('crm.departments') }}
-             <span class="required">*</span>
-            </label>
-
-            <textarea
-             class="control"
-             id="departments"
-             name="departments"
-             maxlength="5000"
-            >{{ old(
-             'departments',
-             $lead->departments
-            ) }}</textarea>
-           </div>
-          </div>
-         </section>
-
-         <!-- FOLLOW-UP EDITABLE STAGE DATA END -->
-
-
-         <div class="field">
-          <label for="communication_type">
-           نوع التواصل
-          </label>
-
-          <select
-           class="control"
-           id="communication_type"
-           name="communication_type"
-           required
-          >
-           @foreach (
-            $communicationTypes
-            as $typeCode => $typeLabel
-           )
-            <option
-             value="{{ $typeCode }}"
-             @selected(
-              $selectedCommunicationType
-              === $typeCode
-             )
-            >
-             {{ $typeLabel }}
-            </option>
-           @endforeach
-          </select>
-         </div>
-
-         <div class="field">
-          <label>اسم الموظف</label>
-
-          <div class="employee-display">
-           {{ $currentEmployee }}
-          </div>
-
-          <small>
-           يتم تسجيل الاسم تلقائيًا من
-           جلسة الموظف الحالية.
-          </small>
-         </div>
-
-         <div class="field">
-          <label for="next_follow_up_at">
-           {{ __('crm.next_followup_date') }}
-          </label>
-
-          <input
-           class="control"
-           id="next_follow_up_at"
-           name="next_follow_up_at"
-           type="datetime-local"
-           value="{{ old(
-            'next_follow_up_at',
-            $lead->next_follow_up_at
-             ?->format('Y-m-d\TH:i')
-           ) }}"
-          >
-
-          <small>
-           اتركه فارغًا في حالة عدم وجود
-           متابعة قادمة.
-          </small>
-         </div>
-
-         <div class="field full">
-          <label for="outcome">
-           {{ __('crm.followup_notes') }}
-          </label>
-
-          <textarea
-           class="control"
-           id="outcome"
-           name="outcome"
-           maxlength="5000"
-           
-           placeholder="{{ __('crm.followup_notes_placeholder') }}"
-          >{{ old('outcome') }}</textarea>
-         </div>
-        </div>
-
-        <div class="submit-row">
-         <button
-          class="submit-button"
-          type="submit"
-         >
-          {{ __('crm.save_followup') }}
-         </button>
-        </div>
-       </form>
-      </div>
-     </section>
-     @endcan
-
-     <section class="panel latest-followups-panel">
-      <header class="panel-head">
-       <h3>{{ __('crm.latest_followups') }}</h3>
-       <p>
-        {{ __('crm.latest_20_followups') }}
-       </p>
-      </header>
-
-      <div class="panel-body">
-       <div class="timeline">
-        @forelse ($followups as $followup)
-         @php
-          $timelineStageColor = trim(
-           (string) (
-            $followup->toStatus?->stage?->color
-            ?? ''
-           )
-          );
-
-          if (
-           !preg_match(
-            '/^#[0-9a-fA-F]{6}$/',
-            $timelineStageColor
-           )
-          ) {
-           $timelineStageColor = '#64748b';
-          }
-         @endphp
-
-         <article
-          class="timeline-item"
-          style="--timeline-stage-color:{{ $timelineStageColor }}"
-         >
-          <div class="timeline-top">
-           <span class="timeline-employee">
-            {{ $followup->user?->name ?? $followup->employee_name }}
-           </span>
-
-           <time class="timeline-date">
-            {{
-             $followup->followed_up_at
-              ?->format('d/m/Y - h:i A')
-             ?? '----'
-            }}
-           </time>
-          </div>
-
-          <div class="timeline-badges">
-           <span
-            class="timeline-badge channel"
-           >
-            {{
-             $communicationTypes[
-              $followup->communication_type
-             ]
-             ?? $followup->communication_type
-            }}
-           </span>
-
-           <span class="timeline-badge timeline-stage-badge">
-            {{
-             $followup->toStatus?->stage
-              ?->name_ar
-             ?? '----'
-            }}
-            —
-            {{
-             $followup->toStatus?->name_ar
-             ?? '----'
-            }}
-           </span>
-          </div>
-
-          <p class="timeline-outcome">{{
-           $followup->outcome
-          }}</p>
-
-           @if (!empty($followup->field_changes))
-            <div class="timeline-field-changes">
-             <strong>
-              التعديلات التي قام بها الموظف
-             </strong>
-
-             <ul class="timeline-change-list">
-              @foreach (
-               $followup->field_changes
-               as $change
-              )
-               <li class="timeline-change-item">
-                <span class="timeline-change-label">
-                 {{ $change['label'] ?? __('crm.edit') }}
-                </span>
-
-                <div class="timeline-change-values">
-                 <span class="timeline-change-old">
-                  {{ $change['old'] ?? '----' }}
-                 </span>
-
-                 <span aria-hidden="true">
-                  ←
-                 </span>
-
-                 <span class="timeline-change-new">
-                  {{ $change['new'] ?? '----' }}
-                 </span>
+        @include('partials.topbar', [
+            'title' => __('crm.followup_for_lead', ['name' => $lead->name]),
+            'subtitle' => '<span>' . __('crm.lead_code_label') . ': #' . $lead->id . '</span> <span style="margin:0 6px">•</span> <span>' . __('crm.registered_at') . ': ' . ($lead->created_at?->format('Y-m-d') ?? '—') . '</span>',
+            'icon' => 'bi-chat-dots-fill',
+            'backUrl' => route('v2.leads.show', $lead),
+            'backTitle' => __('crm.lead_details'),
+            'actions' => $followupTopActions,
+        ])
+
+        <!-- CLIENT IDENTITY & OVERVIEW CARD -->
+        <section class="client-card">
+            <div class="client-head">
+                <div class="client-identity">
+                    <div class="client-avatar">
+                        {{ mb_substr((string) $lead->name, 0, 1) }}
+                    </div>
+                    <div class="client-copy">
+                        <h2>{{ $lead->name }}</h2>
+                        <p>
+                            @if ($visibleCustomerAttributes->has('company_name') && $lead->company_name)
+                                <span><i class="bi bi-building"></i> {{ $lead->company_name }}</span>
+                                <span>•</span>
+                            @endif
+                            @if ($visibleCustomerAttributes->has('governorate') && $lead->governorate)
+                                <span><i class="bi bi-geo-alt"></i> {{ $lead->governorate }}</span>
+                                <span>•</span>
+                            @endif
+                            <span><i class="bi bi-person-badge"></i> {{ $lead->assignedUser?->name ?? $lead->assigned_employee ?? __('crm.unassigned') }}</span>
+                        </p>
+                    </div>
                 </div>
-               </li>
-              @endforeach
-             </ul>
+
+                <div class="client-actions">
+                    <a href="{{ route('v2.leads.show', $lead) }}" class="btn soft small">
+                        <i class="bi bi-person"></i> {{ __('crm.view_lead_data') }}
+                    </a>
+                    @if ($callPhone)
+                        <a href="tel:{{ $callPhone }}" class="btn soft small" style="color:#2563eb">
+                            <i class="bi bi-telephone"></i> {{ __('crm.call_action') }}
+                        </a>
+                    @endif
+                </div>
             </div>
-           @endif
-
-          <div class="timeline-next">
-           المتابعة القادمة:
-           {{
-            $followup->next_follow_up_at
-             ?->format('d/m/Y - h:i A')
-            ?? '----'
-           }}
-          </div>
-         </article>
-        @empty
-         <div class="empty-state">
-          لا توجد متابعات مسجلة لهذا العميل
-          حتى الآن.
-         </div>
-        @endforelse
-       </div>
-      </div>
-     </section>
-    </div>
-   </div>
-  </main>
- </div>
-
- <script>
- (() => {
-  const body = document.body;
-
-  const menuButton =
-   document.getElementById('crmMenuButton');
-
-  const overlay =
-   document.getElementById(
-    'crmSidebarOverlay'
-   );
-
-  const setSidebarOpen = (open) => {
-   body.classList.toggle(
-    'crm-side-open',
-    open
-   );
-
-   menuButton?.setAttribute(
-    'aria-expanded',
-    open ? 'true' : 'false'
-   );
-  };
-
-  menuButton?.addEventListener(
-   'click',
-   () => {
-    setSidebarOpen(
-     !body.classList.contains(
-      'crm-side-open'
-     )
-    );
-   }
-  );
-
-  overlay?.addEventListener(
-   'click',
-   () => setSidebarOpen(false)
-  );
-
-  document
-   .querySelectorAll('[data-crm-menu]')
-   .forEach((toggle) => {
-    toggle.addEventListener(
-     'click',
-     () => {
-      const menuId =
-       toggle.getAttribute(
-        'data-crm-menu'
-       );
-
-      const menu = menuId
-       ? document.getElementById(menuId)
-       : null;
-
-      if (!menu) {
-       return;
-      }
-
-      const willOpen =
-       toggle.getAttribute(
-        'aria-expanded'
-       ) !== 'true';
-
-      toggle.setAttribute(
-       'aria-expanded',
-       willOpen ? 'true' : 'false'
-      );
-
-      menu.classList.toggle(
-       'open',
-       willOpen
-      );
-     }
-    );
-   });
-
-  document.addEventListener(
-   'keydown',
-   (event) => {
-    if (event.key === 'Escape') {
-     setSidebarOpen(false);
-    }
-   }
-  );
-
-  const followupStatusSelect =
-   document.getElementById(
-    'lead_status_id'
-   );
-
-  const followupCampaignSelect =
-   document.getElementById('followupCampaign');
-
-  const followupAssignedUserSelect =
-   document.getElementById('followupAssignedUser');
-
-  const updateFollowupCampaignUsers = () => {
-   if (!followupCampaignSelect || !followupAssignedUserSelect) return;
-
-   const campaignOption = followupCampaignSelect.selectedOptions[0];
-   const userIds = new Set(
-    (campaignOption?.dataset?.userIds || '').split(',').filter(Boolean)
-   );
-   const hasCampaign = followupCampaignSelect.value !== '';
-
-   [...followupAssignedUserSelect.options].forEach((option) => {
-    if (option.value === '') {
-     option.hidden = false;
-     option.disabled = hasCampaign;
-     return;
-    }
-
-    const allowed = hasCampaign && userIds.has(option.dataset.userId || option.value);
-    option.hidden = !allowed;
-    option.disabled = !allowed;
-   });
-
-   const selected = followupAssignedUserSelect.selectedOptions[0];
-   if (!hasCampaign) {
-    followupAssignedUserSelect.value = '';
-    followupAssignedUserSelect.required = false;
-    return;
-   }
-
-   followupAssignedUserSelect.required = true;
-
-   if (!selected || selected.disabled) {
-    const firstAllowed = [...followupAssignedUserSelect.options]
-     .find((option) => option.value !== '' && !option.disabled);
-    followupAssignedUserSelect.value = firstAllowed?.value || '';
-   }
-  };
-
-  const followupBusinessSection =
-   document.getElementById(
-    'businessDetailsSection'
-   );
-
-  const followupNotInterestedSection =
-   document.getElementById(
-    'notInterestedSection'
-   );
-
-  const followupQuotationSection =
-   document.getElementById(
-    'quotationSection'
-   );
-
-  const followupSolutionType =
-   document.getElementById(
-    'solutionType'
-   );
-
-  const followupCallCenterFields =
-   document.getElementById(
-    'callCenterFields'
-   );
-
-  const followupErpFields =
-   document.getElementById(
-    'erpFields'
-   );
-
-  const followupDisinterestReason =
-   document.getElementById(
-    'disinterestReason'
-   );
-
-  const followupQuotationFile =
-   document.getElementById(
-    'quotationFile'
-   );
-
-  const followupLinesCount =
-   document.getElementById(
-    'linesCount'
-   );
-
-  const followupExtensions =
-   document.getElementById(
-    'extensions'
-   );
-
-  const followupDepartments =
-   document.getElementById(
-    'departments'
-   );
-
-  const followupHasQuotationFile =
-   @json($hasQuotationFile);
-
-  const followupQuotationFileHelp =
-   document.getElementById(
-    'quotationFileHelp'
-   );
-
-  const followupQuotationDefaultHelp =
-   @json($quotationFileHelpText);
-
-  const followupQuotationStatuses = [
-   'quotation',
-   'discussion',
-   'contract_closed',
-   'execution'
-  ];
-
-  const followupBusinessStatuses = [
-   'interested',
-   'no_answer',
-   'meeting',
-   'quotation',
-   'discussion',
-   'contract_closed',
-   'execution'
-  ];
-
-  const followupSelectedStatusCode =
-   () => {
-    const option =
-     followupStatusSelect
-      ?.selectedOptions?.[0];
-
-    return (
-     option?.dataset?.statusCode
-     || ''
-    );
-   };
-
-  const updateFollowupSolutionFields =
-   () => {
-    const quotationActive =
-     followupQuotationStatuses.includes(
-      followupSelectedStatusCode()
-     );
-
-    const solution =
-     quotationActive
-      ? followupSolutionType?.value
-      : '';
-
-    const callCenterActive =
-     solution === 'call_center';
-
-    const erpActive =
-     solution === 'erp';
-
-    followupCallCenterFields
-     ?.classList.toggle(
-      'is-hidden',
-      !callCenterActive
-     );
-
-    followupErpFields
-     ?.classList.toggle(
-      'is-hidden',
-      !erpActive
-     );
-
-    if (followupLinesCount) {
-     followupLinesCount.required =
-      callCenterActive;
-    }
-
-    if (followupExtensions) {
-     followupExtensions.required =
-      callCenterActive;
-    }
-
-    if (followupDepartments) {
-     followupDepartments.required =
-      erpActive;
-    }
-   };
-
-  const updateFollowupStageEditor =
-   () => {
-    const code =
-     followupSelectedStatusCode();
-
-    const businessActive =
-     followupBusinessStatuses.includes(
-      code
-     );
-
-    const notInterestedActive =
-     code === 'not_interested';
-
-    const quotationActive =
-     followupQuotationStatuses.includes(
-      code
-     );
-
-    followupBusinessSection
-     ?.classList.toggle(
-      'is-hidden',
-      !businessActive
-     );
-
-    followupNotInterestedSection
-     ?.classList.toggle(
-      'is-hidden',
-      !notInterestedActive
-     );
-
-    followupQuotationSection
-     ?.classList.toggle(
-      'is-hidden',
-      !quotationActive
-     );
-
-    if (followupDisinterestReason) {
-     followupDisinterestReason.required =
-      notInterestedActive;
-    }
-
-    if (followupSolutionType) {
-     followupSolutionType.required =
-      quotationActive;
-    }
-
-    if (followupQuotationFile) {
-     followupQuotationFile.required =
-      quotationActive
-      && !followupHasQuotationFile;
-    }
-
-    updateFollowupSolutionFields();
-   };
-
-  followupStatusSelect
-   ?.addEventListener(
-    'change',
-    updateFollowupStageEditor
-   );
-
-  followupCampaignSelect?.addEventListener(
-   'change',
-   updateFollowupCampaignUsers
-  );
-
-  followupSolutionType
-   ?.addEventListener(
-    'change',
-    updateFollowupSolutionFields
-   );
-
-  followupQuotationFile
-   ?.addEventListener(
-    'change',
-    () => {
-     const file =
-      followupQuotationFile.files?.[0];
-
-     if (followupQuotationFileHelp) {
-      followupQuotationFileHelp
-       .textContent = file
-        ? 'تم اختيار الملف: '
-          + file.name
-        : followupQuotationDefaultHelp;
-     }
-    }
-   );
-
-  updateFollowupCampaignUsers();
-  updateFollowupStageEditor();
-
- })();
- </script>
-
-@if (
- request()->boolean(
-  'kanban_popup'
- )
- && request()->boolean(
-  'saved'
- )
- && session('success')
-)
+
+            <div class="client-data">
+                <div class="client-data-item">
+                    <small>{{ __('crm.phone') }}</small>
+                    <strong dir="ltr">
+                        @if ($callPhone)
+                            <a href="tel:{{ $callPhone }}" style="color:inherit">{{ $lead->phone }}</a>
+                        @else
+                            {{ $lead->phone ?: '—' }}
+                        @endif
+                    </strong>
+                </div>
+                <div class="client-data-item">
+                    <small>{{ __('crm.email') }}</small>
+                    <strong>{{ $lead->email ?: '—' }}</strong>
+                </div>
+                @if ($activityField = $visibleCustomerAttributes->get('activity'))
+                    <div class="client-data-item">
+                        <small>{{ $activityField->localizedLabel() }}</small>
+                        <strong>{{ $lead->activity ?: '—' }}</strong>
+                    </div>
+                @endif
+                <div class="client-data-item">
+                    <small>{{ __('crm.current_stage') }}</small>
+                    <strong>{{ $lead->status?->stage?->localizedName() ?? ($lead->status?->stage?->name_ar ?? '—') }}</strong>
+                </div>
+                <div class="client-data-item">
+                    <small>{{ __('crm.current_status') }}</small>
+                    <strong style="color:{{ $lead->status?->color ?? 'inherit' }}">{{ $lead->status?->name_ar ?? '—' }}</strong>
+                </div>
+                <div class="client-data-item">
+                    <small>{{ __('crm.responsible_employee') }}</small>
+                    <strong>{{ $lead->assignedUser?->name ?? $lead->assigned_employee ?: __('crm.unassigned') }}</strong>
+                </div>
+                <div class="client-data-item">
+                    <small>{{ __('crm.next_followup') }}</small>
+                    <strong>{{ $lead->next_follow_up_at ? $lead->next_follow_up_at->format('d/m/Y - h:i A') : '—' }}</strong>
+                </div>
+            </div>
+        </section>
+
+        @if (session('success'))
+            <div class="flash-success">
+                <i class="bi bi-check-circle-fill"></i> {{ session('success') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="error-box">
+                <strong><i class="bi bi-exclamation-triangle-fill"></i> {{ __('crm.review_followup_data') }}</strong>
+                <ul>
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <div class="workspace">
+            <!-- MAIN FORM COLUMN -->
+            @can('leads.followups.create')
+            <section class="panel">
+                <div class="panel-head">
+                    <h3><i class="bi bi-pencil-square"></i> {{ __('crm.new_followup_data') }}</h3>
+                    <p><i class="bi bi-person-check"></i> الموظف المسجل: <strong>{{ $currentEmployee }}</strong></p>
+                </div>
+
+                <div class="panel-body">
+                    <form method="POST" enctype="multipart/form-data" action="{{ route('v2.leads.followups.store', $lead) }}" id="followupForm">
+                        @csrf
+
+                        @if (request()->boolean('kanban_popup'))
+                            <input type="hidden" name="kanban_popup" value="1">
+                        @endif
+
+                        @php
+                            $selectedStatusId = (int) old('lead_status_id', $defaultStatusId ?? $lead->lead_status_id);
+                            $selectedCommunicationType = (string) old('communication_type', $defaultCommunicationType);
+                        @endphp
+
+                        <div class="form-grid">
+                            <!-- STATUS & STAGE -->
+                            <div class="field full">
+                                <label for="lead_status_id">
+                                    {{ __('crm.status_stage') }} <span class="required">*</span>
+                                </label>
+                                <select
+                                    class="control"
+                                    id="lead_status_id"
+                                    name="lead_status_id"
+                                    required
+                                    @if (request()->boolean('kanban_popup')) disabled @endif
+                                >
+                                    @foreach ($statusGroups as $stageName => $stageStatuses)
+                                        <optgroup label="{{ $stageName }}">
+                                            @foreach ($stageStatuses as $status)
+                                                <option
+                                                    value="{{ $status->id }}"
+                                                    data-stage-id="{{ $status->pipeline_stage_id }}"
+                                                    data-stage-name="{{ $status->stage?->name_ar ?? '----' }}"
+                                                    data-stage-description="{{ $status->stage?->description_ar ?? '----' }}"
+                                                    data-stage-code="{{ $status->stage?->code ?? '----' }}"
+                                                    data-stage-position="{{ $status->stage?->position ?? '----' }}"
+                                                    data-stage-color="{{ $status->stage?->color ?? '#64748b' }}"
+                                                    data-status-name="{{ $status->name_ar }}"
+                                                    data-status-code="{{ $status->code }}"
+                                                    data-status-color="{{ $status->color ?? '#64748b' }}"
+                                                    data-terminal="{{ $status->is_terminal ? '1' : '0' }}"
+                                                    @selected($selectedStatusId === (int) $status->id)
+                                                >
+                                                    {{ $status->name_ar }}
+                                                </option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+
+                                @if (request()->boolean('kanban_popup'))
+                                    <input type="hidden" name="lead_status_id" value="{{ $selectedStatusId }}">
+                                @endif
+                                <small>
+                                    @if (request()->boolean('kanban_popup'))
+                                        الحالة الجديدة محددة تلقائيًا من العمود الذي تم نقل العميل إليه.
+                                    @else
+                                        اختيار الحالة يحدد المرحلة الجديدة للعميل.
+                                    @endif
+                                </small>
+                            </div>
+
+                            <!-- DYNAMIC STAGE QUESTIONS CONTAINER -->
+                            <div id="dynamicStageQuestionsSection" class="field full" style="margin-top:4px;">
+                                @foreach (($activeStages ?? []) as $astage)
+                                    @if ($astage->activeFields->isNotEmpty())
+                                        <div class="stage-questions-block" id="stage_q_block_{{ $astage->id }}" data-stage-id="{{ $astage->id }}" style="display:none; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;">
+                                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; font-weight:800; font-size:14px; color:var(--dark);">
+                                                <i class="bi bi-ui-checks" style="color:var(--red);"></i>
+                                                <span>{{ __('crm.stage_questions') }} ({{ $astage->localizedName() }})</span>
+                                            </div>
+                                            @include('partials.stage-field-inputs', [
+                                                'fields' => $astage->activeFields,
+                                                'recordValues' => old('stage_fields', []),
+                                                'prefix' => 'stage_fields',
+                                                'scope' => 'followup_' . $astage->id,
+                                            ])
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+
+                            <!-- CAMPAIGN SELECTION (IF APPLICABLE) -->
+                            @if ($manageableCampaigns->isNotEmpty())
+                                <div class="field">
+                                    <label for="followupCampaign"><i class="bi bi-megaphone"></i> {{ __('crm.campaign') }}</label>
+                                    <select class="control" id="followupCampaign" name="campaign_id">
+                                        <option value="">{{ __('crm.no_campaign_change') }}</option>
+                                        @foreach ($manageableCampaigns as $campaignOption)
+                                            <option
+                                                value="{{ $campaignOption->id }}"
+                                                data-user-ids="{{ implode(',', $campaignOption->users->modelKeys()) }}"
+                                                @selected(old('campaign_id', $currentCampaign?->id) === $campaignOption->id)
+                                            >
+                                                {{ $campaignOption->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="field">
+                                    <label for="followupCampaignAssignee"><i class="bi bi-person-check"></i> {{ __('crm.assigned_employee') }}</label>
+                                    <select class="control" id="followupCampaignAssignee" name="assigned_user_id">
+                                        <option value="">{{ __('crm.keep_current_assignee') }}</option>
+                                        @foreach ($campaignAssignees as $campaignAssignee)
+                                            <option
+                                                value="{{ $campaignAssignee->id }}"
+                                                @selected((int) old('assigned_user_id', $lead->assigned_user_id) === (int) $campaignAssignee->id)
+                                            >
+                                                {{ $campaignAssignee->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
+
+                            <!-- COMMUNICATION TYPE SELECTOR -->
+                            <div class="field full">
+                                <label>{{ __('crm.communication_type') }} <span class="required">*</span></label>
+                                <input type="hidden" name="communication_type" id="communicationTypeInput" value="{{ $selectedCommunicationType }}">
+                                <div class="channel-grid">
+                                    @foreach ($communicationTypes as $commKey => $commLabel)
+                                        @php
+                                            $commIcon = match($commKey) {
+                                                'call' => 'bi-telephone',
+                                                'whatsapp' => 'bi-whatsapp',
+                                                'meeting' => 'bi-people',
+                                                'email' => 'bi-envelope',
+                                                default => 'bi-clock-history',
+                                            };
+                                        @endphp
+                                        <div
+                                            class="channel-card {{ $selectedCommunicationType === $commKey ? 'active' : '' }}"
+                                            data-channel="{{ $commKey }}"
+                                            onclick="selectChannel('{{ $commKey }}')"
+                                        >
+                                            <i class="bi {{ $commIcon }}"></i>
+                                            <span>{{ $commLabel }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <!-- OUTCOME NOTES -->
+                            <div class="field full">
+                                <label for="followupOutcome">
+                                    {{ __('crm.followup_notes') }} <span class="required">*</span>
+                                </label>
+                                <textarea
+                                    class="control"
+                                    id="followupOutcome"
+                                    name="outcome"
+                                    rows="4"
+                                    required
+                                    placeholder="{{ __('crm.followup_notes_placeholder') }}"
+                                >{{ old('outcome') }}</textarea>
+                            </div>
+
+                            <!-- NEXT FOLLOWUP DATE -->
+                            <div class="field full">
+                                <label for="nextFollowUpAt">
+                                    {{ __('crm.next_followup_date') }}
+                                </label>
+                                <input
+                                    class="control"
+                                    id="nextFollowUpAt"
+                                    type="datetime-local"
+                                    name="next_follow_up_at"
+                                    value="{{ old('next_follow_up_at', $lead->next_follow_up_at ? $lead->next_follow_up_at->format('Y-m-d\TH:i') : '') }}"
+                                >
+                                <div class="presets-wrap">
+                                    <span style="font-size:11px;color:var(--muted);font-weight:700">اقتراحات سريعة:</span>
+                                    <button type="button" class="preset-chip" onclick="setNextDate(1, 10)">غداً 10:00 ص</button>
+                                    <button type="button" class="preset-chip" onclick="setNextDate(3, 11)">بعد 3 أيام</button>
+                                    <button type="button" class="preset-chip" onclick="setNextDate(7, 10)">بعد أسبوع</button>
+                                </div>
+                                <small>{{ __('crm.next_followup_hint') }}</small>
+                            </div>
+                        </div>
+
+                        <!-- CONDITIONAL: QUOTATION DATA -->
+                        <section class="followup-stage-editor is-hidden" id="quotationSection">
+                            <div class="followup-editor-head">
+                                <h4><i class="bi bi-file-earmark-text"></i> {{ __('crm.quotation_data') }}</h4>
+                                <p>بيانات عرض السعر والحل المطلوب لهذا العميل.</p>
+                            </div>
+                            <div class="followup-editor-grid">
+                                <div class="field">
+                                    <label for="solutionType">{{ __('crm.system_type') }} <span class="required">*</span></label>
+                                    <select class="control" id="solutionType" name="solution_type">
+                                        <option value="">{{ __('crm.select_system_type') }}</option>
+                                        <option value="call_center" @selected(old('solution_type', $lead->solution_type) === 'call_center')>Call Center</option>
+                                        <option value="erp" @selected(old('solution_type', $lead->solution_type) === 'erp')>ERP</option>
+                                    </select>
+                                </div>
+
+                                <div class="field followup-detail-panel is-hidden" id="callCenterFields">
+                                    <label for="linesCount">{{ __('crm.lines_count') }}</label>
+                                    <input class="control" id="linesCount" type="number" min="0" name="lines_count" value="{{ old('lines_count', $lead->lines_count) }}" placeholder="مثال: 4">
+                                </div>
+
+                                <div class="field followup-detail-panel is-hidden" id="erpFields">
+                                    <label for="departments">{{ __('crm.departments') }}</label>
+                                    <input class="control" id="departments" type="text" name="departments" value="{{ old('departments', $lead->departments) }}" placeholder="مثال: الحسابات، المبيعات">
+                                </div>
+
+                                <div class="field">
+                                    <label for="quotationFile">{{ __('crm.quotation_file') }}</label>
+                                    <input class="control" id="quotationFile" type="file" name="quotation_file">
+                                    <small id="quotationFileHelp">{{ $quotationFileHelpText }}</small>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- CONDITIONAL: NOT INTERESTED REASON -->
+                        <section class="followup-stage-editor is-hidden" id="notInterestedSection">
+                            <div class="followup-editor-head">
+                                <h4><i class="bi bi-x-circle"></i> {{ __('crm.not_interested_reason') }}</h4>
+                                <p>سجّل سبب عدم اهتمام العميل بالخدمة.</p>
+                            </div>
+                            <div class="field full">
+                                <textarea class="control" id="disinterestReason" name="disinterest_reason" rows="3" placeholder="اكتب سبب الرفض أو عدم الاهتمام بالتفصيل...">{{ old('disinterest_reason', $lead->disinterest_reason) }}</textarea>
+                            </div>
+                        </section>
+
+                        @if (($customerFields ?? collect())->isNotEmpty())
+                            <!-- CONFIGURABLE CUSTOMER & COMPANY DATA -->
+                            <section class="followup-stage-editor" id="businessDataSection">
+                                <div class="followup-editor-head">
+                                    <h4><i class="bi bi-building"></i> {{ __('crm.company_lead_data') }}</h4>
+                                    <p>{{ __('crm.followup_customer_fields_employee_desc') }}</p>
+                                </div>
+                                @foreach ($customerFields as $customerField)
+                                    <input type="hidden" name="customer_field_presence[]" value="{{ $customerField->key }}">
+                                @endforeach
+                                @include('partials.stage-field-inputs', [
+                                    'fields' => $customerFields,
+                                    'recordValues' => $customerFieldValues ?? [],
+                                    'prefix' => 'customer_fields',
+                                    'scope' => 'followup_customer_fields',
+                                ])
+                            </section>
+                        @endif
+
+                        <!-- FORM ACTION BUTTONS -->
+                        <div style="display:flex;align-items:center;gap:12px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)">
+                            <button type="submit" class="btn primary" style="height:44px;min-height:44px;padding:0 24px;font-size:14px">
+                                <i class="bi bi-check-lg"></i> {{ __('crm.save_followup') }}
+                            </button>
+                            <a href="{{ route('v2.leads.show', $lead) }}" class="btn soft" style="height:44px;min-height:44px">
+                                {{ __('crm.cancel') }}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </section>
+            @endcan
+
+            <!-- PREVIOUS FOLLOWUPS TIMELINE -->
+            <section class="panel latest-followups-panel">
+                <div class="panel-head">
+                    <h3><i class="bi bi-clock-history"></i> {{ __('crm.latest_followups') }}</h3>
+                    <span class="badge">{{ $followups->count() }}</span>
+                </div>
+
+                <div class="panel-body">
+                    @if ($followups->isNotEmpty())
+                        <div class="timeline">
+                            @foreach ($followups as $item)
+                                <div class="timeline-item">
+                                    <div class="timeline-dot"></div>
+                                    <div class="timeline-card">
+                                        <div class="timeline-head">
+                                            <span class="timeline-employee">
+                                                <i class="bi bi-person"></i> {{ $item->user?->name ?? $item->employee_name }}
+                                                @php
+                                                    $commLabel = $communicationTypes[$item->communication_type] ?? $item->communication_type;
+                                                @endphp
+                                                <span class="timeline-badge">{{ $commLabel }}</span>
+                                            </span>
+                                            <span class="timeline-date">
+                                                {{ $item->followed_up_at ? $item->followed_up_at->format('d/m/Y - h:i A') : '—' }}
+                                            </span>
+                                        </div>
+
+                                        @if ($item->fromStatus || $item->toStatus)
+                                            <div style="font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px">
+                                                المرحلة: <strong style="color:var(--dark)">{{ $item->toStatus?->stage?->name_ar ?? $item->toStatus?->name_ar ?? '—' }}</strong>
+                                                @if ($item->toStatus)
+                                                    • الحالة: <strong style="color:{{ $item->toStatus->color ?? 'var(--dark)' }}">{{ $item->toStatus->name_ar }}</strong>
+                                                @endif
+                                            </div>
+                                        @endif
+
+                                        <p class="timeline-body" style="margin:0;white-space:pre-line">{{ $item->outcome }}</p>
+
+                                        @if (!empty($item->field_changes))
+                                            <div style="margin-top:8px;padding:8px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px;font-size:11px">
+                                                <strong style="display:block;margin-bottom:4px;color:var(--dark)">تعديلات البيانات:</strong>
+                                                @foreach ($item->field_changes as $chg)
+                                                    <div style="color:var(--muted)">{{ $chg['label'] ?? 'حقل' }}: <span style="text-decoration:line-through;color:#b42332">{{ $chg['old'] ?? '—' }}</span> → <strong style="color:#15803d">{{ $chg['new'] ?? '—' }}</strong></div>
+                                                @endforeach
+                                            </div>
+                                        @endif
+
+                                        @if ($item->next_follow_up_at)
+                                            <div style="margin-top:8px;font-size:11px;color:var(--muted);font-weight:700">
+                                                <i class="bi bi-calendar-event"></i> المتابعة القادمة: <strong style="color:var(--dark)">{{ $item->next_follow_up_at->format('d/m/Y - h:i A') }}</strong>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div style="text-align:center;padding:30px 16px;color:var(--muted)">
+                            <i class="bi bi-chat-left-dots" style="font-size:28px;display:block;margin-bottom:6px"></i>
+                            {{ __('crm.no_lead_followups') }}
+                        </div>
+                    @endif
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
 <script>
-window.parent.postMessage(
- {
-  type:
-   'crm-kanban-followup-saved'
- },
- window.location.origin
-);
+function selectChannel(key) {
+    document.getElementById('communicationTypeInput').value = key;
+    document.querySelectorAll('.channel-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.channel === key);
+    });
+}
+
+function setNextDate(daysAhead, hour) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, 0, 0, 0);
+    const pad = n => String(n).padStart(2, '0');
+    const val = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const input = document.getElementById('nextFollowUpAt');
+    if (input) input.value = val;
+}
+
+(() => {
+    const statusSelect = document.getElementById('lead_status_id');
+    const notInterestedSection = document.getElementById('notInterestedSection');
+    const quotationSection = document.getElementById('quotationSection');
+    const solutionTypeSelect = document.getElementById('solutionType');
+    const callCenterFields = document.getElementById('callCenterFields');
+    const erpFields = document.getElementById('erpFields');
+    const disinterestReason = document.getElementById('disinterestReason');
+    const linesCount = document.getElementById('linesCount');
+    const questionBlocks = document.querySelectorAll('.stage-questions-block');
+
+    const quotationStatuses = ['quotation', 'discussion', 'contract_closed', 'execution'];
+
+    function getSelectedStatusCode() {
+        const opt = statusSelect?.selectedOptions?.[0];
+        return opt?.dataset?.statusCode || '';
+    }
+
+    function updateStageSections() {
+        const code = getSelectedStatusCode();
+        const isNotInterested = code === 'not_interested';
+        const isQuotation = quotationStatuses.includes(code);
+
+        if (notInterestedSection) notInterestedSection.classList.toggle('is-hidden', !isNotInterested);
+        if (quotationSection) quotationSection.classList.toggle('is-hidden', !isQuotation);
+
+        if (disinterestReason) disinterestReason.required = isNotInterested;
+        if (solutionTypeSelect) solutionTypeSelect.required = isQuotation;
+
+        updateSolutionFields();
+    }
+
+    function updateSolutionFields() {
+        const code = getSelectedStatusCode();
+        const isQuotation = quotationStatuses.includes(code);
+        const sol = isQuotation ? solutionTypeSelect?.value : '';
+        const isCallCenter = sol === 'call_center';
+        const isErp = sol === 'erp';
+
+        if (callCenterFields) callCenterFields.classList.toggle('is-hidden', !isCallCenter);
+        if (erpFields) erpFields.classList.toggle('is-hidden', !isErp);
+        if (linesCount) linesCount.required = isCallCenter;
+    }
+
+    function syncStageQuestions() {
+        const selectedOpt = statusSelect?.options?.[statusSelect.selectedIndex];
+        const stageId = selectedOpt ? selectedOpt.getAttribute('data-stage-id') : null;
+
+        questionBlocks.forEach(block => {
+            const blockStageId = block.getAttribute('data-stage-id');
+            const isMatch = blockStageId && stageId && String(blockStageId) === String(stageId);
+            block.style.display = isMatch ? 'block' : 'none';
+            block.querySelectorAll('input, select, textarea').forEach(input => {
+                if (isMatch) {
+                    input.removeAttribute('disabled');
+                } else {
+                    input.setAttribute('disabled', 'disabled');
+                }
+            });
+        });
+    }
+
+    statusSelect?.addEventListener('change', () => {
+        updateStageSections();
+        syncStageQuestions();
+    });
+
+    solutionTypeSelect?.addEventListener('change', updateSolutionFields);
+
+    updateStageSections();
+    syncStageQuestions();
+})();
+</script>
+
+@if ($callPhone && ($defaultCommunicationType === 'call' || request('channel') === 'call'))
+<script>
+(() => {
+    const callPhone = @json($callPhone);
+    if (!callPhone) return;
+
+    const initiateCall = () => {
+        const telUri = 'tel:' + encodeURIComponent(callPhone);
+        try {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.setAttribute('src', telUri);
+            document.body.appendChild(iframe);
+            setTimeout(() => { iframe.remove(); }, 3000);
+        } catch (e) {}
+
+        setTimeout(() => {
+            try { window.location.href = telUri; } catch (e) {}
+        }, 150);
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(initiateCall, 300));
+    } else {
+        setTimeout(initiateCall, 300);
+    }
+})();
 </script>
 @endif
-
-
-<!-- CRM FOLLOWUP CONDITIONAL DATE UI V2 START -->
-@php
- $__crmNotInterestedStatus =
-  $statusGroups
-   ->flatten(1)
-   ->firstWhere(
-    'code',
-    'not_interested'
-   );
-
- $__crmNotInterestedStatusId =
-  (int) (
-   $__crmNotInterestedStatus?->id
-   ?? 0
-  );
-@endphp
-
-<script>
-(() => {
- const statusSelect =
-  document.getElementById(
-   'lead_status_id'
-  );
-
- const outcomeField =
-  document.getElementById(
-   'outcome'
-  );
-
- const nextField =
-  document.getElementById(
-   'next_follow_up_at'
-  );
-
- const notInterestedStatusId =
-  Number(
-   @json(
-    $__crmNotInterestedStatusId
-   )
-  );
-
- if (outcomeField) {
-  outcomeField.required = false;
-
-  outcomeField.removeAttribute(
-   'required'
-  );
-
-  outcomeField.setAttribute(
-   'aria-required',
-   'false'
-  );
-
-  const outcomeContainer =
-   outcomeField.closest(
-    '.field'
-   );
-
-  const outcomeLabel =
-   outcomeContainer?.querySelector(
-    'label'
-   );
-
-  if (
-   outcomeLabel
-   && !outcomeLabel.querySelector(
-    '[data-outcome-optional]'
-   )
-  ) {
-   const optional =
-    document.createElement(
-     'span'
-    );
-
-   optional.dataset
-    .outcomeOptional = '1';
-
-   optional.textContent =
-    ' (اختياري)';
-
-   outcomeLabel.appendChild(
-    optional
-   );
-  }
- }
-
- if (
-  !nextField
-  || !notInterestedStatusId
- ) {
-  return;
- }
-
- const getStatusId = () => {
-  if (
-   statusSelect
-   && statusSelect.value
-  ) {
-   return Number(
-    statusSelect.value
-   );
-  }
-
-  const hiddenStatus =
-   document.querySelector(
-    'input[type="hidden"]'
-    + '[name="lead_status_id"]'
-   );
-
-  return Number(
-   hiddenStatus?.value
-   || 0
-  );
- };
-
- const syncNextDateRule = () => {
-  const isNotInterested =
-   getStatusId()
-   === notInterestedStatusId;
-
-  nextField.required =
-   !isNotInterested;
-
-  nextField.setAttribute(
-   'aria-required',
-   isNotInterested
-    ? 'false'
-    : 'true'
-  );
-
-  if (isNotInterested) {
-   nextField.removeAttribute(
-    'required'
-   );
-  } else {
-   nextField.setAttribute(
-    'required',
-    'required'
-   );
-  }
-
-  const container =
-   nextField.closest(
-    '.field'
-   );
-
-  if (!container) {
-   return;
-  }
-
-  let note =
-   container.querySelector(
-    '[data-next-date-rule-note]'
-   );
-
-  if (!note) {
-   note =
-    document.createElement(
-     'small'
-    );
-
-   note.dataset
-    .nextDateRuleNote = '1';
-
-   container.appendChild(
-    note
-   );
-  }
-
-  note.textContent =
-   isNotInterested
-    ? (
-     'موعد المتابعة القادمة اختياري '
-     + 'في حالة غير مهتم.'
-    )
-    : (
-     'موعد المتابعة القادمة إجباري '
-     + 'قبل حفظ المتابعة.'
-    );
- };
-
- statusSelect?.addEventListener(
-  'change',
-  syncNextDateRule
- );
-
- syncNextDateRule();
-})();
-</script>
-<!-- CRM FOLLOWUP CONDITIONAL DATE UI V2 END -->
-
-
-<!-- CRM NEW EXECUTION NO FOLLOWUP V7 START -->
-<script>
-(() => {
- const statusSelect =
-  document.getElementById(
-   'lead_status_id'
-  );
-
- const nextField =
-  document.getElementById(
-   'next_follow_up_at'
-  );
-
- if (
-  !statusSelect
-  || !nextField
- ) {
-  return;
- }
-
- const container =
-  nextField.closest(
-   '.field'
-  );
-
- const excluded =
-  new Set([
-   'new',
-   'not_interested',
-   'execution'
-  ]);
-
- const getStatusCode = () => {
-  const option =
-   statusSelect.options[
-    statusSelect.selectedIndex
-   ];
-
-  return (
-   option?.dataset
-    ?.statusCode
-   || ''
-  );
- };
-
- const sync = () => {
-  const noFutureDate =
-   excluded.has(
-    getStatusCode()
-   );
-
-  if (noFutureDate) {
-   nextField.value = '';
-
-   nextField.required =
-    false;
-
-   nextField.disabled =
-    true;
-
-   nextField.removeAttribute(
-    'required'
-   );
-
-   nextField.setAttribute(
-    'disabled',
-    'disabled'
-   );
-
-   nextField.setAttribute(
-    'aria-required',
-    'false'
-   );
-
-   if (container) {
-    container.style.display =
-     'none';
-   }
-
-   return;
-  }
-
-  nextField.disabled =
-   false;
-
-  nextField.required =
-   true;
-
-  nextField.removeAttribute(
-   'disabled'
-  );
-
-  nextField.setAttribute(
-   'required',
-   'required'
-  );
-
-  nextField.setAttribute(
-   'aria-required',
-   'true'
-  );
-
-  if (container) {
-   container.style.display =
-    '';
-  }
- };
-
- /*
-  * Existing V2 listener was registered
-  * earlier. This V7 listener runs after it
-  * and therefore applies the final rule.
-  */
- statusSelect.addEventListener(
-  'change',
-  sync
- );
-
- sync();
-})();
-</script>
-<!-- CRM NEW EXECUTION NO FOLLOWUP V7 END -->
-
+<script src="{{ asset('crm-notifications.js') }}?v=1.0.0"></script>
 </body>
 </html>

@@ -19,17 +19,19 @@
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--bg); color: var(--dark); font-family: var(--font-primary, system-ui, -apple-system, sans-serif); }
-        .crm-app { min-height: 100vh; display: flex; }
-        .crm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; text-align: start; }
-        .top-bar { background: #fff; border-bottom: 1px solid var(--line); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; text-align: start; }
-        .top-bar-info { display: flex; align-items: center; gap: 12px; text-align: start; }
-        .top-bar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; text-align: start; }
-        .top-bar p { margin: 4px 0 0; color: var(--muted); font-size: 13px; text-align: start; }
+        .crm-app { min-height: 100vh; display: flex; max-width: 100vw; overflow-x: hidden; }
+        .crm-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; text-align: start; }
+        .top-bar, .crm-topbar, .topbar { background: #fff; border-bottom: 1px solid var(--line); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; text-align: start; min-height: 56px; }
+        .top-bar-info, .crm-topbar-left, .topbar-left { display: flex; align-items: center; gap: 12px; text-align: start; min-width: 0; }
+        .top-bar h1, .crm-topbar-title h1, .topbar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; text-align: start; font-weight: 900; }
+        .top-bar p, .crm-topbar-title p, .topbar p { margin: 4px 0 0; color: var(--muted); font-size: 13px; text-align: start; }
         .live-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2637; display: inline-block; box-shadow: 0 0 0 3px rgba(220,38,55,0.2); flex-shrink: 0; }
-        .top-bar-actions { display: flex; align-items: center; gap: 12px; margin-inline-start: auto; }
+        .top-bar-actions, .crm-topbar-right, .top-actions { display: flex; align-items: center; gap: 12px; margin-inline-start: auto; flex-wrap: wrap; }
+        .crm-topbar-actions { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .role-badge { background: #e0e7ff; color: #3730a3; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
         .role-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #4f46e5; }
-        .btn-back { background: #fff; border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; text-decoration: none; color: var(--dark); font-weight: bold; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-back { background: #fff; border: 1px solid var(--line); min-height: 42px; padding: 8px 14px; border-radius: 10px; text-decoration: none; color: var(--dark); font-weight: bold; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; touch-action: manipulation; }
+        .crm-topbar-menu-btn, .menu-button { display: none; width: 44px; height: 44px; min-height: 44px; min-width: 44px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--dark); font-size: 20px; cursor: pointer; align-items: center; justify-content: center; touch-action: manipulation; }
 
         .monitor-container { padding: 24px; display: flex; flex-direction: column; gap: 24px; max-width: 1400px; margin: 0 auto; width: 100%; text-align: start; }
 
@@ -45,14 +47,13 @@
 
         .filter-search-bar { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; text-align: start; }
         .filter-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: start; }
-        .filter-btn { background: #f8fafc; border: 1px solid var(--line); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; transition: all 0.2s ease; text-align: center; }
+        .filter-btn { background: #f8fafc; border: 1px solid var(--line); min-height: 40px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; transition: all 0.2s ease; text-align: center; touch-action: manipulation; }
         .filter-btn:hover { background: #f1f5f9; color: var(--dark); }
         .filter-btn.active { background: var(--dark); color: #fff; border-color: var(--dark); }
 
         .search-box { position: relative; flex: 1; max-width: 360px; min-width: 240px; }
-        .search-input { width: 100%; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.2s ease; text-align: start; }
+        .search-input { width: 100%; min-height: 42px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; outline: none; transition: border-color 0.2s ease; text-align: start; }
         .search-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
         .extensions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; text-align: start; }
         .ext-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; transition: box-shadow 0.2s ease, border-color 0.2s ease; text-align: start; }
         .ext-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
@@ -85,42 +86,74 @@
         .call-actions-wrap { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; display: flex; flex-direction: column; gap: 10px; text-align: start; }
         .call-actions-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0; text-align: start; }
         .call-actions-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .action-btn { padding: 7px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--dark); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s ease; text-align: center; }
+        .action-btn { min-height: 42px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--dark); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s ease; text-align: center; touch-action: manipulation; }
         .action-btn:hover { background: #f1f5f9; }
         .action-btn.hangup { background: #fff1f2; color: #dc2637; border-color: #fecdd3; }
         .action-btn.hangup:hover { background: #ffe4e6; }
-
         .iframe-wrap { flex: 1; width: 100%; height: 100%; background: #f8fafc; border: 0; }
         iframe { width: 100%; height: 100%; border: 0; }
         .error-card { margin: 40px auto; max-width: 500px; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 30px; text-align: center; }
         .error-card h2 { color: var(--red); margin-top: 0; }
+        @media (max-width: 900px) {
+            .crm-topbar-menu-btn, .menu-button { display: inline-flex; }
+        }
+        @media (max-width: 768px) {
+            .top-bar, .crm-topbar, .topbar { padding: 14px 16px; flex-direction: column; align-items: stretch; gap: 12px; }
+            .top-bar-info, .crm-topbar-left, .topbar-left { width: 100%; justify-content: flex-start; }
+            .top-bar-actions, .crm-topbar-right, .top-actions { width: 100%; justify-content: space-between; margin-inline-start: 0; flex-wrap: wrap; gap: 8px; }
+            .crm-topbar-actions { display: flex; flex: 1 1 auto; gap: 8px; flex-wrap: wrap; }
+            .monitor-container { padding: 16px 12px; gap: 16px; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+            .stat-card { padding: 14px; gap: 10px; }
+            .stat-icon { width: 40px; height: 40px; font-size: 18px; }
+            .stat-value { font-size: 20px; }
+            .filter-search-bar { flex-direction: column; align-items: stretch; padding: 12px; gap: 12px; }
+            .filter-buttons { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-bottom: 2px; width: 100%; }
+            .filter-btn { flex-shrink: 0; min-height: 44px; }
+            .search-box { max-width: 100%; min-width: 0; width: 100%; }
+            .search-input { min-height: 44px; }
+            .extensions-grid { grid-template-columns: 1fr; gap: 12px; }
+            .ext-card { padding: 16px; }
+            .call-actions-btns { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+            .action-btn { min-height: 44px; }
+            .btn-back { min-height: 44px; flex: 1 1 auto; justify-content: center; }
+        }
+        @media (max-width: 420px) {
+            .call-actions-btns { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 375px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
 @include('partials.page-loader')
 <div class="crm-app">
     @include('partials.crm-sidebar')
+    <button class="crm-overlay" id="crmSidebarOverlay" type="button" aria-label="{{ __('crm.close_menu') }}"></button>
 
     <main class="crm-main">
-        <header class="top-bar">
-            <div class="top-bar-info">
-                <h1>
-                    <span class="live-dot"></span>
-                    <span>{{ __('لوحة المراقبة المباشرة للسنترال') }}</span>
-                </h1>
-                <p>{{ __('مراقبة فورية للتحويلات والمكالمات في السنترال') }}</p>
-            </div>
-            <div class="top-bar-actions">
-                <span class="role-badge">
-                    <span class="role-badge-dot"></span>
-                    {{ __('مدير النظام') }}
-                </span>
-                <a href="{{ route('dashboard') }}" class="btn-back">
-                    {{ __('crm.back_to_dashboard') }}
-                </a>
-                @include('partials.profile-dropdown')
-            </div>
-        </header>
+        @php
+            ob_start();
+        @endphp
+            <span class="role-badge">
+                <span class="role-badge-dot"></span>
+                {{ __('مدير النظام') }}
+            </span>
+            <a href="{{ route('dashboard') }}" class="btn soft btn-back">
+                <i class="bi bi-arrow-return-right" aria-hidden="true"></i>
+                {{ __('crm.back_to_dashboard') }}
+            </a>
+        @php
+            $voipActions = ob_get_clean();
+        @endphp
+        @include('partials.topbar', [
+            'title' => '<span class="live-dot" style="margin-inline-end:8px"></span> ' . e(__('لوحة المراقبة المباشرة للسنترال')),
+            'subtitle' => __('مراقبة فورية للتحويلات والمكالمات في السنترال'),
+            'icon' => 'bi-broadcast',
+            'actions' => $voipActions
+        ])
 
         @php
             $currentLocale = app()->getLocale();
