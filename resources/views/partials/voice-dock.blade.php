@@ -820,10 +820,6 @@ html.dark-mode .btn-dial-inline:hover {
 
         if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
             console.log('[Sokrat CRM Desktop] Running with persistent background telephony.');
-            const frameWrap = panel ? panel.querySelector('.sokrat-voice-frame-wrap') : null;
-            if (panel) panel.setAttribute('hidden', 'hidden');
-            if (frameWrap) frameWrap.style.display = 'none';
-            if (reloadBtn) reloadBtn.style.display = 'none';
             if (popoutBtn) popoutBtn.style.display = 'none';
 
             window.sokratDesktop.onRegistrationStatus((payload) => {
@@ -897,10 +893,6 @@ html.dark-mode .btn-dial-inline:hover {
         }
 
         function loadFreshSession() {
-            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                frameLoaded = true;
-                return;
-            }
             const themeParam = isDarkMode() ? 'dark' : 'light';
             frameLoaded = false;
             frame.addEventListener('load', () => {
@@ -911,10 +903,6 @@ html.dark-mode .btn-dial-inline:hover {
         }
 
         function expandPanel() {
-            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                window.sokratDesktop.toggleSoftphone();
-                return;
-            }
             if (!frameLoaded || !frame.src || frame.src === 'about:blank') {
                 loadFreshSession();
             }
