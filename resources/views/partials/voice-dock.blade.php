@@ -825,10 +825,6 @@ html.dark-mode .btn-dial-inline:hover {
 
             window.sokratDesktop.onSoftphoneVisibility((payload) => {
                 panelOpen = Boolean(payload?.visible);
-                if (panel) {
-                    if (panelOpen) panel.removeAttribute('hidden');
-                    else panel.setAttribute('hidden', 'hidden');
-                }
             });
             window.sokratDesktop.onRegistrationStatus((payload) => {
                 const st = payload?.status;
@@ -915,7 +911,6 @@ html.dark-mode .btn-dial-inline:hover {
 
         function expandPanel() {
             if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                if (panel) panel.removeAttribute('hidden');
                 panelOpen = true;
                 window.sokratDesktop.showSoftphone();
                 try { sessionStorage.setItem('sokrat_voice_panel_open', '1'); } catch (_) {}
@@ -932,7 +927,6 @@ html.dark-mode .btn-dial-inline:hover {
 
         function collapsePanel() {
             if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                if (panel) panel.setAttribute('hidden', 'hidden');
                 panelOpen = false;
                 window.sokratDesktop.hideSoftphone();
                 try { sessionStorage.setItem('sokrat_voice_panel_open', '0'); } catch (_) {}
@@ -1110,7 +1104,7 @@ html.dark-mode .btn-dial-inline:hover {
                                 </div>
                                 <div class="sokrat-pop-lead-card" style="text-align:center;padding:16px;">
                                     <p style="margin:0 0 10px 0;font-size:13px;color:#64748b;">لا يوجد عميل مسجل بهذا الرقم في النظام</p>
-                                    <a href="/leads/create?phone=${encodeURIComponent(phone)}" target="_blank" class="sokrat-pop-btn sokrat-pop-btn-create">
+                                    <a href="/leads/create?phone=${encodeURIComponent(phone)}" class="sokrat-pop-btn sokrat-pop-btn-create">
                                         <i class="bi bi-person-plus-fill"></i> إنشاء عميل جديد برقم ${phone}
                                     </a>
                                 </div>
@@ -1140,7 +1134,7 @@ html.dark-mode .btn-dial-inline:hover {
                                     </div>
                                 </div>
                                 <div class="sokrat-pop-actions">
-                                    <a href="${lead.url}" target="_blank" class="sokrat-pop-btn sokrat-pop-btn-primary">
+                                    <a href="${lead.url}" class="sokrat-pop-btn sokrat-pop-btn-primary">
                                         <i class="bi bi-box-arrow-up-right"></i> عرض ملف العميل وسجل المتابعات
                                     </a>
                                     ${!lead.is_other_branch ? `
@@ -1158,7 +1152,7 @@ html.dark-mode .btn-dial-inline:hover {
                         const createBtn = document.createElement('a');
                         createBtn.className = 'sokrat-voice-lead-link create';
                         createBtn.href = '/leads/create?phone=' + encodeURIComponent(phone);
-                        createBtn.target = '_blank';
+                        createBtn.target = '_self';
                         
                         createBtn.innerHTML = '<i class="bi bi-person-plus-fill"></i> {{ __("crm.add_lead") ?? "إنشاء جهة اتصال جديدة" }}';
                         leadsContainer.appendChild(createBtn);
@@ -1167,7 +1161,7 @@ html.dark-mode .btn-dial-inline:hover {
                             const leadLink = document.createElement('a');
                             leadLink.className = 'sokrat-voice-lead-link';
                             leadLink.href = lead.url;
-                            leadLink.target = '_blank';
+                            leadLink.target = '_self';
                             
                             leadLink.innerHTML = '<i class="bi bi-person-fill"></i> ' + lead.name + ' <small style="color:#64748b;margin-inline-start:auto;">#' + lead.id + '</small>';
                             leadsContainer.appendChild(leadLink);
