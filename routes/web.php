@@ -54,10 +54,32 @@ Route::post('/webhooks/twilio/notification-status', TwilioNotificationStatusCont
     ->middleware('throttle:120,1')
     ->name('webhooks.twilio.notification-status');
 
+Route::get('/api/voip/public-endpoints', static function () {
+    $rawApiUrl = (string) config('voip.api_url', '');
+    $telephonyUrl = (string) env('VOIP_SOFTPHONE_URL', '');
+
+    if (empty($telephonyUrl) && !empty($rawApiUrl)) {
+        try {
+            $parsed = parse_url($rawApiUrl);
+            $host = $parsed['host'] ?? '127.0.0.1';
+            $telephonyUrl = "https://{$host}:8443/phone";
+        } catch (\Throwable $e) {}
+    }
+
+    return response()->json([
+        'success' => true,
+        'crmUrl' => url('/'),
+        'telephonyUrl' => $telephonyUrl ?: 'https://192.168.100.128:8443/phone',
+        'apiUrl' => $rawApiUrl,
+    ]);
+})->name('api.voip.public-endpoints');
+
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
 
+    Route::patch('/my/password', [AuthController::class, 'updatePassword'])
+        ->name('v2.my.password');
     Route::get('/notifications', [NotificationController::class, 'index'])
         ->name('v2.notifications.index');
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
