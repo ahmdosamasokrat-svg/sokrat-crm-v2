@@ -825,6 +825,10 @@ html.dark-mode .btn-dial-inline:hover {
 
             window.sokratDesktop.onSoftphoneVisibility((payload) => {
                 panelOpen = Boolean(payload?.visible);
+                if (panel) {
+                    if (panelOpen) panel.removeAttribute('hidden');
+                    else panel.setAttribute('hidden', 'hidden');
+                }
             });
             window.sokratDesktop.onRegistrationStatus((payload) => {
                 const st = payload?.status;
@@ -911,8 +915,9 @@ html.dark-mode .btn-dial-inline:hover {
 
         function expandPanel() {
             if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                window.sokratDesktop.showSoftphone();
+                if (panel) panel.removeAttribute('hidden');
                 panelOpen = true;
+                window.sokratDesktop.showSoftphone();
                 try { sessionStorage.setItem('sokrat_voice_panel_open', '1'); } catch (_) {}
                 return;
             }
@@ -927,8 +932,9 @@ html.dark-mode .btn-dial-inline:hover {
 
         function collapsePanel() {
             if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
-                window.sokratDesktop.hideSoftphone();
+                if (panel) panel.setAttribute('hidden', 'hidden');
                 panelOpen = false;
+                window.sokratDesktop.hideSoftphone();
                 try { sessionStorage.setItem('sokrat_voice_panel_open', '0'); } catch (_) {}
                 return;
             }
