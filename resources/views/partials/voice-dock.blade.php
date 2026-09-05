@@ -821,7 +821,11 @@ html.dark-mode .btn-dial-inline:hover {
         if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
             console.log('[Sokrat CRM Desktop] Running with persistent background telephony.');
             if (popoutBtn) popoutBtn.style.display = 'none';
+            if (reloadBtn) reloadBtn.style.display = 'none';
 
+            window.sokratDesktop.onSoftphoneVisibility((payload) => {
+                panelOpen = Boolean(payload?.visible);
+            });
             window.sokratDesktop.onRegistrationStatus((payload) => {
                 const st = payload?.status;
                 if (st === 'REGISTERED' || st === 'online') {
@@ -891,8 +895,11 @@ html.dark-mode .btn-dial-inline:hover {
         function setStatus(status) {
             statusDots.forEach(dot => dot.dataset.voiceStatus = status);
         }
-
         function loadFreshSession() {
+            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
+                frameLoaded = true;
+                return;
+            }
             const themeParam = isDarkMode() ? 'dark' : 'light';
             frameLoaded = false;
             frame.addEventListener('load', () => {
@@ -903,6 +910,12 @@ html.dark-mode .btn-dial-inline:hover {
         }
 
         function expandPanel() {
+            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
+                window.sokratDesktop.showSoftphone();
+                panelOpen = true;
+                try { sessionStorage.setItem('sokrat_voice_panel_open', '1'); } catch (_) {}
+                return;
+            }
             if (!frameLoaded || !frame.src || frame.src === 'about:blank') {
                 loadFreshSession();
             }
@@ -913,6 +926,12 @@ html.dark-mode .btn-dial-inline:hover {
         }
 
         function collapsePanel() {
+            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
+                window.sokratDesktop.hideSoftphone();
+                panelOpen = false;
+                try { sessionStorage.setItem('sokrat_voice_panel_open', '0'); } catch (_) {}
+                return;
+            }
             panel.setAttribute('hidden', 'hidden');
             panelOpen = false;
             try { sessionStorage.setItem('sokrat_voice_panel_open', '0'); } catch (_) {}
@@ -1343,6 +1362,9 @@ html.dark-mode .btn-dial-inline:hover {
 
         // Auto-reconnect trigger when switching tabs inside CRM
         const handleTabSwitch = () => {
+            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
+                return;
+            }
             if (document.visibilityState === 'visible') {
                 if (!frameLoaded || !frame.src || frame.src === 'about:blank') {
                     loadFreshSession();
@@ -1359,14 +1381,23 @@ html.dark-mode .btn-dial-inline:hover {
 
         // Auto-boot softphone session in background so the pill connects automatically on page load
         try {
-            const savedPanelOpen = sessionStorage.getItem('sokrat_voice_panel_open') === '1';
-            if (savedPanelOpen) {
-                expandPanel();
+            if (window.sokratDesktop && window.sokratDesktop.isDesktop) {
+                const savedPanelOpen = sessionStorage.getItem('sokrat_voice_panel_open') === '1';
+                if (savedPanelOpen) {
+                    expandPanel();
+                }
             } else {
-                loadFreshSession();
+                const savedPanelOpen = sessionStorage.getItem('sokrat_voice_panel_open') === '1';
+                if (savedPanelOpen) {
+                    expandPanel();
+                } else {
+                    loadFreshSession();
+                }
             }
         } catch (_) {
-            loadFreshSession();
+            if (!window.sokratDesktop || !window.sokratDesktop.isDesktop) {
+                loadFreshSession();
+            }
         }
     }
 
