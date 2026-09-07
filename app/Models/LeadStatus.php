@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LeadStatus extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'pipeline_stage_id',
         'code',

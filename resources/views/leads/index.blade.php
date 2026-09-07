@@ -1,4 +1,8 @@
 @php
+    $selectedStageFieldIds = $selectedStageFieldIds ?? [];
+    $allStageFieldsGrouped = $allStageFieldsGrouped ?? collect();
+    $availableStageFields = $availableStageFields ?? collect();
+    $stageFieldFilters = $stageFieldFilters ?? [];
     $serverTheme = request('theme');
     $isDarkServer = $serverTheme === 'dark';
 @endphp

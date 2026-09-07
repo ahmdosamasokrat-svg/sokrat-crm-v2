@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Lead extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'lead_status_id',
         'name',
@@ -150,4 +151,15 @@ class Lead extends Model
     {
         return $this->status?->stage;
     }
+
+    public function deletedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by_user_id');
+    }
+
+    public function deletedFromStage(): BelongsTo
+    {
+        return $this->belongsTo(PipelineStage::class, 'deleted_from_stage_id')->withTrashed();
+    }
+
 }

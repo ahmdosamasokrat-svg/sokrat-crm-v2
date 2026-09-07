@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Lang;
 
 class PipelineStage extends Model
 {
+    use SoftDeletes;
     public const SIDEBAR_CACHE_KEY = 'crm.sidebar.active_pipeline_stages';
     public const DASHBOARD_CACHE_KEY = 'crm.dashboard.active_pipeline_stages';
 

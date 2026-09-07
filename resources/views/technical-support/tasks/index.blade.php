@@ -1,4 +1,8 @@
 @php
+    $canManage = $canManage ?? (auth()->user()?->can('technical_support.manage') ?? false);
+    $due = $due ?? request('due', 'all');
+@endphp
+@php
  $crmSidebarAssetsLoaded = true;
  $statusLabels = [
   'pending' => __('crm.support_task_status_pending'),
