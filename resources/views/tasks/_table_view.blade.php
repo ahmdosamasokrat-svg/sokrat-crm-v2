@@ -56,7 +56,11 @@
 
      <td>
       @if ($lead->phone)
-       <a class="task-phone-link" href="tel:{{ $rawPhone }}">{{ $lead->phone }}</a>
+       @if (!empty($maskPhones))
+        <span class="task-phone-link" style="cursor:default">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+       @else
+        <a class="task-phone-link" href="tel:{{ $rawPhone }}">{{ $lead->phone }}</a>
+       @endif
       @else
        <span class="task-table-empty-followup">{{ __('crm.not_registered') }}</span>
       @endif
@@ -107,7 +111,7 @@
 
      <td>
       <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-       @if ($lead->phone)
+       @if ($lead->phone && empty($maskPhones))
         <a
          class="task-btn-icon"
          href="tel:{{ $rawPhone }}"

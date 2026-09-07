@@ -262,12 +262,12 @@
                 $showTopActions .= '<a href="' . route('v2.leads.edit', $lead) . '" class="btn soft"><i class="bi bi-pencil-square"></i> ' . __('crm.edit_data') . '</a>';
             }
             if (auth()->user()->can('leads.followups.view')) {
-                if ($callPhone) {
+                if ($callPhone && empty($maskPhones)) {
                     $showTopActions .= '<a class="btn primary js-call-followup" href="' . route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) . '" data-call-href="tel:' . $callPhone . '" title="' . __('crm.open_microsip_followup') . '"><i class="bi bi-telephone-outbound"></i> ' . __('crm.call_action') . '</a>';
                 }
                 $showTopActions .= '<a href="' . route('v2.leads.followups.index', $lead) . '" class="btn soft" title="' . __('crm.log_new_followup') . '"><i class="bi bi-plus-lg"></i> ' . __('crm.log_new_followup') . '</a>';
             } else {
-                if ($callPhone) {
+                if ($callPhone && empty($maskPhones)) {
                     $showTopActions .= '<a class="btn primary" href="tel:' . $callPhone . '" title="' . __('crm.call_action') . '"><i class="bi bi-telephone-outbound"></i> ' . __('crm.call_action') . '</a>';
                 }
             }
@@ -444,34 +444,38 @@
                             <div>
                                 <span class="badge active" style="margin-inline-end:6px">{{ __('crm.primary_badge') }}</span>
                                 @if ($lead->phone)
-                                    @can('leads.followups.view')
-                                        @if ($callPhone)
-                                            <a
-                                                class="js-call-followup"
-                                                href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}"
-                                                data-call-href="tel:{{ $callPhone }}"
-                                                title="{{ __('crm.open_microsip_followup') }}"
-                                                style="font-weight:900;color:inherit;text-decoration:none"
-                                                dir="ltr"
-                                            >
-                                                {{ $lead->phone }}
-                                            </a>
+                                    @if (!empty($maskPhones))
+                                        <span style="font-weight:900;color:inherit;text-decoration:none" dir="ltr">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+                                    @else
+                                        @can('leads.followups.view')
+                                            @if ($callPhone)
+                                                <a
+                                                    class="js-call-followup"
+                                                    href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}"
+                                                    data-call-href="tel:{{ $callPhone }}"
+                                                    title="{{ __('crm.open_microsip_followup') }}"
+                                                    style="font-weight:900;color:inherit;text-decoration:none"
+                                                    dir="ltr"
+                                                >
+                                                    {{ $lead->phone }}
+                                                </a>
+                                            @else
+                                                <a href="tel:{{ $lead->phone }}" style="font-weight:900;color:inherit;text-decoration:none" dir="ltr">
+                                                    {{ $lead->phone }}
+                                                </a>
+                                            @endif
                                         @else
                                             <a href="tel:{{ $lead->phone }}" style="font-weight:900;color:inherit;text-decoration:none" dir="ltr">
                                                 {{ $lead->phone }}
                                             </a>
-                                        @endif
-                                    @else
-                                        <a href="tel:{{ $lead->phone }}" style="font-weight:900;color:inherit;text-decoration:none" dir="ltr">
-                                            {{ $lead->phone }}
-                                        </a>
-                                    @endcan
+                                        @endcan
+                                    @endif
                                 @else
                                     <span style="color:var(--muted)">—</span>
                                 @endif
                             </div>
                             <div style="display:flex;gap:6px">
-                                @if ($callPhone)
+                                @if ($callPhone && empty($maskPhones))
                                     @can('leads.followups.view')
                                         <a
                                             class="btn small soft js-call-followup"
@@ -487,7 +491,7 @@
                                         </a>
                                     @endcan
                                 @endif
-                                @if ($whatsappPhone)
+                                @if ($whatsappPhone && empty($maskPhones))
                                     <a href="https://wa.me/{{ $whatsappPhone }}" target="_blank" rel="noopener noreferrer" class="btn small success" title="{{ __('crm.whatsapp') }}">
                                         <i class="bi bi-whatsapp"></i>
                                     </a>

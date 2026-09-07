@@ -375,11 +375,15 @@
 							</td>
 							<td>
 								<div class="campaign-contact">
-									@if ($lead->phone)
-										<a href="tel:{{ $lead->phone }}" dir="ltr">{{ $lead->phone }}</a>
-									@else
-										<span class="campaign-muted">{{ __('crm.no_phone_short') }}</span>
-									@endif
+					@if ($lead->phone)
+						@if (!empty($maskPhones))
+							<span dir="ltr">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+						@else
+							<a href="tel:{{ $lead->phone }}" dir="ltr">{{ $lead->phone }}</a>
+						@endif
+					@else
+						<span class="campaign-muted">{{ __('crm.no_phone_short') }}</span>
+					@endif
 									@if ($lead->email)
 										<a href="mailto:{{ $lead->email }}">{{ $lead->email }}</a>
 									@endif
@@ -422,20 +426,20 @@
 									}
 								@endphp
 								<div class="lead-actions">
-									@can('leads.followups.view')
-										@if ($callPhone)
-											<a class="lead-action call-action js-call-followup" href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}" data-call-href="callto:{{ $callPhone }}" title="{{ __('crm.open_microsip_and_followup') }}">☎ {{ __('crm.call') }}</a>
-										@else
-											<span class="lead-action call-action is-disabled" aria-disabled="true" title="{{ __('crm.phone_invalid_for_call') }}">☎ {{ __('crm.call') }}</span>
-										@endif
-										<a class="lead-action followup-action" href="{{ route('v2.leads.followups.index', $lead) }}" title="{{ __('crm.log_new_lead_followup_title') }}">◷ {{ __('crm.log_followup') }}</a>
-									@endcan
+					@can('leads.followups.view')
+						@if ($callPhone && empty($maskPhones))
+							<a class="lead-action call-action js-call-followup" href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}" data-call-href="callto:{{ $callPhone }}" title="{{ __('crm.open_microsip_and_followup') }}">☎ {{ __('crm.call') }}</a>
+						@else
+							<span class="lead-action call-action is-disabled" aria-disabled="true" title="{{ __('crm.phone_invalid_for_call') }}">☎ {{ __('crm.call') }}</span>
+						@endif
+						<a class="lead-action followup-action" href="{{ route('v2.leads.followups.index', $lead) }}" title="{{ __('crm.log_new_lead_followup_title') }}">◷ {{ __('crm.log_followup') }}</a>
+					@endcan
 
-									@if ($whatsappPhone)
-										<a class="lead-action whatsapp-action" href="https://wa.me/{{ $whatsappPhone }}" target="_blank" rel="noopener noreferrer" title="{{ __('crm.open_whatsapp') }}">◉ {{ __('crm.phone_type_whatsapp') }}</a>
-									@else
-										<span class="lead-action whatsapp-action is-disabled" aria-disabled="true" title="{{ __('crm.invalid_whatsapp_number') }}">◉ {{ __('crm.phone_type_whatsapp') }}</span>
-									@endif
+					@if ($whatsappPhone && empty($maskPhones))
+						<a class="lead-action whatsapp-action" href="https://wa.me/{{ $whatsappPhone }}" target="_blank" rel="noopener noreferrer" title="{{ __('crm.open_whatsapp') }}">◉ {{ __('crm.phone_type_whatsapp') }}</a>
+					@else
+						<span class="lead-action whatsapp-action is-disabled" aria-disabled="true" title="{{ __('crm.invalid_whatsapp_number') }}">◉ {{ __('crm.phone_type_whatsapp') }}</span>
+					@endif
 
 									@canany(['leads.update', 'leads.delete'])
 										<details class="lead-more">

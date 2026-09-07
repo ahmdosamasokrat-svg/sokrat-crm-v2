@@ -1427,18 +1427,22 @@ body.kanban-modal-open{
 
             <strong>
              @if ($lead->phone)
-              <a
-               class="kanban-phone"
-               href="tel:{{
-                preg_replace(
-                 '/[^0-9+]/',
-                 '',
-                 (string) $lead->phone
-                )
-               }}"
-              >
-               {{ $lead->phone }}
-              </a>
+              @if (!empty($maskPhones))
+               <span class="kanban-phone" style="cursor:default">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+              @else
+               <a
+                class="kanban-phone"
+                href="tel:{{
+                 preg_replace(
+                  '/[^0-9+]/',
+                  '',
+                  (string) $lead->phone
+                 )
+                }}"
+               >
+                {{ $lead->phone }}
+               </a>
+              @endif
              @else
               {{ __('crm.not_registered') }}
              @endif
@@ -1486,7 +1490,7 @@ body.kanban-modal-open{
           </div>
 
           <div class="kanban-card-actions">
-           @if ($lead->phone)
+           @if ($lead->phone && empty($maskPhones))
             <a
              class="btn call"
              @can('leads.followups.create')

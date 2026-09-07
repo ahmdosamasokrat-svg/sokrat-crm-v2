@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Services\VoipService;
 use App\Support\CrmDatabaseGuard;
+use App\Support\PhoneMask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -377,6 +378,116 @@ class VoipController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+
+    public function softphoneEmbed(Request $request, VoipService $voip): View|RedirectResponse
+    {
+        $user = Auth::user();
+        if (!$user || empty($user->voip_extension)) {
+            return response()->view('voip.no-extension', [], 403);
+        }
+
+        try {
+            $ticketData = $voip->createEmbedTicket(
+                $user->id,
+                $user->name,
+                (string) $user->voip_extension,
+                ['softphone:use']
+            );
+
+            $rawTicket = $ticketData['ticket'] ?? '';
+            $voipHost = preg_replace('#/api/integrations/crm/v1/?$#', '', config('voip.api_url'));
+            $parsedHost = parse_url($voipHost, PHP_URL_HOST) ?: '100.110.36.17';
+            $softphoneBaseUrl = "https://{$parsedHost}:8443";
+
+            $maskPhone = $user->hasPermission('leads.phone.view') ? '0' : '1';
+            $lang = app()->getLocale() === 'ar' ? 'ar' : 'en';
+            $embedUrl = "{$softphoneBaseUrl}/phone/embed?ticket=" . urlencode($rawTicket) . "&lang={$lang}&mask_phone={$maskPhone}";
+
+            return view('voip.softphone-embed', [
+                'embedUrl' => $embedUrl,
+                'expiresAt' => $ticketData['expires_at'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            return view('voip.softphone-embed', [
+                'embedUrl' => null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function leadsByPhone(Request $request): JsonResponse
+    {
+        $this->assertCrmDatabase();
+        $rawPhone = $request->query('phone', '');
+        $digits = preg_replace('/\D+/', '', trim($rawPhone));
+        if (strlen($digits) < 2 || strlen($digits) > 20) {
+            return response()->json(['leads' => []]);
+        }
+
+        $countryCode = preg_replace('/\D+/', '', (string) config('voip.default_country_code')) ?? '';
+        $international = str_starts_with($digits, '00') ? substr($digits, 2) : $digits;
+        $phoneCandidates = [$digits, $international];
+
+        if ($countryCode !== '' && str_starts_with($international, $countryCode)) {
+            $nationalNumber = substr($international, strlen($countryCode));
+            if ($nationalNumber !== '') {
+                $phoneCandidates[] = $nationalNumber;
+                $phoneCandidates[] = '0' . $nationalNumber;
+                $phoneCandidates[] = '00' . $international;
+            }
+        } elseif ($countryCode !== '' && str_starts_with($digits, '0')) {
+            $nationalNumber = substr($digits, 1);
+            $phoneCandidates[] = $nationalNumber;
+            $phoneCandidates[] = $countryCode . $nationalNumber;
+            $phoneCandidates[] = '00' . $countryCode . $nationalNumber;
+        } elseif ($countryCode !== '') {
+            $phoneCandidates[] = '0' . $digits;
+            $phoneCandidates[] = $countryCode . $digits;
+            $phoneCandidates[] = '00' . $countryCode . $digits;
+        }
+
+        $phoneCandidates = array_values(array_unique(array_filter(
+            $phoneCandidates,
+            static fn(string $phone): bool => strlen($phone) >= 2 && strlen($phone) <= 20,
+        )));
+
+        $normalizedPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', ''), '/', '')";
+
+        $leads = Lead::query()
+            ->accessibleTo($request->user())
+            ->whereIn(DB::raw($normalizedPhone), $phoneCandidates)
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        if ($leads->isEmpty() && strlen($digits) >= 7) {
+            $lastDigits = substr($digits, -8);
+            $leads = Lead::query()
+                ->accessibleTo($request->user())
+                ->where(DB::raw($normalizedPhone), 'LIKE', '%' . $lastDigits)
+                ->latest('id')
+                ->limit(5)
+                ->get();
+        }
+
+        $user = $request->user();
+        $maskPhones = !$user->hasPermission('leads.phone.view');
+
+        return response()->json([
+            'leads' => $leads->map(fn(Lead $lead) => [
+                'id' => $lead->id,
+                'name' => $lead->name,
+                'phone' => $maskPhones ? PhoneMask::mask($lead->phone) : $lead->phone,
+                'url' => route('v2.leads.show', $lead),
+                'company' => $lead->company ?? null,
+                'stage_name' => $lead->status?->stage?->name ?? null,
+                'assigned_employee' => $lead->assignedUser?->name ?? null,
+                'branch_name' => null,
+                'is_other_branch' => false,
+            ]),
+        ]);
     }
 
     private function assertCrmDatabase(): void

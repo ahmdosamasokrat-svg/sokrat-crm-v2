@@ -906,28 +906,32 @@ html.dark-mode .btn-action {
 
                                 <td>
                                     @if ($lead->phone)
-                                        @can('leads.followups.view')
-                                            @if ($callPhone)
-                                                <a
-                                                    class="js-call-followup"
-                                                    href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}"
-                                                    data-call-href="tel:{{ $callPhone }}"
-                                                    title="{{ __('crm.open_microsip_followup') }}"
-                                                    style="font-weight:700;color:inherit"
-                                                    dir="ltr"
-                                                >
-                                                    {{ $lead->phone }}
-                                                </a>
+                                        @if (!empty($maskPhones))
+                                            <span style="font-weight:700;color:inherit" dir="ltr">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+                                        @else
+                                            @can('leads.followups.view')
+                                                @if ($callPhone)
+                                                    <a
+                                                        class="js-call-followup"
+                                                        href="{{ route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) }}"
+                                                        data-call-href="tel:{{ $callPhone }}"
+                                                        title="{{ __('crm.open_microsip_followup') }}"
+                                                        style="font-weight:700;color:inherit"
+                                                        dir="ltr"
+                                                    >
+                                                        {{ $lead->phone }}
+                                                    </a>
+                                                @else
+                                                    <a href="tel:{{ $lead->phone }}" style="font-weight:700;color:inherit" dir="ltr">
+                                                            {{ $lead->phone }}
+                                                    </a>
+                                                @endif
                                             @else
                                                 <a href="tel:{{ $lead->phone }}" style="font-weight:700;color:inherit" dir="ltr">
                                                     {{ $lead->phone }}
                                                 </a>
-                                            @endif
-                                        @else
-                                            <a href="tel:{{ $lead->phone }}" style="font-weight:700;color:inherit" dir="ltr">
-                                                {{ $lead->phone }}
-                                            </a>
-                                        @endcan
+                                            @endcan
+                                        @endif
                                     @else
                                         <span style="color:var(--muted)">—</span>
                                     @endif
@@ -976,7 +980,7 @@ html.dark-mode .btn-action {
                                             <i class="bi bi-eye"></i>
                                         </a>
 
-                                        @if ($callPhone)
+                                        @if ($callPhone && empty($maskPhones))
                                             @can('leads.followups.view')
                                                 <a
                                                     class="btn-action call js-call-followup"
@@ -1003,7 +1007,7 @@ html.dark-mode .btn-action {
                                             </a>
                                         @endcan
 
-                                        @if ($whatsappPhone)
+                                        @if ($whatsappPhone && empty($maskPhones))
                                             <a
                                                 class="btn-action whatsapp"
                                                 href="https://wa.me/{{ $whatsappPhone }}"

@@ -606,7 +606,7 @@ body.kanban-followup-popup .client-actions {
     <main class="crm-main">
         @php
             $followupTopActions = '<a href="' . route('v2.leads.show', $lead) . '" class="btn soft"><i class="bi bi-eye"></i> ' . __('crm.view_lead_data') . '</a>';
-            if ($callPhone) {
+            if ($callPhone && empty($maskPhones)) {
                 $followupTopActions .= '<a href="tel:' . $callPhone . '" class="btn primary"><i class="bi bi-telephone-outbound"></i> ' . __('crm.call_action') . '</a>';
             }
             $visibleCustomerAttributes = ($customerFields ?? collect())->keyBy('lead_attribute');
@@ -648,7 +648,7 @@ body.kanban-followup-popup .client-actions {
                     <a href="{{ route('v2.leads.show', $lead) }}" class="btn soft small">
                         <i class="bi bi-person"></i> {{ __('crm.view_lead_data') }}
                     </a>
-                    @if ($callPhone)
+                    @if ($callPhone && empty($maskPhones))
                         <a href="tel:{{ $callPhone }}" class="btn soft small" style="color:#2563eb">
                             <i class="bi bi-telephone"></i> {{ __('crm.call_action') }}
                         </a>
@@ -660,7 +660,9 @@ body.kanban-followup-popup .client-actions {
                 <div class="client-data-item">
                     <small>{{ __('crm.phone') }}</small>
                     <strong dir="ltr">
-                        @if ($callPhone)
+                        @if (!empty($maskPhones))
+                            {{ \App\Support\PhoneMask::mask($lead->phone) ?: '—' }}
+                        @elseif ($callPhone)
                             <a href="tel:{{ $callPhone }}" style="color:inherit">{{ $lead->phone }}</a>
                         @else
                             {{ $lead->phone ?: '—' }}
@@ -1140,7 +1142,7 @@ function setNextDate(daysAhead, hour) {
 })();
 </script>
 
-@if ($callPhone && ($defaultCommunicationType === 'call' || request('channel') === 'call'))
+@if ($callPhone && empty($maskPhones) && ($defaultCommunicationType === 'call' || request('channel') === 'call'))
 <script>
 (() => {
     const callPhone = @json($callPhone);

@@ -160,6 +160,13 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->middleware(['can:technical_support.manage', 'throttle:30,1'])
         ->name('v2.technical-support.devices.toggle-status');
 
+    Route::get('/voip/softphone', [VoipController::class, 'softphoneEmbed'])
+        ->name('v2.voip.softphone');
+
+    Route::get('/api/leads/by-phone', [VoipController::class, 'leadsByPhone'])
+        ->middleware('can:leads.view')
+        ->name('v2.api.leads.by-phone');
+
     Route::get('/voip/live', [VoipController::class, 'livePanel'])
         ->middleware('can:voip.live_panel')
         ->name('v2.voip.live');

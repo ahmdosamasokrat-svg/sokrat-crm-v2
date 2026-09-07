@@ -1356,12 +1356,16 @@
 
          <strong>
           @if ($lead->phone)
-           <a
-            class="task-card-phone"
-            href="tel:{{ $lead->phone }}"
-           >
-            {{ $lead->phone }}
-           </a>
+           @if (!empty($maskPhones))
+            <span class="task-card-phone" style="cursor:default">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+           @else
+            <a
+             class="task-card-phone"
+             href="tel:{{ $lead->phone }}"
+            >
+             {{ $lead->phone }}
+            </a>
+           @endif
           @else
            {{ __('غير مسجل') }}
           @endif
@@ -1431,7 +1435,7 @@
        </div>
 
        <div class="task-card-actions">
-        @if ($lead->phone)
+        @if ($lead->phone && empty($maskPhones))
          <a
           class="btn task-call-btn"
           data-call-and-followup="1"
@@ -1454,7 +1458,7 @@
          >
           {{ __('crm.call_action') }}
          </a>
-        @else
+        @elseif (!$lead->phone)
          <span
           class="btn task-call-btn task-call-btn-disabled"
           aria-disabled="true"

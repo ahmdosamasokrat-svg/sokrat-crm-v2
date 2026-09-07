@@ -19,6 +19,7 @@ enum CrmPermission: string
     case LEADS_DELETE = 'leads.delete';
     case LEADS_IMPORT = 'leads.import';
     case LEADS_EXPORT = 'leads.export';
+    case LEADS_PHONE_VIEW = 'leads.phone.view';
     case LEADS_FOLLOWUPS_VIEW = 'leads.followups.view';
     case LEADS_FOLLOWUPS_CREATE = 'leads.followups.create';
 
@@ -75,6 +76,7 @@ enum CrmPermission: string
             self::LEADS_UPDATE => 'تعديل العملاء',
             self::LEADS_DELETE => 'حذف العملاء',
             self::LEADS_IMPORT => 'استيراد العملاء',
+            self::LEADS_PHONE_VIEW => 'عرض أرقام هواتف العملاء',
             self::LEADS_EXPORT => 'تصدير العملاء',
             self::LEADS_FOLLOWUPS_VIEW => 'عرض متابعات العملاء',
             self::LEADS_FOLLOWUPS_CREATE => 'تسجيل متابعات العملاء',

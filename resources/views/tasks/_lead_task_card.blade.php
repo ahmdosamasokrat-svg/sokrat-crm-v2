@@ -76,7 +76,11 @@
     <span>{{ __('crm.phone') }}</span>
     <strong>
      @if ($lead->phone)
-      <a class="task-phone-link" href="tel:{{ $rawPhone }}">{{ $lead->phone }}</a>
+      @if (!empty($maskPhones))
+       <span class="task-phone-link" style="cursor:default">{{ \App\Support\PhoneMask::mask($lead->phone) }}</span>
+      @else
+       <a class="task-phone-link" href="tel:{{ $rawPhone }}">{{ $lead->phone }}</a>
+      @endif
      @else
       <span style="color:#94a3b8;">{{ __('crm.not_registered') }}</span>
      @endif
@@ -132,7 +136,7 @@
 
  {{-- Action Toolbar --}}
  <div class="task-actions-toolbar">
-  @if ($lead->phone)
+  @if ($lead->phone && empty($maskPhones))
    <a
     class="task-btn-main"
     href="tel:{{ $rawPhone }}"
@@ -142,14 +146,14 @@
     <i class="bi bi-telephone-fill"></i>
     <span>{{ __('crm.call_and_log') }}</span>
    </a>
-  @else
+  @elseif (!$lead->phone)
    <button class="task-btn-main" disabled style="opacity: 0.5; cursor: not-allowed;">
     <i class="bi bi-telephone-x"></i>
     <span>{{ __('crm.no_phone_abbr') }}</span>
    </button>
   @endif
 
-  @if ($lead->phone)
+  @if ($lead->phone && empty($maskPhones))
    <a
     class="task-btn-icon whatsapp"
     href="https://wa.me/{{ $waPhone }}"
