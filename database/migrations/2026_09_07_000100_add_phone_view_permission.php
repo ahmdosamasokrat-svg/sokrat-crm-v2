@@ -2,34 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Support\CrmDatabaseGuard;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    private function verifyDatabase(): void
-    {
-        $environment = app()->environment();
-        $expectedDatabase = match ($environment) {
-            'production' => 'sokrat_crm',
-            'testing' => 'sokrat_crm_test',
-            default => null,
-        };
-        $connection = DB::connection();
-        $database = (string) $connection->getDatabaseName();
-
-        if (
-            $connection->getDriverName() !== 'mysql'
-            || $expectedDatabase === null
-            || $database !== $expectedDatabase
-        ) {
-            throw new RuntimeException("Unexpected database: {$database}");
-        }
-    }
 
     public function up(): void
     {
-        $this->verifyDatabase();
+        CrmDatabaseGuard::ensureConnected();
         $now = now();
 
         DB::table('permissions')->updateOrInsert(
@@ -59,7 +41,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $this->verifyDatabase();
+        CrmDatabaseGuard::ensureConnected();
         $permId = DB::table('permissions')->where('code', 'leads.phone.view')->value('id');
         if ($permId) {
             DB::table('group_permission')->where('permission_id', $permId)->delete();
