@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Models\CalendarEvent;
+use App\Models\Lead;
 use App\Models\User;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-
 class CalendarEventRepository
 {
     /**
@@ -23,7 +24,12 @@ class CalendarEventRepository
         array $filters = []
     ): Collection {
         $query = CalendarEvent::query()
-            ->with(['user:id,name', 'lead:id,name,company_name,phone'])
+            ->with([
+                'user:id,name',
+                'lead:id,name,company_name,phone,lead_status_id,assigned_user_id',
+                'lead.status:id,pipeline_stage_id,code,name_ar,color',
+                'lead.status.stage:id,code,name_ar,color',
+            ])
             ->accessibleTo($user);
 
         if ($start && $end) {
@@ -46,7 +52,75 @@ class CalendarEventRepository
             $query->forLead((int) $filters['lead_id']);
         }
 
+        if (! empty($filters['stage_id'])) {
+            $query->whereHas('lead.status', static function (Builder $q) use ($filters): void {
+                $q->where('pipeline_stage_id', (int) $filters['stage_id']);
+            });
+        }
+
         return $query->orderBy('start_time', 'asc')->get();
+    }
+
+    /**
+     * Get accessible leads with scheduled followups (calls) within date range.
+     *
+     * @return Collection<int, Lead>
+     */
+    public function getLeadFollowupsForUser(
+        User $user,
+        ?string $start = null,
+        ?string $end = null,
+        array $filters = []
+    ): Collection {
+        // If type filter is set and not 'call', lead followups are not included
+        if (! empty($filters['type']) && $filters['type'] !== 'call') {
+            return new Collection();
+        }
+
+        $query = Lead::query()
+            ->with([
+                'assignedUser:id,name',
+                'status:id,pipeline_stage_id,code,name_ar,color',
+                'status.stage:id,code,name_ar,color',
+            ])
+            ->accessibleTo($user)
+            ->whereNotNull('next_follow_up_at');
+
+        if ($start && $end) {
+            try {
+                $startDate = Carbon::parse($start);
+                $endDate = Carbon::parse($end);
+                $query->whereBetween('next_follow_up_at', [$startDate, $endDate]);
+            } catch (\Throwable) {
+                // Ignore parse errors and return empty if invalid dates
+            }
+        }
+
+        if (! empty($filters['status'])) {
+            if ($filters['status'] === 'scheduled') {
+                $query->where('next_follow_up_at', '>=', now());
+            } elseif ($filters['status'] === 'overdue') {
+                $query->where('next_follow_up_at', '<', now());
+            } elseif ($filters['status'] === 'completed' || $filters['status'] === 'canceled') {
+                return new Collection();
+            }
+        }
+
+        if (! empty($filters['stage_id'])) {
+            $query->whereHas('status', static function (Builder $q) use ($filters): void {
+                $q->where('pipeline_stage_id', (int) $filters['stage_id']);
+            });
+        }
+
+        if (! empty($filters['user_id'])) {
+            $query->where('assigned_user_id', (int) $filters['user_id']);
+        }
+
+        if (! empty($filters['lead_id'])) {
+            $query->where('id', (int) $filters['lead_id']);
+        }
+
+        return $query->orderBy('next_follow_up_at', 'asc')->get();
     }
 
     /**

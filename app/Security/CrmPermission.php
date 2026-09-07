@@ -21,7 +21,12 @@ enum CrmPermission: string
     case LEADS_EXPORT = 'leads.export';
     case LEADS_PHONE_VIEW = 'leads.phone.view';
     case LEADS_FOLLOWUPS_VIEW = 'leads.followups.view';
-    case LEADS_FOLLOWUPS_CREATE = 'leads.followups.create';
+        case LEADS_FOLLOWUPS_CREATE = 'leads.followups.create';
+    case LEADS_TRASH_VIEW = 'leads.trash.view';
+    case LEADS_TRASH_RESTORE = 'leads.trash.restore';
+    case LEADS_TRASH_FORCE_DELETE = 'leads.trash.force_delete';
+
+    case PIPELINE_STAGES_DELETE = 'pipeline_stages.delete';
 
     case TASKS_VIEW = 'tasks.view';
 
@@ -79,7 +84,11 @@ enum CrmPermission: string
             self::LEADS_PHONE_VIEW => 'عرض أرقام هواتف العملاء',
             self::LEADS_EXPORT => 'تصدير العملاء',
             self::LEADS_FOLLOWUPS_VIEW => 'عرض متابعات العملاء',
-            self::LEADS_FOLLOWUPS_CREATE => 'تسجيل متابعات العملاء',
+                        self::LEADS_FOLLOWUPS_CREATE => 'تسجيل متابعات العملاء',
+            self::LEADS_TRASH_VIEW => 'عرض سلة مهملات العملاء',
+            self::LEADS_TRASH_RESTORE => 'استعادة العملاء من سلة المهملات',
+            self::LEADS_TRASH_FORCE_DELETE => 'الحذف النهائي للعملاء من سلة المهملات',
+            self::PIPELINE_STAGES_DELETE => 'حذف مراحل العملاء',
             self::TASKS_VIEW => 'عرض المهام والمتابعات',
             self::QUOTATIONS_VIEW => 'عرض عروض الأسعار',
             self::QUOTATIONS_CREATE => 'إنشاء عروض الأسعار',
@@ -138,7 +147,8 @@ enum CrmPermission: string
             'groups' => 'المجموعات والصلاحيات',
             'voip' => 'اتصالات السنترال (VoIP)',
             'calendar' => 'التقويم والأحداث',
-            'technical_support' => 'الدعم الفني',
+                        'technical_support' => 'الدعم الفني',
+            'pipeline_stages' => 'مراحل ومسار العملاء',
         ];
     }
 }

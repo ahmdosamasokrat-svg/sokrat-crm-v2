@@ -409,9 +409,6 @@ class LeadFollowupController extends Controller
                 ],
 
                 'solution_type' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                    ),
                     'nullable',
                     Rule::in([
                         'call_center',
@@ -420,11 +417,6 @@ class LeadFollowupController extends Controller
                 ],
 
                 'lines_count' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
-                    ),
                     'nullable',
                     'integer',
                     'min:1',
@@ -432,32 +424,18 @@ class LeadFollowupController extends Controller
                 ],
 
                 'extensions' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
 
                 'departments' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'erp'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
 
                 'quotation_file' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && ! $hasCurrentQuotationFile
-                    ),
                     'nullable',
                     'file',
                     'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',

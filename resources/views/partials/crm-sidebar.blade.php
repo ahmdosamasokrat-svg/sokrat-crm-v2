@@ -195,6 +195,15 @@
        {{ __('crm.export_leads') }}
       </a>
       @endcan
+
+      @can('leads.trash.view')
+      <a
+       class="{{ request()->routeIs('v2.leads.trash.*') ? 'active' : '' }}"
+       href="{{ route('v2.leads.trash.index') }}"
+      >
+       {{ __('crm.lead_trash_title') }}
+      </a>
+      @endcan
      </nav>
     </div>
    </div>

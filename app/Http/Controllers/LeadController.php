@@ -665,12 +665,22 @@ class LeadController extends Controller
         }
 
         if ($campaign !== null) {
-            abort_unless(
-                $assignee->is($actor)
-                || $campaign->users()->whereKey($assignee->id)->exists(),
-                403,
-                'The assignee must belong to this campaign.'
-            );
+            $canManageCampaign = $actor->isSuperAdmin()
+                || (int) $campaign->created_by_user_id === (int) $actor->id
+                || $actor->hasPermission(CrmPermission::CAMPAIGNS_CREATE)
+                || $actor->hasPermission(CrmPermission::LEADS_ASSIGN);
+
+            if ($canManageCampaign) {
+                if (! $campaign->users()->whereKey($assignee->id)->exists()) {
+                    $campaign->users()->syncWithoutDetaching([$assignee->id]);
+                }
+            } else {
+                if (! $assignee->is($actor) && ! $campaign->users()->whereKey($assignee->id)->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'assigned_user_id' => 'The assignee must belong to this campaign.',
+                    ]);
+                }
+            }
         }
 
         $assignedEmployee = trim((string) $assignee->name);

@@ -148,10 +148,16 @@ class StageFieldSchema
                 return filter_var($actual, FILTER_VALIDATE_BOOLEAN) === false;
 
             case 'is_empty':
-                return $actual === null || $actual === '' || $actual === [];
+                if (is_array($actual)) {
+                    return empty(array_filter($actual, static fn ($v) => $v !== null && $v !== ''));
+                }
+                return $actual === null || $actual === '';
 
             case 'is_not_empty':
-                return $actual !== null && $actual !== '' && $actual !== [];
+                if (is_array($actual)) {
+                    return ! empty(array_filter($actual, static fn ($v) => $v !== null && $v !== ''));
+                }
+                return $actual !== null && $actual !== '';
 
             default:
                 return true;
@@ -309,6 +315,59 @@ class StageFieldSchema
         $submitted = isset($rawInput['stage_fields']) && is_array($rawInput['stage_fields'])
             ? $rawInput['stage_fields']
             : $rawInput;
+
+        // Merge any UploadedFile objects passed directly in rawInput
+        foreach ($rawInput as $rKey => $rVal) {
+            if ($rVal instanceof \Illuminate\Http\UploadedFile && ! isset($submitted[$rKey])) {
+                $submitted[$rKey] = $rVal;
+            }
+        }
+
+        // If files are present in request, merge them into submitted array for stage fields
+        if (request()->hasFile('stage_fields')) {
+            $stageFiles = request()->file('stage_fields');
+            if (is_array($stageFiles)) {
+                foreach ($stageFiles as $fKey => $fileObj) {
+                    if ($fileObj !== null) {
+                        $submitted[$fKey] = $fileObj;
+                    }
+                }
+            }
+        }
+
+        // Backward compatibility: If direct quotation_file uploaded, map to quotation field if present
+        $directQuotationFile = (isset($rawInput['quotation_file']) && $rawInput['quotation_file'] instanceof \Illuminate\Http\UploadedFile)
+            ? $rawInput['quotation_file']
+            : (request()->hasFile('quotation_file') ? request()->file('quotation_file') : null);
+
+        if ($directQuotationFile !== null) {
+            $qField = $activeFields->first(fn ($f) => $f->key === 'quotation_file' || ($f->options['document_category'] ?? null) === 'quotation');
+            if ($qField !== null && (! isset($submitted[$qField->key]) || ! ($submitted[$qField->key] instanceof \Illuminate\Http\UploadedFile))) {
+                $submitted[$qField->key] = $directQuotationFile;
+            }
+        }
+
+        // Backward compatibility: If direct solution_type passed, map to solution_type field if present
+        if (! isset($submitted['solution_type'])) {
+            $solVal = $rawInput['solution_type'] ?? request()->input('solution_type');
+            if ($solVal !== null && $solVal !== '') {
+                $solField = $activeFields->firstWhere('key', 'solution_type');
+                if ($solField !== null) {
+                    $submitted['solution_type'] = $solVal;
+                }
+            }
+        }
+
+        // Backward compatibility: If direct client_type passed, map to client_type field if present
+        if (! isset($submitted['client_type'])) {
+            $ctVal = $rawInput['client_type'] ?? request()->input('client_type');
+            if ($ctVal !== null && $ctVal !== '') {
+                $ctField = $activeFields->firstWhere('key', 'client_type');
+                if ($ctField !== null) {
+                    $submitted['client_type'] = $ctVal;
+                }
+            }
+        }
 
         // Security check 1: Disallow arbitrary unknown keys
         $activeKeys = $activeFields->pluck('key')->all();

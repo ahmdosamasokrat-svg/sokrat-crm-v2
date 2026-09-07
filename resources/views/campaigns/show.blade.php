@@ -44,10 +44,66 @@
 	.campaign-hero-count{min-width:145px;min-height:110px;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:15px;border:1px solid #ffffff20;border-radius:18px;background:#ffffff0d;text-align:center}
 	.campaign-hero-count strong{font-size:40px;font-weight:900}
 	.campaign-hero-count span{margin-top:5px;color:#cdd2dc;font-size:10px;font-weight:900}
-	.campaign-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;padding:18px}
-	.campaign-stat{padding:14px;border:1px solid var(--line);border-radius:13px;background:#fafbfc}
-	.campaign-stat span{display:block;color:var(--muted);font-size:10px;font-weight:900}
-	.campaign-stat strong{display:block;margin-top:7px;color:var(--dark);font-size:14px;overflow-wrap:anywhere}
+	.campaign-summary {
+		display: grid;
+		grid-template-columns: repeat(5, minmax(0, 1fr));
+		gap: 14px;
+		padding: 20px 24px;
+		background: var(--card);
+		border-top: 1px solid var(--line);
+	}
+	.campaign-stat {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 14px 16px;
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		background: #fafbfc;
+		transition: all 0.2s ease;
+	}
+	html.dark-mode .campaign-stat {
+		background: rgba(255, 255, 255, 0.04);
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+	.campaign-stat:hover {
+		border-color: var(--red);
+		transform: translateY(-1px);
+		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+	}
+	.campaign-stat-icon {
+		width: 44px;
+		height: 44px;
+		min-width: 44px;
+		border-radius: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 20px;
+	}
+	html.dark-mode .campaign-stat-icon {
+		background: rgba(255, 255, 255, 0.08) !important;
+	}
+	.campaign-stat-info {
+		min-width: 0;
+		flex: 1;
+	}
+	.campaign-stat-info span {
+		display: block;
+		color: var(--muted);
+		font-size: 11px;
+		font-weight: 800;
+	}
+	.campaign-stat-info strong {
+		display: block;
+		margin-top: 3px;
+		color: var(--dark);
+		font-size: 13.5px;
+		font-weight: 800;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 	.campaign-team{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 18px}
 	.campaign-team span{display:inline-flex;padding:6px 9px;border-radius:999px;background:#eef3fa;color:#42516a;font-size:10px;font-weight:900}
 	.campaign-filter-card{padding:17px}
@@ -183,20 +239,61 @@
 
 	<div class="campaign-summary">
 		<div class="campaign-stat">
-			<span>{{ __('crm.campaign_start') }}</span>
-			<strong>{{ $campaign->starts_at->format('Y-m-d H:i') }}</strong>
+			<div class="campaign-stat-icon" style="color: #2563eb; background: #eff6ff;">
+				<i class="bi bi-calendar-event"></i>
+			</div>
+			<div class="campaign-stat-info">
+				<span>{{ __('crm.campaign_start') }}</span>
+				<strong>{{ $campaign->starts_at ? $campaign->starts_at->format('Y-m-d H:i') : '—' }}</strong>
+			</div>
 		</div>
+
 		<div class="campaign-stat">
-			<span>{{ __('crm.campaign_end') }}</span>
-			<strong>{{ $campaign->ends_at->format('Y-m-d H:i') }}</strong>
+			<div class="campaign-stat-icon" style="color: #7c3aed; background: #f5f3ff;">
+				<i class="bi bi-calendar-check"></i>
+			</div>
+			<div class="campaign-stat-info">
+				<span>{{ __('crm.campaign_end') }}</span>
+				<strong>{{ $campaign->ends_at ? $campaign->ends_at->format('Y-m-d H:i') : '—' }}</strong>
+			</div>
 		</div>
+
 		<div class="campaign-stat">
-			<span>{{ __('crm.campaign_cost') }}</span>
-			<strong>{{ number_format((float) $campaign->cost, 2) }} {{ __('crm.pound') }}</strong>
+			<div class="campaign-stat-icon" style="color: #059669; background: #ecfdf5;">
+				<i class="bi bi-cash-stack"></i>
+			</div>
+			<div class="campaign-stat-info">
+				<span>{{ __('crm.campaign_cost') }}</span>
+				<strong>{{ number_format((float) $campaign->cost, 2) }} {{ __('crm.pound') }}</strong>
+			</div>
 		</div>
+
 		<div class="campaign-stat">
-			<span>{{ __('crm.created_by') }}</span>
-			<strong>{{ $campaign->creator?->name ?: '—' }}</strong>
+			<div class="campaign-stat-icon" style="color: #d97706; background: #fffbeb;">
+				<i class="bi bi-person-badge"></i>
+			</div>
+			<div class="campaign-stat-info">
+				<span>{{ __('crm.created_by') }}</span>
+				<strong>{{ $campaign->creator?->name ?: '—' }}</strong>
+			</div>
+		</div>
+
+		<div class="campaign-stat">
+			<div class="campaign-stat-icon" style="color: {{ $campaign->isActive() ? '#059669' : ($campaign->starts_at && $campaign->starts_at->isFuture() ? '#d97706' : '#dc2626') }}; background: {{ $campaign->isActive() ? '#ecfdf5' : ($campaign->starts_at && $campaign->starts_at->isFuture() ? '#fffbeb' : '#fef2f2') }};">
+				<i class="bi {{ $campaign->isActive() ? 'bi-activity' : ($campaign->starts_at && $campaign->starts_at->isFuture() ? 'bi-hourglass-split' : 'bi-pause-circle') }}"></i>
+			</div>
+			<div class="campaign-stat-info">
+				<span>{{ __('crm.status') ?? 'الحالة' }}</span>
+				<strong>
+					@if ($campaign->isActive())
+						<span style="color:#059669; font-weight:800;">{{ __('crm.active_now') ?? 'نشطة الآن' }}</span>
+					@elseif ($campaign->starts_at && $campaign->starts_at->isFuture())
+						<span style="color:#d97706; font-weight:800;">{{ __('crm.upcoming') ?? 'قادمة' }}</span>
+					@else
+						<span style="color:#dc2626; font-weight:800;">{{ __('crm.ended') ?? 'منتهية' }}</span>
+					@endif
+				</strong>
+			</div>
 		</div>
 	</div>
 

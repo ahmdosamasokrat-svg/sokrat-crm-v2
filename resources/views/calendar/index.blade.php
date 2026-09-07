@@ -352,6 +352,226 @@ html.dark-mode .fc .fc-button:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+
+/* Custom View Switcher & Toolbar */
+.calendar-top-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.view-tabs-group {
+  display: inline-flex;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+html.dark-mode .view-tabs-group {
+  background: rgba(255, 255, 255, 0.07);
+}
+.view-tab-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.view-tab-btn:hover {
+  color: var(--dark);
+}
+html.dark-mode .view-tab-btn:hover {
+  color: #fff;
+}
+.view-tab-btn.active {
+  background: var(--card, #fff);
+  color: var(--red, #dc2637);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+html.dark-mode .view-tab-btn.active {
+  background: #27272a;
+  color: #ef4444;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.scope-pills-group {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scope-pill-btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.scope-pill-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+html.dark-mode .scope-pill-btn {
+  color: #f4f4f5;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+html.dark-mode .scope-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.scope-pill-btn.active {
+  background: #dc2637 !important;
+  color: #ffffff !important;
+  border-color: #dc2637 !important;
+  box-shadow: 0 3px 12px rgba(220, 38, 55, 0.35);
+}
+
+/* Today's Calls & Stage Summary Widget */
+.today-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(220, 38, 55, 0.06), rgba(59, 130, 246, 0.06));
+  border: 1px solid rgba(220, 38, 55, 0.18);
+  border-radius: 14px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+}
+html.dark-mode .today-summary-bar {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.today-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--dark);
+}
+.today-summary-title i {
+  color: var(--red);
+  font-size: 18px;
+}
+.today-stage-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.today-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--dark);
+}
+html.dark-mode .today-stage-chip {
+  background: #18181b;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f4f4f5;
+}
+.today-stage-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.today-stage-chip.active {
+  outline: 2px solid var(--red);
+  background: rgba(220, 38, 55, 0.1);
+}
+.stage-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Event Content Badges and Styling */
+.fc-custom-event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 5px;
+  overflow: hidden;
+  height: 100%;
+  box-sizing: border-box;
+}
+.fc-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.fc-event-lead-title {
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fc-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 12px;
+  width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-event-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  opacity: 0.95;
+  direction: ltr;
+  text-align: right;
+  margin-top: 1px;
+}
+.fc-spin-animate {
+  animation: fcSpin 0.8s linear infinite;
+}
+@keyframes fcSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 /* Modal styling */
 .modal-backdrop {
   position: fixed;
@@ -529,7 +749,7 @@ html.dark-mode .modal-actions {
 
   <main class="crm-main main-content">
     @php
-        $calActions = '';
+        $calActions = '<button class="btn secondary" id="refreshCalendarBtn" type="button" title="تحديث البيانات الآن" style="display:inline-flex;align-items:center;gap:6px;"><i class="bi bi-arrow-clockwise" id="refreshSpinIcon"></i> <span id="refreshBtnLabel">تحديث البيانات</span></button>';
         if (auth()->user()->can('calendar.manage')) {
             $calActions .= '<button class="btn primary" id="openCreateModalBtn" type="button"><i class="bi bi-plus-lg"></i> ' . __('crm.add_event') . '</button>';
         }
@@ -549,7 +769,32 @@ html.dark-mode .modal-actions {
     </div>
 
     <div class="card">
+      <div class="calendar-top-controls">
+        <div class="view-tabs-group" id="viewTabsGroup">
+          <button type="button" class="view-tab-btn active" data-view="dayGridMonth"><i class="bi bi-calendar-month"></i> شهري</button>
+          <button type="button" class="view-tab-btn" data-view="timeGridWeek"><i class="bi bi-calendar-week"></i> أسبوعي (ساعات)</button>
+          <button type="button" class="view-tab-btn" data-view="timeGridDay"><i class="bi bi-calendar-day"></i> يومي (مواعيد)</button>
+          <button type="button" class="view-tab-btn" data-view="listDay"><i class="bi bi-card-checklist"></i> أجندة اليوم (قائمة)</button>
+          <button type="button" class="view-tab-btn" data-view="listWeek"><i class="bi bi-card-list"></i> قائمة الأسبوع</button>
+        </div>
+
+        <div class="scope-pills-group" id="scopePillsGroup">
+          <button type="button" class="scope-pill-btn active" data-source="all"><i class="bi bi-collection"></i> الكل</button>
+          <button type="button" class="scope-pill-btn" data-source="leads"><i class="bi bi-telephone-outbound-fill"></i> مواعيد اتصالات العملاء ومراحلهم</button>
+          <button type="button" class="scope-pill-btn" data-source="events"><i class="bi bi-calendar-event"></i> الاجتماعات والأحداث الخاصة</button>
+        </div>
+      </div>
+
       <div class="filters-bar">
+        <div class="filter-group">
+          <span class="filter-label"><i class="bi bi-diagram-3"></i> المرحلة:</span>
+          <select class="filter-select" id="filterStage">
+            <option value="">جميع المراحل البيعية</option>
+            @foreach(($pipelineStages ?? []) as $st)
+            <option value="{{ $st->id }}">{{ $st->localizedName() }}</option>
+            @endforeach
+          </select>
+        </div>
         <div class="filter-group">
           <span class="filter-label">{{ __('crm.type_label') }}</span>
           <select class="filter-select" id="filterType">
@@ -582,6 +827,24 @@ html.dark-mode .modal-actions {
           </select>
         </div>
         @endif
+        <div class="filter-group" style="margin-inline-start:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); font-weight:700;">
+          <i class="bi bi-clock-history"></i> <span id="lastUpdateText">تم التحديث الآن</span>
+        </div>
+      </div>
+
+      <div class="today-summary-bar" id="todaySummaryBar">
+        <div class="today-summary-title">
+          <i class="bi bi-headset"></i>
+          <span id="todaySummaryCountText">مواعيد اتصالات اليوم: <strong id="todayCountNum">0</strong> عميل</span>
+        </div>
+        <div class="today-stage-chips" id="todayStageChips">
+          <!-- Populated dynamically with stage chips for today's clients! -->
+        </div>
+        <div class="today-summary-actions">
+          <a href="{{ route('v2.tasks.daily') }}" class="btn-secondary" style="padding:6px 12px;font-size:12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
+            <i class="bi bi-list-check"></i> قائمة المهام اليومية
+          </a>
+        </div>
       </div>
 
       <div id="calendar-container">
@@ -703,6 +966,93 @@ html.dark-mode .modal-actions {
   </div>
 </div>
 
+<!-- Lead Appointment Details Modal -->
+<div class="modal-backdrop" id="leadAppointmentModal">
+  <div class="modal-dialog">
+    <div class="modal-head">
+      <div>
+        <span style="display:inline-block;padding:3px 10px;border-radius:6px;background:rgba(220,38,55,0.1);color:var(--red);font-size:11px;font-weight:800;margin-bottom:4px;">
+          <i class="bi bi-telephone-outbound-fill"></i> موعد اتصال بعميل
+        </span>
+        <h3 id="leadModalTitleText" style="margin:0;font-size:18px;font-weight:800;color:var(--dark);">اسم العميل</h3>
+        <small id="leadModalCompanyText" style="color:var(--muted);font-weight:600;font-size:12px;display:block;margin-top:2px;"></small>
+      </div>
+      <button class="modal-close" id="closeLeadModalBtn" type="button">&times;</button>
+    </div>
+
+    <div class="lead-modal-body" style="display:flex;flex-direction:column;gap:14px;">
+      <!-- Stage & Status Badges -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="leadModalStageBadge" style="padding:5px 12px;border-radius:20px;font-weight:800;font-size:12px;color:#fff;background:#3b82f6;display:inline-flex;align-items:center;gap:6px;">
+          <i class="bi bi-diagram-3"></i> <span id="leadModalStageBadgeText">المرحلة</span>
+        </span>
+        <span id="leadModalStatusBadge" style="padding:5px 12px;border-radius:20px;font-weight:800;font-size:12px;color:#fff;background:#10b981;">
+          الحالة
+        </span>
+      </div>
+
+      <!-- Phone & Quick Call Links -->
+      <div style="padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div>
+          <small style="color:var(--muted);display:block;font-size:11px;font-weight:700;">رقم الهاتف</small>
+          <strong id="leadModalPhoneText" style="font-size:15px;direction:ltr;display:inline-block;color:var(--dark);"></strong>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a id="leadModalCallLink" href="#" class="btn-primary" style="padding:6px 12px;font-size:12px;border-radius:8px;text-decoration:none;">
+            <i class="bi bi-telephone-outbound-fill"></i> اتصال
+          </a>
+          <a id="leadModalWhatsAppLink" href="#" target="_blank" class="btn-secondary" style="padding:6px 12px;font-size:12px;border-radius:8px;background:#25d366;color:#fff;border-color:#25d366;text-decoration:none;">
+            <i class="bi bi-whatsapp"></i> واتساب
+          </a>
+        </div>
+      </div>
+
+      <!-- Appointment Time & Agent -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:10px;border-radius:10px;background:#fafbfc;border:1px solid var(--line);">
+          <small style="color:var(--muted);display:block;font-size:11px;font-weight:700;">موعد الاتصال المحدد</small>
+          <strong id="leadModalTimeText" style="font-size:13px;color:var(--dark);"></strong>
+        </div>
+        <div style="padding:10px;border-radius:10px;background:#fafbfc;border:1px solid var(--line);">
+          <small style="color:var(--muted);display:block;font-size:11px;font-weight:700;">الموظف المسؤول</small>
+          <strong id="leadModalUserText" style="font-size:13px;color:var(--dark);"></strong>
+        </div>
+      </div>
+
+      <!-- Lead Notes -->
+      <div id="leadModalNotesWrapper" style="padding:10px 12px;border-radius:10px;background:#fafbfc;border:1px solid var(--line);display:none;">
+        <small style="color:var(--muted);display:block;font-size:11px;font-weight:700;margin-bottom:2px;">ملاحظات وتفاصيل</small>
+        <p id="leadModalNotesText" style="margin:0;font-size:13px;color:var(--dark);line-height:1.5;"></p>
+      </div>
+
+      <!-- Quick Reschedule Box -->
+      <div style="padding:12px;border-radius:12px;border:1px dashed #cbd5e1;background:#fafbfc;">
+        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;color:var(--dark);">
+          <i class="bi bi-calendar-range"></i> إعادة جدولة موعد الاتصال:
+        </label>
+        <div style="display:flex;gap:8px;">
+          <input type="datetime-local" id="leadModalNewTime" class="form-control" style="flex:1;">
+          <button type="button" id="leadModalSaveRescheduleBtn" class="btn-primary" style="padding:8px 14px;font-size:12px;white-space:nowrap;">
+            <i class="bi bi-check2"></i> حفظ الموعد
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:16px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a id="leadModalProfileLink" href="#" target="_blank" class="btn-secondary" style="font-size:13px;text-decoration:none;">
+          <i class="bi bi-person-bounding-box"></i> فتح ملف العميل
+        </a>
+        <a id="leadModalFollowupLink" href="#" class="btn-secondary" style="font-size:13px;text-decoration:none;">
+          <i class="bi bi-arrow-repeat"></i> تسجيل متابعة / نقل المرحلة
+        </a>
+      </div>
+      <button type="button" id="closeLeadModalBottomBtn" class="btn-secondary">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <!-- FullCalendar JS CDN -->
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 
@@ -722,12 +1072,109 @@ document.addEventListener('DOMContentLoaded', function() {
   const modalTitleText = document.getElementById('modalTitleText');
   const deleteBtn = document.getElementById('deleteEventBtn');
 
-  // Filters
+  // Filters & Controls
   const filterType = document.getElementById('filterType');
   const filterStatus = document.getElementById('filterStatus');
   const filterUser = document.getElementById('filterUser');
+  const filterStage = document.getElementById('filterStage');
+  const lastUpdateText = document.getElementById('lastUpdateText');
+  const refreshBtn = document.getElementById('refreshCalendarBtn');
+  const refreshSpinIcon = document.getElementById('refreshSpinIcon');
+  const todayCountNum = document.getElementById('todayCountNum');
+  const todayStageChips = document.getElementById('todayStageChips');
+
+  // Lead Appointment Modal elements
+  const leadModal = document.getElementById('leadAppointmentModal');
+  const closeLeadModalBtn = document.getElementById('closeLeadModalBtn');
+  const closeLeadModalBottomBtn = document.getElementById('closeLeadModalBottomBtn');
+  const leadModalTitleText = document.getElementById('leadModalTitleText');
+  const leadModalCompanyText = document.getElementById('leadModalCompanyText');
+  const leadModalStageBadge = document.getElementById('leadModalStageBadge');
+  const leadModalStageBadgeText = document.getElementById('leadModalStageBadgeText');
+  const leadModalStatusBadge = document.getElementById('leadModalStatusBadge');
+  const leadModalPhoneText = document.getElementById('leadModalPhoneText');
+  const leadModalCallLink = document.getElementById('leadModalCallLink');
+  const leadModalWhatsAppLink = document.getElementById('leadModalWhatsAppLink');
+  const leadModalTimeText = document.getElementById('leadModalTimeText');
+  const leadModalUserText = document.getElementById('leadModalUserText');
+  const leadModalNotesWrapper = document.getElementById('leadModalNotesWrapper');
+  const leadModalNotesText = document.getElementById('leadModalNotesText');
+  const leadModalNewTime = document.getElementById('leadModalNewTime');
+  const leadModalSaveRescheduleBtn = document.getElementById('leadModalSaveRescheduleBtn');
+  const leadModalProfileLink = document.getElementById('leadModalProfileLink');
+  const leadModalFollowupLink = document.getElementById('leadModalFollowupLink');
 
   let calendar = null;
+  let currentSource = 'all';
+  let currentEvents = [];
+  let activeLeadId = null;
+
+  function updateLastUpdatedLabel() {
+    if (!lastUpdateText) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    lastUpdateText.textContent = 'آخر تحديث: ' + timeStr;
+  }
+
+  function syncActiveViewTab(viewName) {
+    document.querySelectorAll('.view-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+  }
+
+  function updateTodaySummaryFromEvents(targetDate, eventsList) {
+    if (!todayCountNum && !todayStageChips) return;
+    const d = new Date(targetDate);
+    const dateStr = d.toISOString().slice(0, 10);
+
+    const todayLeads = (eventsList || []).filter(e => {
+      const isLead = e.is_lead || (e.extendedProps && e.extendedProps.is_lead);
+      const start = e.start ? String(e.start).slice(0, 10) : '';
+      return isLead && start === dateStr;
+    });
+
+    if (todayCountNum) {
+      todayCountNum.textContent = todayLeads.length;
+    }
+
+    if (!todayStageChips) return;
+    todayStageChips.innerHTML = '';
+
+    if (todayLeads.length === 0) {
+      todayStageChips.innerHTML = '<small style="color:var(--muted);font-weight:600;font-size:12px;">لا توجد مواعيد اتصالات مسجلة للعملاء في هذا اليوم.</small>';
+      return;
+    }
+
+    // Group by stage
+    const stagesMap = {};
+    todayLeads.forEach(e => {
+      const props = e.extendedProps || e;
+      const stageId = props.stage_id || 'none';
+      const stageName = props.stage_name || 'بدون مرحلة';
+      const stageColor = props.stage_color || '#3b82f6';
+      if (!stagesMap[stageId]) {
+        stagesMap[stageId] = { id: stageId, name: stageName, color: stageColor, count: 0 };
+      }
+      stagesMap[stageId].count++;
+    });
+
+    Object.values(stagesMap).forEach(st => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      const isMatch = filterStage && filterStage.value == st.id;
+      chip.className = 'today-stage-chip' + (isMatch ? ' active' : '');
+      chip.innerHTML = `<span class="stage-chip-dot" style="background:${st.color}"></span> <span>مرحلة: ${st.name}</span> <strong style="color:${st.color}">(${st.count})</strong>`;
+      chip.addEventListener('click', () => {
+        if (filterStage) {
+          filterStage.value = filterStage.value == st.id ? '' : (st.id === 'none' ? '' : st.id);
+          if (calendar) calendar.refetchEvents();
+          document.querySelectorAll('.today-stage-chip').forEach(c => c.classList.remove('active'));
+          if (filterStage.value) chip.classList.add('active');
+        }
+      });
+      todayStageChips.appendChild(chip);
+    });
+  }
 
   function initCalendar() {
     try {
@@ -736,26 +1183,61 @@ document.addEventListener('DOMContentLoaded', function() {
         locale: '{{ app()->getLocale() }}',
         height: 'auto',
         aspectRatio: 1.65,
+        initialView: 'dayGridMonth',
         editable: true,
         droppable: true,
         selectable: true,
         headerToolbar: {
           right: 'prev,next today',
           center: 'title',
-          left: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+          left: 'dayGridMonth,timeGridWeek,timeGridDay,listDay,listWeek'
+        },
+        views: {
+          dayGridMonth: {
+            buttonText: '{{ __('crm.month_view') }}'
+          },
+          timeGridWeek: {
+            buttonText: '{{ __('crm.week_view') }}',
+            allDaySlot: false,
+            slotMinTime: '08:00:00',
+            slotMaxTime: '22:00:00',
+            expandRows: true
+          },
+          timeGridDay: {
+            buttonText: '{{ __('crm.day_view') }}',
+            allDaySlot: false,
+            slotMinTime: '08:00:00',
+            slotMaxTime: '22:00:00',
+            expandRows: true
+          },
+          listDay: {
+            buttonText: 'أجندة اليوم'
+          },
+          listWeek: {
+            buttonText: 'قائمة الأسبوع'
+          }
         },
         buttonText: {
           today: '{{ __('crm.today') }}',
           month: '{{ __('crm.month_view') }}',
           week: '{{ __('crm.week_view') }}',
           day: '{{ __('crm.day_view') }}',
-          list: '{{ __('crm.list_view') }}'
+          list: 'أجندة اليوم',
+          listWeek: 'قائمة الأسبوع'
+        },
+        datesSet: function(dateInfo) {
+          syncActiveViewTab(dateInfo.view.type);
+          updateTodaySummaryFromEvents(dateInfo.view.currentStart || calendar.getDate(), currentEvents);
         },
         events: function(fetchInfo, successCallback, failureCallback) {
           let url = '{{ route("v2.calendar.events") }}?start=' + encodeURIComponent(fetchInfo.startStr) + '&end=' + encodeURIComponent(fetchInfo.endStr);
+          if (currentSource && currentSource !== 'all') url += '&source=' + encodeURIComponent(currentSource);
           if (filterType && filterType.value) url += '&type=' + encodeURIComponent(filterType.value);
           if (filterStatus && filterStatus.value) url += '&status=' + encodeURIComponent(filterStatus.value);
           if (filterUser && filterUser.value) url += '&user_id=' + encodeURIComponent(filterUser.value);
+          if (filterStage && filterStage.value) url += '&stage_id=' + encodeURIComponent(filterStage.value);
+
+          if (refreshSpinIcon) refreshSpinIcon.classList.add('fc-spin-animate');
 
           fetch(url, {
             headers: {
@@ -771,32 +1253,170 @@ document.addEventListener('DOMContentLoaded', function() {
           })
           .then(data => {
             const list = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+            currentEvents = list;
+            updateLastUpdatedLabel();
+            if (refreshSpinIcon) refreshSpinIcon.classList.remove('fc-spin-animate');
+            updateTodaySummaryFromEvents(calendar ? calendar.getDate() : new Date(), list);
             successCallback(list);
           })
           .catch(error => {
             console.error('Error fetching events:', error);
+            if (refreshSpinIcon) refreshSpinIcon.classList.remove('fc-spin-animate');
             if (failureCallback) failureCallback(error);
             else successCallback([]);
           });
+        },
+        eventContent: function(arg) {
+          const props = arg.event.extendedProps || {};
+          const isLead = props.is_lead;
+          const stageName = props.stage_name;
+          const stageColor = props.stage_color || '#3b82f6';
+          const phone = props.lead_phone;
+          const company = props.lead_company;
+          const viewType = arg.view.type;
+
+          if (viewType === 'dayGridMonth') {
+            const el = document.createElement('div');
+            el.className = 'fc-month-event-wrap';
+            el.style.cssText = 'display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-size:11px;font-weight:700;';
+            
+            const icon = isLead 
+              ? '<i class="bi bi-telephone-outbound-fill" style="font-size:10px;color:#fff;"></i>' 
+              : '<i class="bi bi-calendar-event" style="font-size:10px;"></i>';
+              
+            let stageHtml = '';
+            if (stageName) {
+              stageHtml = `<span style="background:rgba(255,255,255,0.35);color:#fff;font-size:9px;padding:0 5px;border-radius:4px;margin-inline-start:auto;font-weight:800;white-space:nowrap;">${stageName}</span>`;
+            }
+            
+            el.innerHTML = `${icon} <span style="overflow:hidden;text-overflow:ellipsis;">${arg.event.title}</span> ${stageHtml}`;
+            return { domNodes: [el] };
+          }
+
+          if (viewType.startsWith('list')) {
+            const el = document.createElement('div');
+            el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;';
+            
+            const titleArea = document.createElement('div');
+            titleArea.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            const icon = isLead ? '<i class="bi bi-telephone-outbound-fill" style="color:var(--red);"></i>' : '<i class="bi bi-calendar-event"></i>';
+            titleArea.innerHTML = `${icon} <strong>${arg.event.title}</strong>`;
+            
+            const metaArea = document.createElement('div');
+            metaArea.style.cssText = 'display:flex;align-items:center;gap:8px;';
+            
+            if (stageName) {
+              metaArea.innerHTML += `<span class="fc-stage-pill" style="background:${stageColor}22;color:${stageColor};border:1px solid ${stageColor}55;"><span class="stage-chip-dot" style="background:${stageColor};width:6px;height:6px;"></span> ${stageName}</span>`;
+            }
+            if (phone) {
+              metaArea.innerHTML += `<span style="font-size:11px;direction:ltr;color:var(--muted);"><i class="bi bi-telephone"></i> ${phone}</span>`;
+            }
+            el.appendChild(titleArea);
+            el.appendChild(metaArea);
+            return { domNodes: [el] };
+          }
+
+          // timeGridDay & timeGridWeek: Full rich card inside hourly calendar slot!
+          const container = document.createElement('div');
+          container.className = 'fc-custom-event';
+
+          const header = document.createElement('div');
+          header.className = 'fc-event-header';
+          const typeIcon = isLead 
+            ? '<i class="bi bi-telephone-outbound-fill" style="color:#fff;" title="موعد اتصال عميل"></i>' 
+            : (props.type === 'meeting' ? '<i class="bi bi-people-fill"></i>' : '<i class="bi bi-calendar-check"></i>');
+          header.innerHTML = `<span>${typeIcon}</span> <small style="font-size:10px;opacity:0.95;">${arg.timeText || ''}</small>`;
+          container.appendChild(header);
+
+          const titleEl = document.createElement('div');
+          titleEl.className = 'fc-event-lead-title';
+          titleEl.textContent = props.lead_name || arg.event.title;
+          container.appendChild(titleEl);
+
+          if (company) {
+            const compEl = document.createElement('div');
+            compEl.style.cssText = 'font-size:10px;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            compEl.textContent = company;
+            container.appendChild(compEl);
+          }
+
+          if (stageName) {
+            const stageEl = document.createElement('div');
+            stageEl.className = 'fc-stage-pill';
+            stageEl.style.cssText = 'background:rgba(255,255,255,0.28);backdrop-filter:blur(3px);color:#fff;border:1px solid rgba(255,255,255,0.45);margin-top:2px;';
+            stageEl.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:#fff;display:inline-block;"></span> <span style="font-size:10px;font-weight:800;">${stageName}</span>`;
+            container.appendChild(stageEl);
+          }
+
+          if (phone) {
+            const phoneEl = document.createElement('div');
+            phoneEl.className = 'fc-event-phone';
+            phoneEl.innerHTML = `<i class="bi bi-telephone" style="font-size:10px;"></i> ${phone}`;
+            container.appendChild(phoneEl);
+          }
+
+          return { domNodes: [container] };
         },
         select: function(info) {
           openModalForCreate(info.startStr, info.endStr);
         },
         eventClick: function(info) {
-          openModalForEdit(info.event);
+          const props = info.event.extendedProps || {};
+          if (props.is_lead) {
+            openLeadModal(info.event);
+          } else {
+            openModalForEdit(info.event);
+          }
         },
         eventDrop: function(info) {
-          rescheduleEvent(info.event, info.revert);
+          rescheduleUniversal(info.event, info.revert);
         },
         eventResize: function(info) {
-          rescheduleEvent(info.event, info.revert);
+          rescheduleUniversal(info.event, info.revert);
         }
       });
 
       calendar.render();
-      console.log('Calendar initialized');
     } catch (err) {
       console.error('Calendar initialization error:', err);
+    }
+  }
+
+  function rescheduleUniversal(fcEvent, revertFunc) {
+    const props = fcEvent.extendedProps || {};
+    if (props.is_lead) {
+      const leadId = props.lead_id || props.raw_id;
+      const payload = {
+        start_time: fcEvent.start.toISOString()
+      };
+
+      fetch('/calendar/leads/' + leadId + '/reschedule', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showToast('تم إعادة جدولة موعد اتصال العميل بنجاح.');
+          if (calendar) calendar.refetchEvents();
+        } else {
+          showToast(data.message || 'فشل إعادة جدولة موعد العميل.', true);
+          if (revertFunc) revertFunc();
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast(@json(__('crm.server_connection_error')), true);
+        if (revertFunc) revertFunc();
+      });
+    } else {
+      rescheduleEvent(fcEvent, revertFunc);
     }
   }
 
@@ -829,6 +1449,109 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error(error);
       showToast(@json(__('crm.server_connection_error')), true);
       if (revertFunc) revertFunc();
+    });
+  }
+
+  function openLeadModal(fcEvent) {
+    const props = fcEvent.extendedProps || {};
+    activeLeadId = props.lead_id || props.raw_id;
+
+    leadModalTitleText.textContent = props.lead_name || fcEvent.title;
+    leadModalCompanyText.textContent = props.lead_company ? 'الشركة: ' + props.lead_company : '';
+
+    leadModalStageBadgeText.textContent = 'المرحلة: ' + (props.stage_name || 'غير محددة');
+    leadModalStageBadge.style.backgroundColor = props.stage_color || '#3b82f6';
+
+    const statusLabel = props.status === 'overdue' ? 'متأخر' : (props.status_name || 'مجدول');
+    leadModalStatusBadge.textContent = 'الحالة: ' + statusLabel;
+    leadModalStatusBadge.style.backgroundColor = props.status === 'overdue' ? '#ef4444' : (props.status_color || '#10b981');
+
+    leadModalPhoneText.textContent = props.lead_phone || 'غير متوفر';
+    if (props.lead_phone) {
+      leadModalCallLink.href = 'tel:' + props.lead_phone;
+      leadModalCallLink.style.display = 'inline-flex';
+      const cleanPhone = String(props.lead_phone).replace(/[^0-9]/g, '');
+      leadModalWhatsAppLink.href = 'https://wa.me/' + cleanPhone;
+      leadModalWhatsAppLink.style.display = 'inline-flex';
+    } else {
+      leadModalCallLink.style.display = 'none';
+      leadModalWhatsAppLink.style.display = 'none';
+    }
+
+    if (fcEvent.start) {
+      const formattedDate = new Date(fcEvent.start).toLocaleString('ar-EG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      leadModalTimeText.textContent = formattedDate;
+      leadModalNewTime.value = formatDateForInput(fcEvent.start);
+    } else {
+      leadModalTimeText.textContent = 'غير محدد';
+    }
+
+    leadModalUserText.textContent = props.user_name || 'غير محدد';
+
+    if (props.description && props.description.trim() !== '') {
+      leadModalNotesText.textContent = props.description;
+      leadModalNotesWrapper.style.display = 'block';
+    } else {
+      leadModalNotesWrapper.style.display = 'none';
+    }
+
+    leadModalProfileLink.href = props.lead_url || ('/leads/' + activeLeadId);
+    leadModalFollowupLink.href = props.followup_url || ('/leads/' + activeLeadId + '/followups');
+
+    leadModal.classList.add('open');
+  }
+
+  function closeLeadModal() {
+    if (leadModal) leadModal.classList.remove('open');
+  }
+
+  // Lead Modal Reschedule button
+  if (leadModalSaveRescheduleBtn) {
+    leadModalSaveRescheduleBtn.addEventListener('click', function() {
+      const newTime = leadModalNewTime.value;
+      if (!newTime || !activeLeadId) {
+        alert('يرجى تحديد الموعد الجديد للاتصال.');
+        return;
+      }
+
+      leadModalSaveRescheduleBtn.disabled = true;
+      leadModalSaveRescheduleBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> جارٍ الحفظ...';
+
+      fetch('/calendar/leads/' + activeLeadId + '/reschedule', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ start_time: new Date(newTime).toISOString() })
+      })
+      .then(res => res.json())
+      .then(data => {
+        leadModalSaveRescheduleBtn.disabled = false;
+        leadModalSaveRescheduleBtn.innerHTML = '<i class="bi bi-check2"></i> حفظ الموعد';
+        if (data.success) {
+          showToast('تم إعادة جدولة موعد اتصال العميل بنجاح.');
+          closeLeadModal();
+          if (calendar) calendar.refetchEvents();
+        } else {
+          alert(data.message || 'فشل تحديث موعد العميل.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        leadModalSaveRescheduleBtn.disabled = false;
+        leadModalSaveRescheduleBtn.innerHTML = '<i class="bi bi-check2"></i> حفظ الموعد';
+        alert('حدث خطأ أثناء الاتصال بالسيرفر.');
+      });
     });
   }
 
@@ -1064,6 +1787,40 @@ document.addEventListener('DOMContentLoaded', function() {
   if (filterType) filterType.addEventListener('change', () => calendar && calendar.refetchEvents());
   if (filterStatus) filterStatus.addEventListener('change', () => calendar && calendar.refetchEvents());
   if (filterUser) filterUser.addEventListener('change', () => calendar && calendar.refetchEvents());
+  if (filterStage) filterStage.addEventListener('change', () => calendar && calendar.refetchEvents());
+
+  // View Switcher Tab Buttons
+  document.querySelectorAll('.view-tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const viewName = this.dataset.view;
+      if (calendar && viewName) {
+        calendar.changeView(viewName);
+        syncActiveViewTab(viewName);
+      }
+    });
+  });
+
+  // Scope Pill Filter Buttons
+  document.querySelectorAll('.scope-pill-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.scope-pill-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentSource = this.dataset.source || 'all';
+      if (calendar) calendar.refetchEvents();
+    });
+  });
+
+  // Live Refresh Button
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function() {
+      if (refreshSpinIcon) refreshSpinIcon.classList.add('fc-spin-animate');
+      if (calendar) calendar.refetchEvents();
+      setTimeout(() => {
+        if (refreshSpinIcon) refreshSpinIcon.classList.remove('fc-spin-animate');
+        showToast('تم تحديث بيانات التقويم بنجاح');
+      }, 600);
+    });
+  }
 
   // Modal open/close listeners
   document.getElementById('openCreateModalBtn')?.addEventListener('click', function() {
@@ -1071,6 +1828,13 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   document.getElementById('closeModalBtn')?.addEventListener('click', closeModal);
   document.getElementById('cancelModalBtn')?.addEventListener('click', closeModal);
+  closeLeadModalBtn?.addEventListener('click', closeLeadModal);
+  closeLeadModalBottomBtn?.addEventListener('click', closeLeadModal);
+
+  // Background Auto-Refresh every 60s
+  setInterval(() => {
+    if (calendar) calendar.refetchEvents();
+  }, 60000);
 
   // Check reminders
   checkUpcomingReminders();

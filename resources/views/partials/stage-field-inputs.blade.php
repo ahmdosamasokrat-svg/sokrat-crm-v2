@@ -243,6 +243,7 @@
 
         wrap.addEventListener('input', updateConditions);
         wrap.addEventListener('change', updateConditions);
+        document.addEventListener('stageBlockSync', updateConditions);
         updateConditions();
     })();
     </script>

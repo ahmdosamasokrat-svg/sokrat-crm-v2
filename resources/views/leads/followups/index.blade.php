@@ -698,7 +698,45 @@ body.kanban-followup-popup .client-actions {
             </div>
         </section>
 
-        @if (session('success'))
+        @if (request()->boolean('saved') || session('success'))
+            <script>
+            (() => {
+                const isKanbanPopup = @json(request()->boolean('kanban_popup') || request()->boolean('popup'));
+                const successRedirectUrl = isKanbanPopup ? @json(route('v2.leads.kanban')) : @json(route('v2.leads'));
+                const successMsg = @json(session('success') ?? 'تم حفظ بيانات المرحلة وتسجيل المتابعة بنجاح.');
+
+                try {
+                    if (window.parent && window.self !== window.top) {
+                        window.parent.postMessage({
+                            type: 'crm-kanban-followup-saved',
+                            action: 'lead-transition-saved',
+                            redirectUrl: successRedirectUrl,
+                            message: successMsg
+                        }, window.location.origin);
+                    }
+                } catch (e) {}
+
+                try {
+                    if (window.parent && window.self !== window.top && window.parent.location) {
+                        try {
+                            window.parent.closePopup?.();
+                            window.parent.closeModal?.();
+                            const openModals = window.parent.document?.querySelectorAll('.kanban-followup-modal.open, #crmKanbanFollowupModal, #crmKanbanActionModal, #crmKanbanUtilityModal');
+                            openModals?.forEach(m => {
+                                m.classList.remove('open');
+                                m.setAttribute('aria-hidden', 'true');
+                            });
+                            window.parent.document?.body?.classList.remove('kanban-modal-open');
+                        } catch (e) {}
+
+                        window.parent.location.href = successRedirectUrl;
+                        return;
+                    }
+                } catch (e) {}
+
+                window.location.href = successRedirectUrl;
+            })();
+            </script>
             <div class="flash-success">
                 <i class="bi bi-check-circle-fill"></i> {{ session('success') }}
             </div>
