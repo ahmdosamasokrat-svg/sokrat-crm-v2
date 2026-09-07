@@ -1490,7 +1490,7 @@ body.kanban-modal-open{
           </div>
 
           <div class="kanban-card-actions">
-           @if ($lead->phone && empty($maskPhones))
+           @if ($lead->phone)
             <a
              class="btn call"
              @can('leads.followups.create')
@@ -3440,6 +3440,151 @@ document.addEventListener(
 
 
 
+
+
+<!-- CRM KANBAN PAGE SIZE 15 V7 JS START -->
+<script>
+(() => {
+ const PAGE_SIZE = 15;
+
+ const getPanelCards = (panel) =>
+  Array.from(
+   panel.children
+  ).filter(
+   (element) =>
+    element.classList.contains(
+     'kanban-card'
+    )
+  );
+
+ const setupPanel = (panel) => {
+  const cards =
+   getPanelCards(panel);
+
+  /*
+   * 15 or fewer:
+   * show normally, no button needed.
+   */
+  if (
+   cards.length
+   <= PAGE_SIZE
+  ) {
+   return;
+  }
+
+  let visibleCount =
+   PAGE_SIZE;
+
+  const wrap =
+   document.createElement(
+    'div'
+   );
+
+  wrap.className =
+   'kanban-more-wrap';
+
+  wrap.setAttribute(
+   'data-kanban-more-wrap',
+   ''
+  );
+
+  const button =
+   document.createElement(
+    'button'
+   );
+
+  button.type =
+   'button';
+
+  button.className =
+   'kanban-more-btn';
+
+  button.setAttribute(
+   'data-kanban-more',
+   ''
+  );
+
+  const render = () => {
+   cards.forEach(
+    (card, index) => {
+     const visible =
+      index < visibleCount;
+
+     card.hidden =
+      __omp_shell("visible;")
+
+     if (visible) {
+      card.removeAttribute(
+       'aria-hidden'
+      );
+     } else {
+      card.setAttribute(
+       'aria-hidden',
+       'true'
+      );
+     }
+    }
+   );
+
+   const remaining =
+    cards.length
+     - visibleCount;
+
+   if (remaining <= 0) {
+    wrap.hidden = true;
+    return;
+   }
+
+   wrap.hidden = false;
+
+   const nextBatch =
+    Math.min(
+     PAGE_SIZE,
+     remaining
+    );
+
+   button.textContent =
+    'المزيد'
+    + ' ('
+    + nextBatch
+    + ')';
+  };
+
+  button.addEventListener(
+   'click',
+   () => {
+    visibleCount =
+     Math.min(
+      visibleCount
+       + PAGE_SIZE,
+      cards.length
+     );
+
+    render();
+   }
+  );
+
+  wrap.appendChild(
+   button
+  );
+
+  panel.appendChild(
+   wrap
+  );
+
+  render();
+ };
+
+ document
+  .querySelectorAll(
+   '.kanban-scope-panel'
+  )
+  .forEach(
+   setupPanel
+  );
+})();
+</script>
+<!-- CRM KANBAN PAGE SIZE 15 V7 JS END -->
 
 </body>
 </html>
