@@ -77,3 +77,9 @@ Thumbs.db
 # Live-only database download utility.
 # Never publish this file in the CRM source repository.
 /public/download-laravel-db.php
+
+# Local diagnostic files
+/app_syntax_report.txt
+/error_log.txt
+/http_syntax.txt
+/syntax_report.txt
