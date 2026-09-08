@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LeadStatus extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'pipeline_stage_id',
         'code',
@@ -22,6 +25,7 @@ class LeadStatus extends Model
         return [
             'position' => 'integer',
             'is_terminal' => 'boolean',
+            'deleted_at' => 'datetime',
         ];
     }
 

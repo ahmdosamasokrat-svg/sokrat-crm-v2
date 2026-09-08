@@ -10,6 +10,17 @@
     <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
     <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
     <link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+    <script>
+    (() => {
+        try {
+            const theme = localStorage.getItem('sokrat.crm.theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (theme === 'dark' || (theme !== 'light' && prefersDark)) {
+                document.documentElement.classList.add('dark-mode');
+            }
+        } catch (e) {}
+    })();
+    </script>
     <style>
         *{box-sizing:border-box}
         :root{--red:#dc2637;--dark:#182033;--muted:#7e899b;--line:#e4e8ef;--bg:#f4f6f9;--card:#fff;--blue:#3478f6}
@@ -249,19 +260,35 @@
             .metrics-bar{grid-template-columns:1fr}
             .call-metrics{grid-template-columns:1fr}
         }
+        /* Kanban popup embedded mode */
+        body.kanban-followup-popup {
+            background: transparent !important;
+        }
+        body.kanban-followup-popup .crm-app {
+            min-height: auto;
+            display: block;
+        }
+        body.kanban-followup-popup .crm-main {
+            padding: 14px;
+        }
+        body.kanban-followup-popup .crm-topbar,
+        body.kanban-followup-popup .topbar,
+        body.kanban-followup-popup .crm-side {
+            display: none !important;
+        }
     </style>
 </head>
-<body>
+<body class="{{ request()->boolean('kanban_popup') ? 'kanban-followup-popup' : '' }}">
 <div class="crm-app lead-detail-page">
     @include('partials.crm-sidebar')
 
     <main class="crm-main">
         @php
             $showTopActions = '';
-            if (auth()->user()->can('leads.update')) {
+            if (auth()->user()?->can('leads.update')) {
                 $showTopActions .= '<a href="' . route('v2.leads.edit', $lead) . '" class="btn soft"><i class="bi bi-pencil-square"></i> ' . __('crm.edit_data') . '</a>';
             }
-            if (auth()->user()->can('leads.followups.view')) {
+            if (auth()->user()?->can('leads.followups.view')) {
                 if ($callPhone) {
                     $showTopActions .= '<a class="btn primary js-call-followup" href="' . route('v2.leads.followups.index', ['lead' => $lead, 'channel' => 'call']) . '" data-call-href="tel:' . $callPhone . '" title="' . __('crm.open_microsip_followup') . '"><i class="bi bi-telephone-outbound"></i> ' . __('crm.call_action') . '</a>';
                 }
@@ -509,38 +536,89 @@
                     </div>
                 </section>
 
-                <!-- QUOTATION SECTION -->
-                @if ($hasQuotationFile && auth()->user()?->can('quotations.view'))
+                <!-- DOCUMENTS & QUOTATIONS SECTION -->
+                @php
+                    $leadDocs = $lead->relationLoaded('documents') ? $lead->documents : $lead->documents()->with('stage', 'uploader')->get();
+                    $quotationDocs = $leadDocs->where('category', \App\Models\LeadDocument::CATEGORY_QUOTATION);
+                    $otherDocs = $leadDocs->where('category', '!=', \App\Models\LeadDocument::CATEGORY_QUOTATION);
+                    $canViewQuotations = auth()->user()?->can('quotations.view');
+                @endphp
+
+                @if (($hasQuotationFile || $quotationDocs->isNotEmpty()) && $canViewQuotations)
                     <section class="panel">
                         <div class="panel-head">
                             <h2><i class="bi bi-file-earmark-pdf"></i> {{ __('crm.price_quotation') }}</h2>
                             <span class="badge active">{{ $lead->quotation_sent ? 'تم الإرسال' : 'جاهز' }}</span>
                         </div>
                         <div class="info-list">
-                            <div class="info-row">
-                                <div>
-                                    <strong style="display:block;font-size:13px">{{ $quotationFileName ?: 'ملف عرض السعر' }}</strong>
-                                    <small style="color:var(--muted)">ملف عرض السعر الرسمي المرفق للعميل</small>
+                            @if ($quotationDocs->isNotEmpty())
+                                @foreach ($quotationDocs as $qDoc)
+                                    <div class="info-row">
+                                        <div>
+                                            <strong style="display:block;font-size:13px">{{ $qDoc->original_name }}</strong>
+                                            <small style="color:var(--muted)">
+                                                {{ $qDoc->formattedSize() }} • {{ $qDoc->created_at?->format('Y-m-d H:i') }}
+                                                @if ($qDoc->stage) • مرحلة: {{ $qDoc->stage->localizedName() }} @endif
+                                                @if ($qDoc->uploader) • بواسطة: {{ $qDoc->uploader->name }} @endif
+                                            </small>
+                                        </div>
+                                        <div style="display:flex;gap:6px">
+                                            <a class="btn small soft" href="{{ route('v2.leads.documents.preview', [$lead, $qDoc]) }}" target="_blank" rel="noopener noreferrer" title="معاينة الملف">
+                                                <i class="bi bi-eye"></i> معاينة
+                                            </a>
+                                            <a class="btn small soft" href="{{ route('v2.leads.documents.download', [$lead, $qDoc]) }}" title="تحميل الملف">
+                                                <i class="bi bi-download"></i> تحميل
+                                            </a>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @elseif ($hasQuotationFile)
+                                <div class="info-row">
+                                    <div>
+                                        <strong style="display:block;font-size:13px">{{ $quotationFileName ?: 'ملف عرض السعر' }}</strong>
+                                        <small style="color:var(--muted)">ملف عرض السعر الرسمي المرفق للعميل</small>
+                                    </div>
+                                    <div style="display:flex;gap:6px">
+                                        <a class="btn small soft" href="{{ route('v2.leads.quotation.preview', $lead) }}" target="_blank" rel="noopener noreferrer" title="معاينة الملف">
+                                            <i class="bi bi-eye"></i> معاينة
+                                        </a>
+                                        <a class="btn small soft" href="{{ route('v2.leads.quotation.download', $lead) }}" title="تحميل الملف">
+                                            <i class="bi bi-download"></i> تحميل
+                                        </a>
+                                    </div>
                                 </div>
-                                <div style="display:flex;gap:6px">
-                                    <a
-                                        class="btn small soft"
-                                        href="{{ route('v2.leads.quotation.preview', $lead) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="معاينة الملف"
-                                    >
-                                        <i class="bi bi-eye"></i> معاينة
-                                    </a>
-                                    <a
-                                        class="btn small soft"
-                                        href="{{ route('v2.leads.quotation.download', $lead) }}"
-                                        title="تحميل الملف"
-                                    >
-                                        <i class="bi bi-download"></i> تحميل
-                                    </a>
+                            @endif
+                        </div>
+                    </section>
+                @endif
+
+                @if ($otherDocs->isNotEmpty())
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h2><i class="bi bi-folder2-open"></i> المستندات والمرفقات</h2>
+                            <span class="badge">{{ $otherDocs->count() }}</span>
+                        </div>
+                        <div class="info-list">
+                            @foreach ($otherDocs as $oDoc)
+                                <div class="info-row">
+                                    <div>
+                                        <strong style="display:block;font-size:13px">{{ $oDoc->original_name }}</strong>
+                                        <small style="color:var(--muted)">
+                                            {{ $oDoc->formattedSize() }} • {{ $oDoc->created_at?->format('Y-m-d H:i') }}
+                                            @if ($oDoc->stage) • مرحلة: {{ $oDoc->stage->localizedName() }} @endif
+                                            @if ($oDoc->uploader) • بواسطة: {{ $oDoc->uploader->name }} @endif
+                                        </small>
+                                    </div>
+                                    <div style="display:flex;gap:6px">
+                                        <a class="btn small soft" href="{{ route('v2.leads.documents.preview', [$lead, $oDoc]) }}" target="_blank" rel="noopener noreferrer" title="معاينة الملف">
+                                            <i class="bi bi-eye"></i> معاينة
+                                        </a>
+                                        <a class="btn small soft" href="{{ route('v2.leads.documents.download', [$lead, $oDoc]) }}" title="تحميل الملف">
+                                            <i class="bi bi-download"></i> تحميل
+                                        </a>
+                                    </div>
                                 </div>
-                            </div>
+                            @endforeach
                         </div>
                     </section>
                 @endif
@@ -595,37 +673,6 @@
                     </section>
                 @endcan
 
-                <!-- STAGE QUESTIONS ANSWERS HISTORY -->
-                @if (!empty($stageHistoryGroups) && $stageHistoryGroups->isNotEmpty())
-                    <section class="panel">
-                        <div class="panel-head">
-                            <h2><i class="bi bi-ui-checks"></i> {{ __('crm.stage_history_section_title') }}</h2>
-                        </div>
-                        <div class="info-list" style="display:flex; flex-direction:column; gap:10px;">
-                            @foreach ($stageHistoryGroups as $group)
-                                <div style="background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px;">
-                                    <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
-                                        <div style="display:flex; align-items:center; gap:6px;">
-                                            <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:{{ $group['stage']?->color ?? '#64748b' }};"></span>
-                                            <strong>{{ $group['stage']?->localizedName() ?? ($group['stage']?->name_ar ?? '—') }}</strong>
-                                        </div>
-                                        <small style="color:var(--muted); font-size:11px;">
-                                            <i class="bi bi-person"></i> {{ $group['actor'] }} • {{ $group['date']?->format('Y-m-d H:i') ?? '—' }}
-                                        </small>
-                                    </div>
-                                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px 12px; width:100%; font-size:12px;">
-                                        @foreach ($group['values'] as $val)
-                                            <div>
-                                                <span style="color:var(--muted)">{{ $val['label'] }}:</span>
-                                                <strong style="color:var(--dark)">{{ $val['value'] }}</strong>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </section>
-                @endif
 
                 <!-- CUSTOMER ACTIVITY TIMELINE -->
                 <section class="panel">

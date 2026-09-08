@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\PipelineStage;
 use App\Models\Quotation;
+use App\Models\TechnicalSupportTask;
 use App\Models\User;
 use App\Observers\CalendarEventNotificationObserver;
 use App\Observers\LeadNotificationObserver;
@@ -19,6 +20,7 @@ use App\Policies\UserPolicy;
 use App\Security\CrmPermission;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -65,11 +67,15 @@ class AppServiceProvider extends ServiceProvider
                         : 0;
 
                 $sidebarPipelineStages = PipelineStage::getActiveStagesForSidebar();
+                $crmSidebarHasSupportTasks = $user !== null
+                    && Schema::hasTable('technical_support_tasks')
+                    && TechnicalSupportTask::query()->accessibleTo($user)->exists();
 
                 $view->with([
                     'totalLeads' => $totalLeads,
                     'totalTasks' => $totalTasks,
                     'sidebarPipelineStages' => $sidebarPipelineStages,
+                    'crmSidebarHasSupportTasks' => $crmSidebarHasSupportTasks,
                 ]);
             },
         );

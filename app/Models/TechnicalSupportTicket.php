@@ -40,7 +40,9 @@ class TechnicalSupportTicket extends Model
 
     public function scopeAccessibleTo(Builder $query, User $user): Builder
     {
-        if ($user->isSuperAdmin()) {
+        if ($user->isSuperAdmin()
+            || $user->hasPermission('technical_support.view')
+            || $user->hasPermission('technical_support.manage')) {
             return $query;
         }
 

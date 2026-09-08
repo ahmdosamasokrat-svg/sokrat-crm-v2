@@ -45,10 +45,37 @@
             font-size: 14px;
             line-height: 1.5;
         }
+        body.modal-open { overflow: hidden !important; }
+        .crm-body-modal-shell {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 999999 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            box-sizing: border-box;
+        }
+        .crm-body-modal-dialog {
+            background: var(--card, #ffffff);
+            color: var(--dark, #182033);
+            border: 1px solid var(--line, #e2e8f0);
+            border-radius: 16px;
+            max-width: 680px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            max-height: calc(100dvh - 36px);
+            overflow-y: auto;
+            position: relative;
+            z-index: 1000000 !important;
+        }
         button, input, select, textarea { font: inherit; }
         a { color: inherit; text-decoration: none; }
 
-        .settings-shell { display: flex; min-height: 100vh; max-width: 100vw; overflow-x: hidden; }
+        .settings-shell { display: flex; min-height: 100vh; max-width: 100vw; overflow-x: clip; }
         .settings-main { flex: 1; min-width: 0; max-width: 100%; padding: 24px 32px 60px; }
         /* Topbar Unified */
         .crm-topbar, .settings-top, .topbar {
@@ -587,9 +614,6 @@
             <a class="{{ request()->routeIs('v2.settings.stages.*') ? 'active' : '' }}" href="{{ route('v2.settings.stages.index') }}">
                 <i class="bi bi-diagram-3"></i> {{ __('crm.stages_and_statuses') }}
             </a>
-            <a class="{{ request()->routeIs('v2.settings.followup-customer-fields.*') ? 'active' : '' }}" href="{{ route('v2.settings.followup-customer-fields.index') }}">
-                <i class="bi bi-card-checklist"></i> {{ __('crm.followup_customer_fields_nav') }}
-            </a>
             @can('users.view')
                 <a class="{{ request()->routeIs('v2.settings.users.*') ? 'active' : '' }}" href="{{ route('v2.settings.users.index') }}">
                     <i class="bi bi-people"></i> {{ __('crm.users') }}
@@ -620,7 +644,7 @@
                 <i class="bi bi-check-circle-fill"></i> {{ session('success') }}
             </div>
         @endif
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             <div class="flash error">
                 <i class="bi bi-exclamation-triangle-fill"></i> {{ __('crm.save_failed') }}
                 <ul>
@@ -634,6 +658,7 @@
         @yield('content')
     </main>
 </div>
+@stack('modals')
 <script src="{{ asset('crm-notifications.js') }}?v=1.0.0"></script>
 @stack('scripts')
 </body>

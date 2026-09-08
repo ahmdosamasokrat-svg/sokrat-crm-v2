@@ -25,7 +25,7 @@
   button,input,select{font:inherit}a{color:inherit}
   ::selection{background:#dc26372a;color:var(--report-ink)}
   :focus-visible{outline:3px solid rgba(220,38,55,.28);outline-offset:3px}
-  .report-shell{display:flex;min-height:100vh;max-width:100vw;overflow-x:hidden}
+  .report-shell{display:flex;min-height:100vh;max-width:100vw;overflow-x:clip}
   .report-main{min-width:0;flex:1;max-width:100%;padding:24px 30px 48px}
   .report-header, .crm-topbar, .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px;flex-wrap:wrap;min-height:56px}
   .report-heading, .crm-topbar-left, .topbar-left{display:flex;align-items:center;gap:12px;min-width:0}

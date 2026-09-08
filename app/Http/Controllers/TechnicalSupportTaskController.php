@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Models\TechnicalSupportTask;
 use App\Models\User;
+use App\Notifications\TechnicalSupportTaskAssignedNotification;
+use App\Security\CrmPermission;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -29,8 +31,16 @@ class TechnicalSupportTaskController extends Controller
             $priority = 'all';
         }
 
+        $due = trim((string) $request->query('due', 'all'));
+        if (! in_array($due, ['all', 'today', 'overdue'], true)) {
+            $due = 'all';
+        }
+
         $assigneeId = $request->filled('assignee_id')
             ? $request->integer('assignee_id')
+            : null;
+        $taskId = $request->filled('task_id')
+            ? $request->integer('task_id')
             : null;
         $search = trim((string) $request->query('search', ''));
 
@@ -67,8 +77,18 @@ class TechnicalSupportTaskController extends Controller
             $tasksQuery->where('priority', $priority);
         }
 
+        if ($due === 'today') {
+            $tasksQuery->whereDate('due_date', $today);
+        } elseif ($due === 'overdue') {
+            $tasksQuery->whereDate('due_date', '<', $today);
+        }
+
         if ($assigneeId !== null && $assigneeId > 0) {
             $tasksQuery->where('assigned_to_user_id', $assigneeId);
+        }
+
+        if ($taskId !== null && $taskId > 0) {
+            $tasksQuery->whereKey($taskId);
         }
 
         if ($search !== '') {
@@ -83,15 +103,18 @@ class TechnicalSupportTaskController extends Controller
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END")
             ->orderByRaw('due_date IS NULL')
             ->orderBy('due_date')
-            ->orderByDesc('priority')
+            ->orderByRaw("CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END")
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
 
-        $users = User::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $canManage = $user->hasPermission(CrmPermission::TECHNICAL_SUPPORT_TASKS_MANAGE);
+        $users = $canManage
+            ? User::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+            : collect();
 
         return view('technical-support.tasks.index', compact(
             'tasks',
@@ -99,8 +122,10 @@ class TechnicalSupportTaskController extends Controller
             'metrics',
             'status',
             'priority',
+            'due',
             'assigneeId',
             'search',
+            'canManage',
         ));
     }
 
@@ -113,7 +138,8 @@ class TechnicalSupportTaskController extends Controller
         $data['created_by_user_id'] = $user->getKey();
         $data['status'] = TechnicalSupportTask::STATUS_PENDING;
 
-        TechnicalSupportTask::query()->create($data);
+        $task = TechnicalSupportTask::query()->create($data);
+        $this->notifyAssignee($task);
 
         return redirect()
             ->route('v2.technical-support.tasks.index')
@@ -127,8 +153,12 @@ class TechnicalSupportTaskController extends Controller
 
         $task->update($this->validateTask($request));
 
+        if ($task->wasChanged('assigned_to_user_id')) {
+            $this->notifyAssignee($task);
+        }
+
         return redirect()
-            ->route('v2.technical-support.tasks.index', $request->only(['status', 'priority', 'assignee_id', 'search', 'page']))
+            ->route('v2.technical-support.tasks.index', $request->only(['status', 'priority', 'due', 'assignee_id', 'search', 'page']))
             ->with('success', __('crm.support_task_updated'));
     }
 
@@ -168,7 +198,7 @@ class TechnicalSupportTaskController extends Controller
     }
 
     /**
-     * @return array{title: string, description?: string|null, assigned_to_user_id: int, due_date?: string|null, priority: string}
+     * @return array{title: string, description?: string|null, assigned_to_user_id: int, due_date?: string|null, priority: string, color: string}
      */
     private function validateTask(Request $request): array
     {
@@ -186,6 +216,16 @@ class TechnicalSupportTaskController extends Controller
                 TechnicalSupportTask::PRIORITY_NORMAL,
                 TechnicalSupportTask::PRIORITY_HIGH,
             ])],
+            'color' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
+    }
+
+    private function notifyAssignee(TechnicalSupportTask $task): void
+    {
+        $assignee = $task->assignee()->first();
+
+        if ($assignee !== null) {
+            $assignee->notify(new TechnicalSupportTaskAssignedNotification($task));
+        }
     }
 }

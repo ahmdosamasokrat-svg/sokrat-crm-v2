@@ -195,6 +195,14 @@
        {{ __('crm.export_leads') }}
       </a>
       @endcan
+      @can('leads.trash.view')
+      <a
+       class="{{ request()->routeIs('v2.leads.trash.*') ? 'active' : '' }}"
+       href="{{ route('v2.leads.trash.index') }}"
+      >
+       <i class="bi bi-trash3" style="font-size:12px; margin-inline-end:4px;"></i> {{ __('سلة المهملات') }}
+      </a>
+      @endcan
      </nav>
     </div>
    </div>
@@ -377,7 +385,7 @@
   @endcan
   @endif
 
-  @if(auth()->user()?->can('technical_support.view') || auth()->user()?->can('technical_support.reports'))
+  @if(auth()->user()?->can('technical_support.view') || auth()->user()?->can('technical_support.reports') || auth()->user()?->can('technical_support.tasks.manage') || ($crmSidebarHasSupportTasks ?? false))
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarTechnicalSupportActive ? 'active' : '' }}"
@@ -400,10 +408,16 @@
      <nav>
       @can('technical_support.view')
       <a
-       class="{{ request()->routeIs('v2.technical-support.reports') ? '' : ($crmSidebarTechnicalSupportActive ? 'active' : '') }}"
+       class="{{ request()->routeIs('v2.technical-support.index', 'v2.technical-support.cards.*', 'v2.technical-support.tickets.*', 'v2.technical-support.ips.*', 'v2.technical-support.devices.*') ? 'active' : '' }}"
        href="{{ route('v2.technical-support.index') }}"
       >
        {{ __('crm.support_servers') }}
+      </a>
+      <a
+       class="{{ request()->routeIs('v2.technical-support.team*') ? 'active' : '' }}"
+       href="{{ route('v2.technical-support.team') }}"
+      >
+       {{ __('crm.support_team') }}
       </a>
       @endcan
       @can('technical_support.reports')
@@ -414,6 +428,12 @@
        {{ __('crm.support_reports') }}
       </a>
       @endcan
+      <a
+       class="{{ request()->routeIs('v2.technical-support.tasks.*') ? 'active' : '' }}"
+       href="{{ route('v2.technical-support.tasks.index') }}"
+      >
+       {{ __('crm.support_tasks') }}
+      </a>
      </nav>
     </div>
    </div>

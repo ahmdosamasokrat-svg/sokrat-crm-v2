@@ -331,6 +331,168 @@ html.dark-mode .filter-control {
   border-color: var(--line);
   color: var(--dark);
 }
+.dynamic-filter-builder {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.dynamic-filter-context {
+  min-width: 0;
+}
+.dynamic-filter-context strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dark);
+  font-size: 13px;
+}
+.dynamic-filter-context small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dynamic-field-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+.dynamic-field-picker-toggle {
+  min-width: 190px;
+  justify-content: space-between;
+}
+.dynamic-field-picker-count {
+  min-width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 900;
+}
+html.dark-mode .dynamic-field-picker-count {
+  background: rgba(220, 38, 55, 0.16);
+}
+.dynamic-field-picker-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 7px);
+  inset-inline-end: 0;
+  z-index: 30;
+  width: min(360px, calc(100vw - 40px));
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+}
+.dynamic-field-picker-menu[hidden] { display: none; }
+.dynamic-field-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  color: var(--dark);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dynamic-field-option:hover {
+  background: #f8fafc;
+}
+html.dark-mode .dynamic-field-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.dynamic-field-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--red);
+}
+.dynamic-field-option i {
+  color: var(--muted);
+}
+.dynamic-field-option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dynamic-field-option-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dynamic-field-option-copy small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.dynamic-field-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 9px 2px;
+  border-top: 1px solid var(--line);
+}
+.dynamic-field-picker-footer small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.dynamic-field-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.dynamic-field-clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--red);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.dynamic-field-select-all {
+  color: var(--dark);
+}
+.dynamic-filter-field-stage {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+.dynamic-filter-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 12px;
+}
+.dynamic-filter-field[hidden] { display: none; }
+.dynamic-filter-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+html.dark-mode .dynamic-filter-empty {
+  background: rgba(255, 255, 255, 0.04);
+}
 
 /* Bulk Actions Bar */
 .bulk-actions-bar {
@@ -608,6 +770,10 @@ html.dark-mode .btn-action {
   .pagination-wrap { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
   .crm-pagination-nav { flex-wrap: wrap; justify-content: center; }
   .btn-action { width: 44px; height: 44px; min-width: 44px; min-height: 44px; font-size: 16px; }
+  .dynamic-filter-builder { align-items: stretch; flex-direction: column; }
+  .dynamic-field-picker, .dynamic-field-picker-toggle { width: 100%; }
+  .dynamic-field-picker-menu { inset-inline: 0; width: 100%; }
+  .dynamic-filter-fields { grid-template-columns: 1fr; }
 }
 @media(max-width: 380px) {
   .stats-grid { grid-template-columns: 1fr; }
@@ -717,6 +883,12 @@ html.dark-mode .btn-action {
         <!-- FILTERS PANEL -->
         <section class="filter-panel">
             <form method="GET" action="{{ route('v2.leads') }}" class="filter-form-grid" id="leadFilters">
+                <input
+                    type="hidden"
+                    name="field_ids"
+                    value="{{ implode(',', $selectedStageFieldIds) }}"
+                    data-selected-dynamic-field-ids
+                >
                 @if (!empty($filters['stage']))
                     <input type="hidden" name="stage" value="{{ $filters['stage'] }}">
                 @endif
@@ -736,7 +908,7 @@ html.dark-mode .btn-action {
                     <select id="leadStatus" name="status" class="filter-control">
                         <option value="">{{ __('crm.all_states') }}</option>
                         @foreach ($statuses as $status)
-                            <option value="{{ $status->code }}" @selected($filters['status'] === $status->code)>
+                            <option value="{{ $status->code }}" data-stage-id="{{ $status->pipeline_stage_id }}" @selected($filters['status'] === $status->code)>
                                 {{ $status->name_ar }}
                             </option>
                         @endforeach
@@ -792,46 +964,290 @@ html.dark-mode .btn-action {
                     </select>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="filter-actions-col">
-                    <button type="submit" class="btn primary small" title="{{ __('crm.apply_filter') }}">
-                        <i class="bi bi-funnel-fill"></i> {{ __('crm.apply') }}
+                <!-- Choose Fields / Column Chooser Dropdown -->
+                <div class="filter-field col-choose-fields" data-dynamic-field-picker style="position:relative;">
+                    <label for="chooseFieldsToggle" style="font-size:12px;"><i class="bi bi-layout-three-columns"></i> {{ __('تحديد الأعمدة والفلاتر') }}</label>
+                    <button
+                        id="chooseFieldsToggle"
+                        class="filter-control btn small soft dynamic-field-picker-toggle"
+                        type="button"
+                        data-dynamic-field-picker-toggle
+                        aria-expanded="false"
+                        aria-controls="dynamicFieldPickerMenu"
+                        style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:0 12px; font-weight:700; background:var(--card);"
+                    >
+                        <span style="pointer-events:none;"><i class="bi bi-ui-checks-grid" style="margin-inline-end:4px;"></i> {{ __('الأعمدة والحقول') }}</span>
+                        <span class="dynamic-field-picker-count badge" data-dynamic-field-count style="pointer-events:none; background:#6366f1; color:#fff; font-size:10px; padding:2px 6px;">{{ count($selectedStageFieldIds) }}</span>
                     </button>
-                    @if ($activeQuery !== [])
-                        <a href="{{ route('v2.leads') }}" class="btn soft small" title="{{ __('crm.reset') }}">
-                            <i class="bi bi-arrow-counterclockwise"></i>
-                        </a>
-                    @endif
+
+                    <div
+                        class="dynamic-field-picker-menu"
+                        id="dynamicFieldPickerMenu"
+                        data-dynamic-field-picker-menu
+                        role="group"
+                        aria-labelledby="chooseFieldsToggle"
+                        hidden
+                        style="position:absolute; top:calc(100% + 6px); inset-inline-end:0; z-index:150; max-height:480px; overflow-y:auto; width:340px; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-dropdown); box-sizing:border-box;"
+                    >
+                        <div style="padding: 10px 12px 6px; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; border-bottom:1px solid var(--line);">
+                            الأعمدة الأساسية (إلزامية واختيارية)
+                        </div>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="client" checked disabled>
+                            <i class="bi bi-person-badge"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.client') }}</span>
+                                <small style="color:var(--muted)">إلزامي</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="status" checked disabled>
+                            <i class="bi bi-tag"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.current_status') }}</span>
+                                <small style="color:var(--muted)">إلزامي</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="actions" checked disabled>
+                            <i class="bi bi-gear"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.actions') }}</span>
+                                <small style="color:var(--muted)">إلزامي</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="contact" checked>
+                            <i class="bi bi-telephone"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.contact_data') }}</span>
+                                <small>الهاتف / البريد</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="company_source" checked>
+                            <i class="bi bi-building"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.company_source') }}</span>
+                                <small>الشركة والمصدر</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="employee" checked>
+                            <i class="bi bi-person-check"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.responsible_employee') }}</span>
+                                <small>الموظف المسؤول</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="followup" checked>
+                            <i class="bi bi-calendar-event"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.next_followup') }}</span>
+                                <small>الموعد القادم</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="created_date" checked>
+                            <i class="bi bi-clock-history"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.created_date') }}</span>
+                                <small>تاريخ الإضافة</small>
+                            </span>
+                        </label>
+
+                        <div style="padding: 12px 12px 6px; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; border-top: 1px solid var(--line); border-bottom:1px solid var(--line);">
+                            حقول وأسئلة المراحل (أعمدة وفلاتر ديناميكية)
+                        </div>
+
+                        @php
+                            $activeStageModel = $selectedStage ?: ($selectedStatus?->stage);
+                            $fieldsToDisplay = $activeStageModel
+                                ? $availableStageFields->where('pipeline_stage_id', $activeStageModel->id)
+                                : $availableStageFields;
+
+                            $seenTargets = [];
+                            $dedupedFields = $fieldsToDisplay->filter(function ($f) use (&$seenTargets) {
+                                if ($f->isCanonical() && !empty($f->binding_target)) {
+                                    if (in_array($f->binding_target, $seenTargets, true)) {
+                                        return false;
+                                    }
+                                    $seenTargets[] = $f->binding_target;
+                                }
+                                return true;
+                            });
+
+                            $groupedFields = $dedupedFields->groupBy(fn ($f) => $f->stage?->localizedName() ?: 'المراحل');
+                        @endphp
+
+                        @foreach ($groupedFields as $stgName => $fList)
+                            <div class="picker-stage-group-header" data-stage-name="{{ $stgName }}" style="padding: 8px 12px 2px; font-size: 11px; font-weight: 700; color: #4f46e5; background:rgba(79,70,229,0.04);">
+                                • {{ $stgName }}
+                            </div>
+                            @foreach ($fList as $field)
+                                @php
+                                    $fieldIcon = match ($field->type) {
+                                        'number', 'currency' => 'bi-123',
+                                        'date', 'datetime' => 'bi-calendar3',
+                                        'select', 'multiselect' => 'bi-list-check',
+                                        'checkbox', 'boolean' => 'bi-check2-square',
+                                        'email' => 'bi-envelope',
+                                        'tel' => 'bi-telephone',
+                                        'file', 'image', 'pdf' => 'bi-paperclip',
+                                        default => 'bi-input-cursor-text',
+                                    };
+                                    $isFieldChecked = in_array((int) $field->id, $selectedStageFieldIds, true);
+                                @endphp
+                                <label class="dynamic-field-option" data-stage-id="{{ $field->pipeline_stage_id }}">
+                                    <input
+                                        type="checkbox"
+                                        value="{{ $field->id }}"
+                                        data-col-toggle="stage_field_{{ $field->id }}"
+                                        data-dynamic-field-option
+                                        @checked($isFieldChecked)
+                                    >
+                                    <i class="bi {{ $fieldIcon }}" aria-hidden="true"></i>
+                                    <span class="dynamic-field-option-copy">
+                                        <span>{{ $field->localizedLabel() }}</span>
+                                        <small>{{ $field->stage?->localizedName() }}</small>
+                                    </span>
+                                </label>
+                            @endforeach
+                        @endforeach
+
+                        <div class="dynamic-field-picker-footer" style="position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 8px 12px;">
+                            <div class="dynamic-field-picker-actions" style="display: flex; gap: 6px; flex-wrap: wrap; width: 100%;">
+                                <button class="btn small soft" type="button" id="restoreDefaultColsBtn" style="flex:1; color: #4f46e5; font-weight: 700; font-size:11px;">
+                                    استعادة الأعمدة الافتراضية
+                                </button>
+                                <button class="btn small soft" type="button" id="selectAllColsBtn" style="font-size:11px;">
+                                    تحديد الكل
+                                </button>
+                                <button class="btn small soft" type="button" id="clearOptionalColsBtn" style="font-size:11px;">
+                                    مسح الاختياري
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Reset Filters Button -->
+                <div class="filter-actions-col">
+                    <label style="font-size:12px; visibility:hidden;">Reset</label>
+                    <a href="{{ route('v2.leads') }}" class="btn soft small" id="resetFiltersBtn" title="{{ __('crm.reset') }}" style="height:40px; display:inline-flex; align-items:center; gap:6px; font-weight:700;">
+                        <i class="bi bi-arrow-counterclockwise"></i> {{ __('crm.reset') }}
+                    </a>
+                </div>
+
+                @if ($availableStageFields->isNotEmpty())
+                    <div class="dynamic-filter-fields" data-dynamic-filter-fields style="grid-column: 1 / -1; display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:8px;">
+                        @foreach ($availableStageFields as $field)
+                            @php
+                                $fieldId = (int) $field->id;
+                                $fieldSelected = in_array($fieldId, $selectedStageFieldIds, true);
+                                $fieldValue = (string) ($stageFieldFilters[$fieldId] ?? '');
+                                $fieldInputId = 'stageFieldFilter_' . $fieldId;
+                            @endphp
+                            <div
+                                class="filter-field dynamic-filter-field"
+                                data-dynamic-filter-field="{{ $fieldId }}"
+                                data-stage-id="{{ $field->pipeline_stage_id }}"
+                                @if (! $fieldSelected) hidden @endif
+                            >
+                                <label for="{{ $fieldInputId }}">
+                                    <i class="bi bi-funnel"></i>
+                                    {{ $field->localizedLabel() }}
+                                    <span class="dynamic-filter-field-stage">· {{ $field->stage?->localizedName() }}</span>
+                                </label>
+
+                                @if (in_array($field->type, ['select', 'multiselect'], true))
+                                    <select
+                                        id="{{ $fieldInputId }}"
+                                        name="field_filters[{{ $fieldId }}]"
+                                        class="filter-control"
+                                        @disabled(! $fieldSelected)
+                                    >
+                                        <option value="">{{ __('crm.all_field_values') }}</option>
+                                        @foreach ($field->normalizedOptions() as $option)
+                                            <option value="{{ $option['value'] }}" @selected($fieldValue === (string) $option['value'])>
+                                                {{ app()->getLocale() === 'en' ? $option['label_en'] : $option['label_ar'] }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @elseif ($field->type === 'checkbox')
+                                    <select
+                                        id="{{ $fieldInputId }}"
+                                        name="field_filters[{{ $fieldId }}]"
+                                        class="filter-control"
+                                        @disabled(! $fieldSelected)
+                                    >
+                                        <option value="">{{ __('crm.all_field_values') }}</option>
+                                        <option value="1" @selected($fieldValue === '1')>{{ __('crm.yes') }}</option>
+                                        <option value="0" @selected($fieldValue === '0')>{{ __('crm.no') }}</option>
+                                    </select>
+                                @else
+                                    @php
+                                        $filterInputType = match ($field->type) {
+                                            'number', 'currency' => 'number',
+                                            'date' => 'date',
+                                            'datetime' => 'datetime-local',
+                                            default => 'text',
+                                        };
+                                    @endphp
+                                    <input
+                                        id="{{ $fieldInputId }}"
+                                        name="field_filters[{{ $fieldId }}]"
+                                        type="{{ $filterInputType }}"
+                                        @if (in_array($field->type, ['number', 'currency'], true)) step="any" @endif
+                                        value="{{ $fieldValue }}"
+                                        class="filter-control"
+                                        placeholder="{{ $field->localizedPlaceholder() ?: __('crm.enter_filter_value') }}"
+                                        @disabled(! $fieldSelected)
+                                    >
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </form>
         </section>
 
-        <!-- BULK ACTIONS FORM -->
-        @can('leads.export')
-        <form
-            class="bulk-actions-bar"
-            id="bulkActionsBar"
-            method="POST"
-            action="{{ route('v2.leads.export-selected') }}"
-            hidden
-        >
+        <!-- BULK SELECTION TOOLBAR (DIRECTLY BELOW FILTERS / ABOVE TABLE) -->
+        <div class="bulk-toolbar" id="leadsBulkToolbar" style="display:none; margin-bottom:16px; padding:12px 20px; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-card); align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span class="badge" style="background:#eef2ff; color:#4f46e5; font-size:12px; padding:4px 10px; font-weight:800;">
+                    <span id="selectedLeadsCounter">0</span> {{ __('عملاء محددين') }}
+                </span>
+                <button type="button" class="btn small soft" id="clearLeadsSelectionBtn" style="font-size:12px; padding:0 12px;">
+                    {{ __('إلغاء التحديد') }}
+                </button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                @can('leads.export')
+                    <button type="button" class="btn small soft" id="bulkExportBtn" onclick="submitBulkExport()" style="font-size:12px; color:#16a34a; border-color:#bbf7d0; background:#f0fdf4;">
+                        <i class="bi bi-file-earmark-excel"></i> {{ __('تصدير') }}
+                    </button>
+                @endcan
+                @can('leads.delete')
+                    <button type="button" class="btn small danger" id="bulkDeleteBtn" onclick="confirmBulkDelete()" style="font-size:12px;">
+                        <i class="bi bi-trash"></i> {{ __('حذف') }}
+                    </button>
+                @endcan
+            </div>
+        </div>
+
+        <!-- HIDDEN FORM FOR BULK EXPORT -->
+        <form id="bulkExportForm" method="POST" action="{{ route('v2.leads.export-selected') }}" style="display:none;">
             @csrf
-            <div>
-                <i class="bi bi-check2-square"></i>
-                {{ __('crm.selected') }}
-                <strong id="selectedLeadsCount">0</strong>
-                {{ __('crm.lead_unit') }}
-            </div>
-            <div class="bulk-actions-buttons">
-                <button class="bulk-clear-button" id="bulkClearSelection" type="button">
-                    {{ __('crm.deselect') }}
-                </button>
-                <button class="bulk-export-button" id="bulkExportButton" type="submit" disabled>
-                    <i class="bi bi-file-earmark-excel"></i> {{ __('crm.export_excel') }}
-                </button>
-            </div>
+            <div id="bulkExportInputs"></div>
         </form>
-        @endcan
+
+        <!-- HIDDEN FORM FOR BULK DELETE (TRASH) -->
+        <form id="bulkDeleteForm" method="POST" action="{{ route('v2.leads.bulk-delete') }}" style="display:none;">
+            @csrf
+            <div id="bulkDeleteInputs"></div>
+        </form>
 
         <!-- CUSTOMERS TABLE -->
         <section class="table-card">
@@ -839,24 +1255,23 @@ html.dark-mode .btn-action {
                 <table>
                     <thead>
                         <tr>
-                            @can('leads.export')
-                            <th style="width:40px;text-align:center">
-                                <input
-                                    id="selectAllLeads"
-                                    type="checkbox"
-                                    class="lead-select-all"
-                                    title="{{ __('crm.select_all_current_page') }}"
-                                >
+                            <th data-col="select" style="width:40px; text-align:center; padding:0 8px;">
+                                <input type="checkbox" id="selectAllLeads" title="تحديد الكل في هذه الصفحة" style="width:17px; height:17px; cursor:pointer;">
                             </th>
-                            @endcan
-                            <th style="min-width:200px">{{ __('crm.client') }}</th>
-                            <th style="min-width:140px">{{ __('crm.contact_data') }}</th>
-                            <th style="min-width:140px">{{ __('crm.company_source') }}</th>
-                            <th style="min-width:140px">{{ __('crm.current_status') }}</th>
-                            <th style="min-width:130px">{{ __('crm.responsible_employee') }}</th>
-                            <th style="min-width:140px">{{ __('crm.next_followup') }}</th>
-                            <th style="min-width:110px">{{ __('crm.created_date') }}</th>
-                            <th style="min-width:140px;text-align:center">{{ __('crm.actions') }}</th>
+                            <th data-col="client" style="min-width:200px">{{ __('crm.client') }}</th>
+                            <th data-col="contact" style="min-width:140px">{{ __('crm.contact_data') }}</th>
+                            <th data-col="company_source" style="min-width:140px">{{ __('crm.company_source') }}</th>
+                            <th data-col="status" style="min-width:140px">{{ __('crm.current_status') }}</th>
+                            <th data-col="employee" style="min-width:130px">{{ __('crm.responsible_employee') }}</th>
+                            <th data-col="followup" style="min-width:140px">{{ __('crm.next_followup') }}</th>
+                            <th data-col="created_date" style="min-width:110px">{{ __('crm.created_date') }}</th>
+                            @foreach ($availableStageFields as $sField)
+                                <th data-col="stage_field_{{ $sField->id }}" data-dynamic-stage-col="{{ $sField->id }}" style="min-width:140px;" @if(!in_array((int)$sField->id, $selectedStageFieldIds, true)) hidden @endif>
+                                    {{ $sField->localizedLabel() }}
+                                    <small style="display:block;font-size:10px;color:var(--muted)">{{ $sField->stage?->localizedName() }}</small>
+                                </th>
+                            @endforeach
+                            <th data-col="actions" style="min-width:140px;text-align:center">{{ __('crm.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -877,20 +1292,11 @@ html.dark-mode .btn-action {
                                 }
                             @endphp
                             <tr class="lead-row">
-                                @can('leads.export')
-                                <td style="text-align:center">
-                                    <input
-                                        class="lead-select-checkbox"
-                                        type="checkbox"
-                                        name="lead_ids[]"
-                                        value="{{ $lead->id }}"
-                                        form="bulkActionsBar"
-                                        autocomplete="off"
-                                    >
+                                <td data-col="select" style="width:40px; text-align:center; padding:0 8px;">
+                                    <input type="checkbox" class="lead-select-checkbox" value="{{ $lead->id }}" style="width:17px; height:17px; cursor:pointer;" onchange="handleRowSelectionChange()">
                                 </td>
-                                @endcan
 
-                                <td>
+                                <td data-col="client">
                                     <div class="customer-name-cell">
                                         <div class="customer-avatar">
                                             {{ mb_substr((string) $lead->name, 0, 1) }}
@@ -904,7 +1310,7 @@ html.dark-mode .btn-action {
                                     </div>
                                 </td>
 
-                                <td>
+                                <td data-col="contact">
                                     @if ($lead->phone)
                                         @can('leads.followups.view')
                                             @if ($callPhone)
@@ -933,12 +1339,12 @@ html.dark-mode .btn-action {
                                     @endif
                                 </td>
 
-                                <td>
+                                <td data-col="company_source">
                                     <strong>{{ $lead->company_name ?: __('crm.no_company') }}</strong>
                                     <span class="stage-name">{{ $lead->source ? __($lead->source) : __('غير محدد') }}</span>
                                 </td>
 
-                                <td>
+                                <td data-col="status">
                                     <span class="status-badge" style="--status-color:{{ $leadStatusColor }}">
                                         <i class="status-dot"></i>
                                         {{ $lead->status?->name_ar ? __($lead->status->name_ar) : __('crm.no_status') }}
@@ -948,11 +1354,11 @@ html.dark-mode .btn-action {
                                     </span>
                                 </td>
 
-                                <td>
+                                <td data-col="employee">
                                     {{ $lead->assignedUser?->name ?? $lead->assigned_employee ?: __('crm.unassigned') }}
                                 </td>
 
-                                <td>
+                                <td data-col="followup">
                                     @if ($lead->next_follow_up_at)
                                         <span class="badge {{ $lead->next_follow_up_at->isPast() ? 'overdue' : ($lead->next_follow_up_at->isToday() ? 'today' : '') }}">
                                             <i class="bi bi-clock"></i> {{ $lead->next_follow_up_at->format('d/m/Y - h:i A') }}
@@ -962,11 +1368,29 @@ html.dark-mode .btn-action {
                                     @endif
                                 </td>
 
-                                <td>
+                                <td data-col="created_date">
                                     {{ $lead->created_at?->format('d/m/Y') ?? '—' }}
                                 </td>
 
-                                <td>
+                                @foreach ($availableStageFields as $sField)
+                                    @php
+                                        $sVal = $lead->stageValues->firstWhere('pipeline_stage_field_id', $sField->id)?->value;
+                                    @endphp
+                                    <td data-col="stage_field_{{ $sField->id }}" data-dynamic-stage-col="{{ $sField->id }}" @if(!in_array((int)$sField->id, $selectedStageFieldIds, true)) hidden @endif>
+                                        @if ($sVal !== null && $sVal !== '')
+                                            @if (in_array($sField->type, ['file', 'image', 'pdf'], true))
+                                                <a href="{{ Storage::disk('local')->url($sVal) }}" target="_blank" class="badge" style="background:#e0f2fe; color:#0369a1;">
+                                                    <i class="bi bi-paperclip"></i> ملف
+                                                </a>
+                                            @else
+                                                <strong>{{ $sVal }}</strong>
+                                            @endif
+                                        @else
+                                            <span style="color:var(--muted)">—</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td data-col="actions">
                                     <div class="actions-cell" style="justify-content:center">
                                         <a
                                             class="btn-action"
@@ -1029,7 +1453,7 @@ html.dark-mode .btn-action {
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" style="text-align:center;padding:40px 20px;color:var(--muted)">
+                                <td colspan="25" style="text-align:center;padding:40px 20px;color:var(--muted)">
                                     <i class="bi bi-people" style="font-size:32px;display:block;margin-bottom:8px"></i>
                                     <strong>{{ $activeQuery === [] ? __('لا يوجد عملاء حتى الآن') : __('لا توجد نتائج مطابقة') }}</strong>
                                     <p style="margin:4px 0 0;font-size:12px">
@@ -1056,62 +1480,393 @@ html.dark-mode .btn-action {
 
 <script>
 (() => {
-    // Bulk actions handling
-    const selectAll = document.getElementById('selectAllLeads');
-    const bulkBar = document.getElementById('bulkActionsBar');
-    const counter = document.getElementById('selectedLeadsCount');
-    const exportBtn = document.getElementById('bulkExportButton');
-    const clearBtn = document.getElementById('bulkClearSelection');
-    const checkboxes = document.querySelectorAll('.lead-select-checkbox');
+    const form = document.getElementById('leadFilters');
+    const searchInput = document.getElementById('searchQuery');
+    const tableWrap = document.querySelector('.table-wrap');
+    const summaryCard = document.querySelector('.summary');
+    const fieldPickerToggle = document.getElementById('chooseFieldsToggle') || document.querySelector('[data-dynamic-field-picker-toggle]');
+    const fieldPickerMenu = document.getElementById('dynamicFieldPickerMenu') || document.querySelector('[data-dynamic-field-picker-menu]');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const restoreDefaultColsBtn = document.getElementById('restoreDefaultColsBtn');
+    const selectAllColsBtn = document.getElementById('selectAllColsBtn');
+    const clearOptionalColsBtn = document.getElementById('clearOptionalColsBtn');
 
-    const updateBulkState = () => {
-        const checked = Array.from(checkboxes).filter(cb => cb.checked);
-        const count = checked.length;
-        if (counter) counter.textContent = String(count);
-        if (exportBtn) exportBtn.disabled = count === 0;
-        if (bulkBar) {
-            if (count > 0) {
-                bulkBar.removeAttribute('hidden');
-            } else {
-                bulkBar.setAttribute('hidden', '');
+    let abortController = null;
+    let searchDebounce = null;
+
+    // 1. Column Management (Mandatory + Optional + Dynamic)
+    const MANDATORY_COLS = ['select', 'client', 'status', 'actions'];
+    const DEFAULT_COLS = ['client', 'contact', 'company_source', 'status', 'employee', 'followup', 'created_date', 'actions'];
+
+    const getStoredColumns = () => {
+        try {
+            const saved = localStorage.getItem('sokrat.crm.leads.columns');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
+                }
             }
-        }
-        if (selectAll) {
-            selectAll.checked = count > 0 && count === checkboxes.length;
-            selectAll.indeterminate = count > 0 && count < checkboxes.length;
+        } catch (e) {}
+        return DEFAULT_COLS;
+    };
+
+    const saveColumns = (cols) => {
+        try {
+            localStorage.setItem('sokrat.crm.leads.columns', JSON.stringify(cols));
+        } catch (e) {}
+    };
+
+    const applyColumnVisibility = () => {
+        const activeCols = new Set(getStoredColumns());
+        MANDATORY_COLS.forEach(c => activeCols.add(c));
+
+        // Sync checkboxes in column chooser
+        document.querySelectorAll('[data-col-toggle]').forEach(cb => {
+            const col = cb.dataset.colToggle;
+            if (MANDATORY_COLS.includes(col)) {
+                cb.checked = true;
+                cb.disabled = true;
+            } else {
+                cb.checked = activeCols.has(col);
+            }
+        });
+
+        // Toggle table headers and cells
+        document.querySelectorAll('th[data-col], td[data-col]').forEach(el => {
+            const col = el.dataset.col;
+            if (col === 'select') {
+                el.hidden = false;
+                return;
+            }
+            el.hidden = !activeCols.has(col);
+        });
+
+        // Sync dynamic filter inputs above the table
+        document.querySelectorAll('.dynamic-filter-field').forEach(field => {
+            const fieldId = field.dataset.dynamicFilterField;
+            const colKey = `stage_field_${fieldId}`;
+            const isVisible = activeCols.has(colKey);
+            field.hidden = !isVisible;
+            field.querySelectorAll('input, select, textarea').forEach(input => {
+                input.disabled = !isVisible;
+            });
+        });
+
+        const dynamicEmpty = document.querySelector('[data-dynamic-filter-empty]');
+        const dynamicCountEl = document.querySelector('[data-dynamic-field-count]');
+        const dynamicActiveCount = Array.from(activeCols).filter(c => c.startsWith('stage_field_')).length;
+        if (dynamicCountEl) dynamicCountEl.textContent = String(dynamicActiveCount);
+        if (dynamicEmpty) dynamicEmpty.hidden = dynamicActiveCount > 0;
+
+        const selectedIdsInput = document.querySelector('[data-selected-dynamic-field-ids]');
+        if (selectedIdsInput) {
+            const stageFieldIds = Array.from(activeCols)
+                .filter(c => c.startsWith('stage_field_'))
+                .map(c => c.replace('stage_field_', ''));
+            selectedIdsInput.value = stageFieldIds.join(',');
         }
     };
 
-    selectAll?.addEventListener('change', () => {
-        checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
-        updateBulkState();
-    });
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateBulkState);
-    });
-
-    clearBtn?.addEventListener('click', () => {
-        checkboxes.forEach(cb => { cb.checked = false; });
-        if (selectAll) {
-            selectAll.checked = false;
-            selectAll.indeterminate = false;
+    // 2. Reactive Fetching Architecture (No Apply Button, URL remains state)
+    const fetchFilteredLeads = (targetUrl, pushState = true) => {
+        if (abortController) {
+            abortController.abort(); // Cancel previous in-flight request
         }
-        updateBulkState();
+        abortController = new AbortController();
+
+        if (tableWrap) {
+            tableWrap.style.opacity = '0.5';
+            tableWrap.style.pointerEvents = 'none';
+        }
+
+        fetch(targetUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            signal: abortController.signal
+        })
+        .then(res => res.text())
+        .then(html => {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const newTable = doc.querySelector('.table-card');
+            const currentTable = document.querySelector('.table-card');
+            if (newTable && currentTable) {
+                currentTable.innerHTML = newTable.innerHTML;
+            }
+
+            const newSummary = doc.querySelector('.summary');
+            if (newSummary && summaryCard) {
+                summaryCard.innerHTML = newSummary.innerHTML;
+            }
+
+            if (pushState) {
+                window.history.pushState(null, '', targetUrl);
+            }
+
+            applyColumnVisibility();
+            wirePaginationAndCallLinks();
+            updateBulkToolbar();
+        })
+        .catch(err => {
+            if (err.name !== 'AbortError') {
+                console.error('Filtering failed:', err);
+            }
+        })
+        .finally(() => {
+            if (tableWrap) {
+                tableWrap.style.opacity = '';
+                tableWrap.style.pointerEvents = '';
+            }
+        });
+    };
+
+    const buildFilterUrl = () => {
+        if (!form) return window.location.href;
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+
+        for (const [key, value] of formData.entries()) {
+            if (value !== '' && value !== null) {
+                params.set(key, value);
+            }
+        }
+
+        const base = form.action || window.location.pathname;
+        const qs = params.toString();
+        return qs ? `${base}?${qs}` : base;
+    };
+
+    const triggerReactiveFilter = () => {
+        const url = buildFilterUrl();
+        fetchFilteredLeads(url, true);
+    };
+
+    // Listeners for reactive filter inputs
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(triggerReactiveFilter, 280);
     });
 
-    // Same-tab Call handler
-    document.querySelectorAll('.js-call-followup').forEach(link => {
-        link.addEventListener('click', () => {
-            const callHref = link.dataset.callHref;
-            if (!callHref || link.target !== '_blank') {
-                return;
+    ['leadStatus', 'leadSource', 'leadEmployee', 'leadFollowUp', 'leadSort'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', triggerReactiveFilter);
+    });
+    const syncStatusSpecificFields = () => {
+        const statusSelect = document.getElementById('leadStatus');
+        const selectedOpt = statusSelect?.selectedOptions?.[0];
+        const statusVal = statusSelect?.value || '';
+        const stageId = selectedOpt?.dataset?.stageId || '';
+
+        document.querySelectorAll('.dynamic-field-picker-menu .dynamic-field-option[data-stage-id]').forEach(opt => {
+            if (!statusVal || !stageId) {
+                opt.style.display = '';
+            } else {
+                const optStageId = opt.dataset.stageId;
+                opt.style.display = (optStageId === stageId) ? '' : 'none';
             }
-            window.setTimeout(() => {
-                window.location.href = callHref;
-            }, 120);
+        });
+        document.querySelectorAll('.picker-stage-group-header').forEach(hdr => {
+            hdr.style.display = (statusVal && stageId) ? 'none' : '';
+        });
+    };
+
+    document.getElementById('leadStatus')?.addEventListener('change', syncStatusSpecificFields);
+    syncStatusSpecificFields();
+
+
+    // Dynamic field filter inputs
+    document.querySelector('[data-dynamic-filter-fields]')?.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(triggerReactiveFilter, 300);
+    });
+    document.querySelector('[data-dynamic-filter-fields]')?.addEventListener('change', triggerReactiveFilter);
+
+    // Browser History (Back / Forward)
+    window.addEventListener('popstate', () => {
+        fetchFilteredLeads(window.location.href, false);
+    });
+
+    // Intercept Pagination Links
+    const wirePaginationAndCallLinks = () => {
+        document.querySelectorAll('.pagination a, .table-card .pagination a').forEach(a => {
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                fetchFilteredLeads(a.href, true);
+                window.scrollTo({ top: document.querySelector('.filter-panel')?.offsetTop || 0, behavior: 'smooth' });
+            });
+        });
+
+        // Wire softphone links
+        document.querySelectorAll('.js-call-followup').forEach(link => {
+            link.addEventListener('click', () => {
+                const callHref = link.dataset.callHref;
+                if (!callHref || link.target !== '_blank') return;
+                window.setTimeout(() => { window.location.href = callHref; }, 120);
+            });
+        });
+    };
+
+    // Column Picker Toggle and Actions
+    const toggleFieldPicker = (e) => {
+        if (e) e.stopPropagation();
+        if (!fieldPickerMenu) return;
+        const isHidden = fieldPickerMenu.hidden || fieldPickerMenu.style.display === 'none';
+        if (isHidden) {
+            fieldPickerMenu.hidden = false;
+            fieldPickerMenu.style.display = 'block';
+            fieldPickerToggle?.setAttribute('aria-expanded', 'true');
+        } else {
+            fieldPickerMenu.hidden = true;
+            fieldPickerMenu.style.display = 'none';
+            fieldPickerToggle?.setAttribute('aria-expanded', 'false');
+        }
+    };
+    fieldPickerToggle?.addEventListener('click', toggleFieldPicker);
+
+    document.addEventListener('click', (e) => {
+        if (fieldPickerMenu && !fieldPickerMenu.hidden && fieldPickerMenu.style.display !== 'none') {
+            if (!fieldPickerToggle?.contains(e.target) && !fieldPickerMenu.contains(e.target)) {
+                fieldPickerMenu.hidden = true;
+                fieldPickerMenu.style.display = 'none';
+                fieldPickerToggle?.setAttribute('aria-expanded', 'false');
+            }
+        }
+    });
+
+    // Bulk Selection Handling
+    const getSelectedLeadIds = () => {
+        return Array.from(document.querySelectorAll('.lead-select-checkbox:checked')).map(cb => cb.value);
+    };
+
+    const updateBulkToolbar = () => {
+        const selectedIds = getSelectedLeadIds();
+        const toolbar = document.getElementById('leadsBulkToolbar');
+        const counter = document.getElementById('selectedLeadsCounter');
+        const selectAll = document.getElementById('selectAllLeads');
+        const checkboxes = Array.from(document.querySelectorAll('.lead-select-checkbox'));
+        const total = checkboxes.length;
+
+        if (selectAll) {
+            selectAll.checked = total > 0 && selectedIds.length === total;
+            selectAll.indeterminate = selectedIds.length > 0 && selectedIds.length < total;
+        }
+
+        if (counter) counter.textContent = String(selectedIds.length);
+        if (toolbar) {
+            toolbar.style.display = selectedIds.length > 0 ? 'flex' : 'none';
+        }
+    };
+
+    window.handleRowSelectionChange = () => {
+        updateBulkToolbar();
+    };
+
+    window.submitBulkExport = () => {
+        const ids = getSelectedLeadIds();
+        if (ids.length === 0) return;
+        const container = document.getElementById('bulkExportInputs');
+        if (!container) return;
+        container.innerHTML = '';
+        ids.forEach(id => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'lead_ids[]';
+            inp.value = id;
+            container.appendChild(inp);
+        });
+        document.getElementById('bulkExportForm')?.submit();
+    };
+
+    window.confirmBulkDelete = () => {
+        const ids = getSelectedLeadIds();
+        if (ids.length === 0) return;
+        const msg = `سيتم نقل ${ids.length} عملاء إلى سلة المهملات. هل أنت متأكد من الحذف؟`;
+        if (!confirm(msg)) return;
+        const container = document.getElementById('bulkDeleteInputs');
+        if (!container) return;
+        container.innerHTML = '';
+        ids.forEach(id => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'lead_ids[]';
+            inp.value = id;
+            container.appendChild(inp);
+        });
+        document.getElementById('bulkDeleteForm')?.submit();
+    };
+
+    document.addEventListener('change', (e) => {
+        if (e.target && e.target.id === 'selectAllLeads') {
+            document.querySelectorAll('.lead-select-checkbox').forEach(cb => {
+                cb.checked = e.target.checked;
+            });
+            updateBulkToolbar();
+        } else if (e.target && e.target.classList.contains('lead-select-checkbox')) {
+            updateBulkToolbar();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target && (e.target.id === 'clearLeadsSelectionBtn' || e.target.closest('#clearLeadsSelectionBtn'))) {
+            document.querySelectorAll('.lead-select-checkbox').forEach(cb => { cb.checked = false; });
+            updateBulkToolbar();
+        }
+    });
+    // Column Checkbox Changed
+    document.querySelectorAll('[data-col-toggle]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const checked = Array.from(document.querySelectorAll('[data-col-toggle]:checked')).map(el => el.dataset.colToggle);
+            saveColumns(checked);
+            applyColumnVisibility();
+            triggerReactiveFilter();
         });
     });
+
+    // Select All Columns
+    selectAllColsBtn?.addEventListener('click', () => {
+        const allCols = Array.from(document.querySelectorAll('[data-col-toggle]')).map(el => el.dataset.colToggle);
+        saveColumns(allCols);
+        applyColumnVisibility();
+        triggerReactiveFilter();
+    });
+
+    // Clear Optional Columns
+    clearOptionalColsBtn?.addEventListener('click', () => {
+        saveColumns(MANDATORY_COLS);
+        applyColumnVisibility();
+        triggerReactiveFilter();
+    });
+
+    // Restore Default Columns
+    restoreDefaultColsBtn?.addEventListener('click', () => {
+        saveColumns(DEFAULT_COLS);
+        applyColumnVisibility();
+        triggerReactiveFilter();
+    });
+
+    // Reset Filters button (resets filter values without clearing column choices!)
+    resetFiltersBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!form) return;
+        form.querySelectorAll('input:not([type="hidden"]), select').forEach(el => {
+            el.value = '';
+        });
+        document.querySelectorAll('[name^="field_filters["]').forEach(el => {
+            el.value = '';
+        });
+        triggerReactiveFilter();
+    });
+
+    // Prevent native form submission
+    form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        triggerReactiveFilter();
+    });
+
+    // Initial setup
+    applyColumnVisibility();
+    wirePaginationAndCallLinks();
+    updateBulkToolbar();
 })();
 </script>
 <script src="{{ asset('crm-notifications.js') }}?v=1.0.0"></script>

@@ -538,9 +538,153 @@ class CampaignTest extends TestCase
                 'pipeline_stage_id' => $stage->id,
                 'name_ar' => 'جديد',
                 'position' => 1,
-                'is_terminal' => false,
             ],
         );
+    }
+
+    public function test_campaign_detail_topbar_is_unified_and_has_no_duplicate_command_bar(): void
+    {
+        $user = $this->superAdmin();
+        $campaign = Campaign::query()->create([
+            'name' => 'Marketing Campaign',
+            'starts_at' => now(),
+            'ends_at' => now()->addMonth(),
+            'cost' => 1000,
+            'created_by_user_id' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('v2.campaigns.show', $campaign));
+        $response->assertOk();
+        $response->assertSee('data-crm-topbar', false);
+        $response->assertSee('class="crm-topbar-actions"', false);
+        $response->assertSee(__('crm.add_lead'));
+        $response->assertSee(__('crm.import_leads'));
+        $response->assertSee(__('crm.edit_campaign'));
+        $response->assertSee(__('crm.campaign_reports'));
+        $response->assertSee(__('crm.all_campaigns'));
+    }
+
+    public function test_campaign_list_and_detail_total_customer_counts_are_consistent(): void
+    {
+        $user = $this->superAdmin();
+        $assignedUser = User::factory()->create(['name' => 'Assigned Agent', 'is_active' => true]);
+        $campaign = Campaign::query()->create([
+            'name' => 'Counts Test Campaign',
+            'starts_at' => now(),
+            'ends_at' => now()->addMonth(),
+            'cost' => 1000,
+            'created_by_user_id' => $user->id,
+        ]);
+        $campaign->users()->attach($assignedUser);
+        $stage = PipelineStage::query()->firstOrCreate(
+            ['code' => 'start'],
+            ['name_ar' => 'البداية', 'position' => 1, 'is_active' => true]
+        );
+        $status = LeadStatus::query()->firstOrCreate(
+            ['code' => 'new'],
+            ['pipeline_stage_id' => $stage->id, 'name_ar' => 'جديد', 'position' => 1]
+        );
+
+        // Attach 5 leads assigned to $user
+        for ($i = 0; $i < 5; $i++) {
+            $lead = Lead::query()->create([
+                'lead_status_id' => $status->id,
+                'name' => 'Campaign Customer ' . $i,
+                'phone' => '050900100' . $i,
+                'source' => 'campaign',
+                'assigned_user_id' => $user->id,
+            ]);
+            $campaign->leads()->attach($lead->id);
+        }
+
+        // List page check
+        $listResponse = $this->actingAs($user)->get(route('v2.campaigns.index'));
+        $listResponse->assertOk();
+        $listCampaign = $listResponse->viewData('campaigns')->firstWhere('id', $campaign->id);
+        $this->assertEquals(5, $listCampaign->leads_count);
+
+        // Detail page check (Super Admin with assigned_user_id=all or specific assigned user)
+        $detailResponse = $this->actingAs($user)->get(route('v2.campaigns.show', [
+            'campaign' => $campaign,
+            'assigned_user_id' => 'all',
+        ]));
+        $detailResponse->assertOk();
+        $this->assertEquals(5, $detailResponse->viewData('totalCampaignLeads'));
+        $this->assertEquals(5, $detailResponse->viewData('operationalCampaignLeads'));
+        $detailResponse->assertSee('5');
+    }
+
+    public function test_campaign_detail_allows_filtering_by_all_leads(): void
+    {
+        $user = $this->superAdmin();
+        $assignedUser = User::factory()->create(['name' => 'Agent Alpha', 'is_active' => true]);
+        $campaign = Campaign::query()->create([
+            'name' => 'All Filter Test',
+            'starts_at' => now(),
+            'ends_at' => now()->addMonth(),
+            'cost' => 1000,
+            'created_by_user_id' => $user->id,
+        ]);
+        $campaign->users()->attach($assignedUser);
+        $stage = PipelineStage::query()->firstOrCreate(
+            ['code' => 'start'],
+            ['name_ar' => 'البداية', 'position' => 1, 'is_active' => true]
+        );
+        $status = LeadStatus::query()->firstOrCreate(
+            ['code' => 'new'],
+            ['pipeline_stage_id' => $stage->id, 'name_ar' => 'جديد', 'position' => 1]
+        );
+
+        for ($i = 0; $i < 3; $i++) {
+            $lead = Lead::query()->create([
+                'lead_status_id' => $status->id,
+                'name' => 'Lead ' . $i,
+                'phone' => '050900200' . $i,
+                'source' => 'campaign',
+                'assigned_user_id' => $assignedUser->id,
+            ]);
+            $campaign->leads()->attach($lead->id);
+        }
+
+        $responseAll = $this->actingAs($user)->get(route('v2.campaigns.show', [
+            'campaign' => $campaign,
+            'assigned_user_id' => 'all',
+        ]));
+        $responseAll->assertOk();
+        $this->assertTrue($responseAll->viewData('showAllAssignees'));
+        $this->assertEquals(3, $responseAll->viewData('leads')->total());
+    }
+    public function test_campaign_list_uses_distinct_customer_counts_and_matches_operational_view(): void
+    {
+        $user = $this->superAdmin();
+        $campaign = Campaign::query()->create([
+            'name' => 'Distinct Campaign',
+            'starts_at' => now(),
+            'ends_at' => now()->addMonth(),
+            'cost' => 500,
+            'created_by_user_id' => $user->id,
+        ]);
+        $campaign->users()->attach($user);
+        $status = $this->leadStatus();
+
+        $lead = Lead::query()->create([
+            'lead_status_id' => $status->id,
+            'name' => 'Single Unique Customer',
+            'phone' => '0509988776',
+            'source' => 'campaign',
+            'assigned_user_id' => $user->id,
+        ]);
+        $campaign->leads()->attach($lead->id);
+
+        $listResponse = $this->actingAs($user)->get(route('v2.campaigns.index'));
+        $listResponse->assertOk();
+        $listCamp = $listResponse->viewData('campaigns')->firstWhere('id', $campaign->id);
+        $this->assertEquals(1, $listCamp->leads_count);
+
+        $detailResponse = $this->actingAs($user)->get(route('v2.campaigns.show', $campaign));
+        $detailResponse->assertOk();
+        $this->assertEquals(1, $detailResponse->viewData('operationalCampaignLeads'));
+        $this->assertEquals(1, $detailResponse->viewData('leads')->total());
     }
 
     private function userWithPermissions(array $permissionCodes): User

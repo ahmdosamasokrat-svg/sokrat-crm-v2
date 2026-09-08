@@ -104,28 +104,29 @@
                             @endif
                         </td>
                         <td>
-                            <div class="actions" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                                <a href="{{ route('v2.settings.stages.fields.index', $stage) }}" class="btn small soft" style="color:#4f46e5; border-color:#c7d2fe; background:#eef2ff;" title="{{ __('crm.manage_stage_fields') }}">
-                                    <i class="bi bi-ui-checks"></i> {{ __('crm.stage_fields_btn') }} <span class="badge" style="background:#6366f1; color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; margin-inline-start:4px;">{{ (int) ($stage->fields_count ?? 0) }}</span>
+                            <div class="actions" style="display:inline-flex; gap:6px; align-items:center; flex-direction:row;">
+                                <a href="{{ route('v2.settings.stages.fields.index', $stage) }}" class="btn small soft" style="color:#4f46e5; border-color:#c7d2fe; background:#eef2ff; padding:0 8px;" title="{{ __('crm.manage_stage_fields') }}" aria-label="{{ __('crm.manage_stage_fields') }}">
+                                    <i class="bi bi-ui-checks"></i>
+                                    @if (($stage->fields_count ?? 0) > 0)
+                                        <span class="badge" style="background:#6366f1; color:#fff; font-size:10px; padding:1px 5px; border-radius:10px; margin-inline-start:2px;">{{ (int) $stage->fields_count }}</span>
+                                    @endif
                                 </a>
-                                <button type="button" class="btn small soft" onclick="openEditModal({{ json_encode($stage) }})">
-                                    <i class="bi bi-pencil-square"></i> {{ __('crm.edit') }}
+                                <button type="button" class="btn small soft" style="padding:0 8px;" onclick="openEditModal({{ json_encode($stage) }})" title="{{ __('crm.edit') }}" aria-label="{{ __('crm.edit') }}">
+                                    <i class="bi bi-pencil-square"></i>
                                 </button>
 
-                                @if (! $stage->isPrimary())
-                                    @if ($stage->leads_count === 0)
-                                        <form method="POST" action="{{ route('v2.settings.stages.destroy', $stage) }}" onsubmit="return confirm(@json(__('crm.confirm_delete_stage')))">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn small danger">
-                                                <i class="bi bi-trash"></i> {{ __('crm.delete') }}
-                                            </button>
-                                        </form>
-                                    @else
-                                        <button type="button" class="btn small danger" style="opacity:0.6; cursor:not-allowed" title="{{ __('crm.cannot_delete_stage_has_leads') }}" onclick="alert(@json(__('crm.cannot_delete_stage_has_leads')))">
-                                            <i class="bi bi-trash"></i> {{ __('crm.delete') }}
+                                @if ($stage->leads_count === 0)
+                                    <form method="POST" action="{{ route('v2.settings.stages.destroy', $stage) }}" onsubmit="return confirm(@json(__('crm.confirm_delete_stage')))" style="margin:0;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn small danger" style="padding:0 8px;" title="{{ __('crm.delete') }}" aria-label="{{ __('crm.delete') }}">
+                                            <i class="bi bi-trash"></i>
                                         </button>
-                                    @endif
+                                    </form>
+                                @else
+                                    <button type="button" class="btn small danger" style="padding:0 8px;" onclick="openSafeDeleteStageModal({{ json_encode($stage) }}, {{ (int) $stage->leads_count }})" title="حذف المرحلة ونقل/أرشفة العملاء" aria-label="{{ __('crm.delete') }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 @endif
                             </div>
                         </td>
@@ -313,6 +314,53 @@ $crmStageIcons = [
         </form>
     </div>
 </div>
+<!-- MODAL: SAFE DELETE STAGE WITH LEADS -->
+<div id="safeDeleteStageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center; padding:18px;">
+    <div style="background:#fff; border-radius:16px; max-width:520px; width:100%; max-height:calc(100dvh - 36px); overflow-y:auto; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+            <h3 style="margin:0; font-size:18px; color:var(--red);"><i class="bi bi-exclamation-triangle"></i> حذف المرحلة: <span id="safeDeleteStageName"></span></h3>
+            <button type="button" onclick="closeSafeDeleteStageModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+        </div>
+        <form id="safeDeleteStageForm" method="POST" action="">
+            @csrf
+            @method('DELETE')
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:14px; margin-bottom:16px; color:#92400e; font-size:13px; line-height:1.6;">
+                تحتوي هذه المرحلة حالياً على <strong><span id="safeDeleteLeadsCount"></span> عميل</strong>. لحذف المرحلة بأمان دون فقدان البيانات، يرجى اختيار الإجراء المطلوب:
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; margin-bottom:8px;">
+                    <input type="radio" name="lead_action" value="move" checked onchange="onSafeDeleteActionChange(this)">
+                    <span>أ) نقل العملاء إلى مرحلة نشطة أخرى</span>
+                </label>
+                <div id="safeDeleteMoveGroup" style="margin-inline-start:24px; margin-top:6px;">
+                    <select name="destination_stage_id" id="safeDeleteDestinationStage" style="width:100%; height:38px; border-radius:8px; border:1px solid var(--line); padding:0 10px;">
+                        @foreach ($stages as $stgOption)
+                            @if (! $stgOption->isPrimary())
+                                <option value="{{ $stgOption->id }}">{{ $stgOption->localizedName() }} ({{ $stgOption->leads_count }} عميل)</option>
+                            @else
+                                <option value="{{ $stgOption->id }}">{{ $stgOption->localizedName() }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom:18px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700;">
+                    <input type="radio" name="lead_action" value="trash" onchange="onSafeDeleteActionChange(this)">
+                    <span style="color:#b91c1c;">ب) نقل جميع عملاء المرحلة إلى سلة المهملات (Trash)</span>
+                </label>
+                <small style="display:block; margin-inline-start:24px; color:var(--muted); font-size:11px;">يمكنك استعادة العملاء لاحقاً من صفحة سلة المهملات.</small>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--line); padding-top:14px;">
+                <button type="button" class="btn soft" onclick="closeSafeDeleteStageModal()">{{ __('crm.cancel') }}</button>
+                <button type="submit" class="btn danger" onclick="return confirm('هل أنت متأكد من تنفيذ هذا الإجراء وحذف المرحلة؟')">تأكيد الحذف</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
 const crmIconsMap = @json(collect($crmStageIcons)->keyBy('icon'));
@@ -403,6 +451,37 @@ function openEditModal(stage) {
     }
 
     document.getElementById('editStageModal').style.display = 'flex';
+}
+
+function openSafeDeleteStageModal(stage, count) {
+    const form = document.getElementById('safeDeleteStageForm');
+    form.action = `/settings/stages/${stage.id}`;
+    document.getElementById('safeDeleteStageName').textContent = stage.name_ar;
+    document.getElementById('safeDeleteLeadsCount').textContent = count;
+
+    const select = document.getElementById('safeDeleteDestinationStage');
+    if (select) {
+        Array.from(select.options).forEach(opt => {
+            const isSelf = String(opt.value) === String(stage.id);
+            opt.disabled = isSelf;
+            opt.hidden = isSelf;
+        });
+        const firstValid = Array.from(select.options).find(opt => !opt.disabled);
+        if (firstValid) select.value = firstValid.value;
+    }
+
+    document.getElementById('safeDeleteStageModal').style.display = 'flex';
+}
+
+function onSafeDeleteActionChange(radio) {
+    const moveGroup = document.getElementById('safeDeleteMoveGroup');
+    if (radio.value === 'move') {
+        moveGroup.style.display = 'block';
+        document.getElementById('safeDeleteDestinationStage').required = true;
+    } else {
+        moveGroup.style.display = 'none';
+        document.getElementById('safeDeleteDestinationStage').required = false;
+    }
 }
 </script>
 @endsection

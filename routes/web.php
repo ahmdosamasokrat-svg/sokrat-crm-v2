@@ -11,12 +11,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadFollowupController;
 use App\Http\Controllers\LeadTransferController;
+use App\Http\Controllers\LeadTrashController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\QuotationController;
-use App\Http\Controllers\Settings\GroupController;
 use App\Http\Controllers\Settings\FollowupCustomerFieldController;
+use App\Http\Controllers\Settings\GroupController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\PermissionController;
 use App\Http\Controllers\Settings\PipelineStageController;
@@ -26,6 +27,8 @@ use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\TaskStatusController;
 use App\Http\Controllers\TechnicalSupportController;
 use App\Http\Controllers\TechnicalSupportReportController;
+use App\Http\Controllers\TechnicalSupportTaskController;
+use App\Http\Controllers\TechnicalSupportTeamController;
 use App\Http\Controllers\TwilioNotificationStatusController;
 use App\Http\Controllers\VoipController;
 use Illuminate\Support\Facades\Auth;
@@ -96,9 +99,35 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->middleware(['can:technical_support.view', 'throttle:30,1'])
         ->name('v2.technical-support.index');
 
+    Route::get('/technical-support/team', [TechnicalSupportTeamController::class, 'index'])
+        ->middleware(['can:technical_support.view', 'throttle:60,1'])
+        ->name('v2.technical-support.team');
+
+    Route::get('/technical-support/team/{user}', [TechnicalSupportTeamController::class, 'show'])
+        ->middleware(['can:technical_support.view', 'throttle:60,1'])
+        ->whereNumber('user')
+        ->name('v2.technical-support.team.show');
+
     Route::get('/technical-support/reports', TechnicalSupportReportController::class)
         ->middleware(['can:technical_support.reports', 'throttle:30,1'])
         ->name('v2.technical-support.reports');
+
+    Route::get('/technical-support/tasks', [TechnicalSupportTaskController::class, 'index'])
+        ->name('v2.technical-support.tasks.index');
+    Route::post('/technical-support/tasks', [TechnicalSupportTaskController::class, 'store'])
+        ->middleware('can:technical_support.tasks.manage')
+        ->name('v2.technical-support.tasks.store');
+    Route::patch('/technical-support/tasks/{task}', [TechnicalSupportTaskController::class, 'update'])
+        ->middleware('can:technical_support.tasks.manage')
+        ->whereNumber('task')
+        ->name('v2.technical-support.tasks.update');
+    Route::patch('/technical-support/tasks/{task}/status', [TechnicalSupportTaskController::class, 'updateStatus'])
+        ->whereNumber('task')
+        ->name('v2.technical-support.tasks.status');
+    Route::delete('/technical-support/tasks/{task}', [TechnicalSupportTaskController::class, 'destroy'])
+        ->middleware('can:technical_support.tasks.manage')
+        ->whereNumber('task')
+        ->name('v2.technical-support.tasks.destroy');
 
     Route::get('/technical-support/cards/{deviceKey}', [TechnicalSupportController::class, 'show'])
         ->middleware(['can:technical_support.view', 'throttle:30,1'])
@@ -201,6 +230,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             ->name('v2.leads');
         Route::get('/leads/kanban', [DashboardController::class, 'kanban'])
             ->name('v2.leads.kanban');
+        Route::get('/leads/kanban/column', [DashboardController::class, 'kanbanColumn'])
+            ->name('v2.leads.kanban.column');
         Route::get('/leads/{lead}', [LeadController::class, 'show'])
             ->whereNumber('lead')
             ->name('v2.leads.show');
@@ -256,6 +287,10 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             [LeadTransferController::class, 'importPreview'],
         )->name('v2.leads.import.preview');
         Route::post(
+            '/leads/import/redistribute',
+            [LeadTransferController::class, 'importRedistribute'],
+        )->name('v2.leads.import.redistribute');
+        Route::post(
             '/leads/import/confirm',
             [LeadTransferController::class, 'importConfirm'],
         )->name('v2.leads.import.confirm');
@@ -274,6 +309,13 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         )->name('v2.leads.export.download');
     });
 
+    Route::middleware('can:leads.delete')->group(function (): void {
+        Route::post(
+            '/leads/bulk-delete',
+            [LeadController::class, 'bulkDelete'],
+        )->name('v2.leads.bulk-delete');
+    });
+
     Route::get(
         '/leads/{lead}/quotation-preview',
         [LeadController::class, 'quotationPreview'],
@@ -281,6 +323,43 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->whereNumber('lead')
         ->middleware('can:quotations.view')
         ->name('v2.leads.quotation.preview');
+
+    Route::get(
+        '/leads/{lead}/documents/{document}/download',
+        [LeadController::class, 'downloadDocument'],
+    )
+        ->whereNumber('lead')
+        ->whereNumber('document')
+        ->name('v2.leads.documents.download');
+
+    Route::get(
+        '/leads/{lead}/documents/{document}/preview',
+        [LeadController::class, 'previewDocument'],
+    )
+        ->whereNumber('lead')
+        ->whereNumber('document')
+        ->name('v2.leads.documents.preview');
+
+    Route::middleware('can:leads.trash.view')->group(function (): void {
+        Route::get('/leads/trash', [LeadTrashController::class, 'index'])
+            ->name('v2.leads.trash.index');
+    });
+
+    Route::middleware('can:leads.trash.restore')->group(function (): void {
+        Route::post('/leads/trash/{lead}/restore', [LeadTrashController::class, 'restore'])
+            ->whereNumber('lead')
+            ->name('v2.leads.trash.restore');
+        Route::post('/leads/trash/bulk-restore', [LeadTrashController::class, 'bulkRestore'])
+            ->name('v2.leads.trash.bulk-restore');
+    });
+
+    Route::middleware('can:leads.trash.force_delete')->group(function (): void {
+        Route::delete('/leads/trash/{lead}/force-delete', [LeadTrashController::class, 'forceDelete'])
+            ->whereNumber('lead')
+            ->name('v2.leads.trash.force-delete');
+        Route::post('/leads/trash/bulk-force-delete', [LeadTrashController::class, 'bulkForceDelete'])
+            ->name('v2.leads.trash.bulk-force-delete');
+    });
 
     Route::middleware('can:tasks.view')->group(function (): void {
         Route::get(

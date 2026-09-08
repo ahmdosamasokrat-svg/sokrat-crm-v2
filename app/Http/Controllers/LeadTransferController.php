@@ -6,10 +6,13 @@ use App\Models\Campaign;
 use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
+use App\Models\PipelineStageField;
+use App\Models\LeadStageFieldValue;
 use App\Models\User;
 use App\Security\CrmPermission;
 use App\Security\LeadAssignment;
 use App\Support\CrmDatabaseGuard;
+use App\Services\LeadDistributionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,6 +47,11 @@ class LeadTransferController extends Controller
         $stages = $this->stages();
         $statuses = $this->statuses($stages);
 
+        $actor = $request->user() ?? auth()->user();
+        $assignableUsers = LeadDistributionService::getAssignableUsers($actor, $campaign);
+        $activeLeadCounts = LeadDistributionService::getActiveLeadCounts($assignableUsers);
+        $distributionStrategies = LeadDistributionService::strategies();
+
         return view(
             'leads.import',
             [
@@ -51,19 +59,26 @@ class LeadTransferController extends Controller
                 'defaultStatus' => $statuses->first(),
                 'preview' => null,
                 'campaign' => $campaign,
+                'assignableUsers' => $assignableUsers,
+                'activeLeadCounts' => $activeLeadCounts,
+                'distributionStrategies' => $distributionStrategies,
             ]
         );
     }
 
-    public function importTemplate(): BinaryFileResponse|RedirectResponse
+    public function importTemplate(Request $request): BinaryFileResponse|RedirectResponse
     {
-
         $this->assertCrmV2Database();
         $this->assertXlsxSupport();
 
+        $stageId = $request->integer('stage');
+        if ($stageId <= 0) {
+            $stageId = null;
+        }
+
         return $this->downloadWorkbook(
             array_values(
-                $this->importColumns()
+                $this->importColumns($stageId)
             ),
             [],
             'crm-v2-leads-import-template.xlsx'
@@ -89,11 +104,36 @@ class LeadTransferController extends Controller
                     'integer',
                     'exists:campaigns,id',
                 ],
+                'distribution_strategy' => [
+                    'nullable',
+                    'string',
+                    Rule::in(array_keys(LeadDistributionService::strategies())),
+                ],
+                'distribution_users' => [
+                    'nullable',
+                    'array',
+                ],
+                'distribution_users.*' => [
+                    'integer',
+                ],
+                'distribution_single_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_fallback_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_weights' => [
+                    'nullable',
+                    'array',
+                ],
             ],
             [
                 'import_file.required' => 'اختر ملف العملاء أولًا.',
                 'import_file.file' => 'ملف الاستيراد غير صحيح.',
                 'import_file.max' => 'الحد الأقصى لملف الاستيراد 5MB.',
+                'distribution_strategy.in' => 'طريقة التوزيع المختارة غير صحيحة.',
             ]
         );
 
@@ -147,6 +187,26 @@ class LeadTransferController extends Controller
             );
         }
 
+        $actor = $request->user() ?? auth()->user();
+        $assignableUsers = LeadDistributionService::getAssignableUsers($actor, $campaign);
+        $activeLeadCounts = LeadDistributionService::getActiveLeadCounts($assignableUsers);
+        $distributionStrategies = LeadDistributionService::strategies();
+
+        $distributionStrategy = $request->input('distribution_strategy');
+        if ($distributionStrategy === null || $distributionStrategy === '') {
+            $distributionStrategy = $request->filled('distribution_users')
+                ? LeadDistributionService::STRATEGY_EQUAL
+                : LeadDistributionService::STRATEGY_FROM_FILE;
+        }
+
+        $distributionConfig = [
+            'strategy' => $distributionStrategy,
+            'user_ids' => $request->input('distribution_users', []),
+            'single_user_id' => $request->input('distribution_single_user_id'),
+            'fallback_user_id' => $request->input('distribution_fallback_user_id'),
+            'weights' => $request->input('distribution_weights', []),
+        ];
+
         try {
             $rows = $this->parseImportFile(
                 $file->getPathname(),
@@ -156,7 +216,8 @@ class LeadTransferController extends Controller
             $preview =
                 $this->buildImportPreview(
                     $rows,
-                    $campaign?->id
+                    $campaign?->id,
+                    $distributionConfig
                 );
         } catch (\Throwable $exception) {
             return $this->importPageRedirect($request)
@@ -177,6 +238,148 @@ class LeadTransferController extends Controller
                 'defaultStatus' => $statuses->first(),
                 'preview' => $preview,
                 'campaign' => $campaign,
+                'assignableUsers' => $assignableUsers,
+                'activeLeadCounts' => $activeLeadCounts,
+                'distributionStrategies' => $distributionStrategies,
+                'distributionConfig' => $distributionConfig,
+            ]
+        );
+    }
+
+    public function importRedistribute(
+        Request $request
+    ): View|RedirectResponse {
+        $this->assertCrmV2Database();
+
+        $validated = $request->validate(
+            [
+                'preview_token' => [
+                    'required',
+                    'string',
+                    'regex:/^[a-f0-9]{40}$/',
+                ],
+                'distribution_strategy' => [
+                    'required',
+                    'string',
+                    Rule::in(array_keys(LeadDistributionService::strategies())),
+                ],
+                'distribution_users' => [
+                    'nullable',
+                    'array',
+                ],
+                'distribution_users.*' => [
+                    'integer',
+                ],
+                'distribution_single_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_fallback_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_weights' => [
+                    'nullable',
+                    'array',
+                ],
+            ],
+            [
+                'preview_token.required' => 'جلسة المعاينة غير موجودة.',
+                'preview_token.regex' => 'جلسة المعاينة غير صحيحة.',
+                'distribution_strategy.required' => 'اختر طريقة التوزيع.',
+                'distribution_strategy.in' => 'طريقة التوزيع المختارة غير صحيحة.',
+            ]
+        );
+
+        $token = (string) $validated['preview_token'];
+        $path = $this->previewPath($token);
+
+        if (! is_file($path)) {
+            return redirect()
+                ->route('v2.leads.import')
+                ->withErrors(['import_file' => 'انتهت جلسة المعاينة. ارفع الملف من جديد.']);
+        }
+
+        try {
+            $payload = json_decode(File::get($path), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return redirect()
+                ->route('v2.leads.import')
+                ->withErrors(['import_file' => 'تعذر قراءة جلسة المعاينة. ارفع الملف من جديد.']);
+        }
+
+        if (
+            ! is_array($payload)
+            || ($payload['version'] ?? null) !== 1
+            || (
+                ($payload['session_id'] ?? '') !== session()->getId()
+                && (int) ($payload['user_id'] ?? 0) !== (int) $request->user()->id
+            )
+        ) {
+            return redirect()
+                ->route('v2.leads.import')
+                ->withErrors(['import_file' => 'جلسة المعاينة لا تخص جلسة المستخدم الحالية.']);
+        }
+
+        $campaign = $this->campaignFromRequest($request, $payload['campaign_id'] ?? null);
+        $actor = $request->user();
+        $assignableUsers = LeadDistributionService::getAssignableUsers($actor, $campaign);
+        $activeLeadCounts = LeadDistributionService::getActiveLeadCounts($assignableUsers);
+        $distributionStrategies = LeadDistributionService::strategies();
+
+        $distributionConfig = [
+            'strategy' => $validated['distribution_strategy'],
+            'user_ids' => $validated['distribution_users'] ?? [],
+            'single_user_id' => $validated['distribution_single_user_id'] ?? null,
+            'fallback_user_id' => $validated['distribution_fallback_user_id'] ?? null,
+            'weights' => $validated['distribution_weights'] ?? [],
+        ];
+
+        $validPayloadRows = $payload['rows'] ?? [];
+        $previewRows = $payload['preview_rows'] ?? [];
+
+        $distributionService = app(LeadDistributionService::class);
+        $distResult = $distributionService->distribute(
+            $validPayloadRows,
+            $previewRows,
+            $distributionConfig,
+            $assignableUsers,
+            $actor
+        );
+
+        $payload['rows'] = $distResult['valid_rows'];
+        $payload['preview_rows'] = $distResult['preview_rows'];
+        $payload['distribution'] = $distResult['summary'];
+        $payload['distribution_config'] = $distributionConfig;
+
+        File::put($path, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $preview = [
+            'token' => $token,
+            'rows' => $distResult['preview_rows'],
+            'total_count' => (int) ($payload['total_count'] ?? count($distResult['preview_rows'])),
+            'valid_count' => (int) ($payload['valid_count'] ?? count($distResult['valid_rows'])),
+            'error_count' => (int) ($payload['error_count'] ?? 0),
+            'duplicate_count' => (int) ($payload['duplicate_count'] ?? 0),
+            'ignored_headers' => $payload['ignored_headers'] ?? [],
+            'distribution' => $distResult['summary'],
+            'distribution_config' => $distributionConfig,
+        ];
+
+        $stages = $this->stages();
+        $statuses = $this->statuses($stages);
+
+        return view(
+            'leads.import',
+            [
+                'statuses' => $statuses,
+                'defaultStatus' => $statuses->first(),
+                'preview' => $preview,
+                'campaign' => $campaign,
+                'assignableUsers' => $assignableUsers,
+                'activeLeadCounts' => $activeLeadCounts,
+                'distributionStrategies' => $distributionStrategies,
+                'distributionConfig' => $distributionConfig,
             ]
         );
     }
@@ -210,6 +413,30 @@ class LeadTransferController extends Controller
                     'required',
                     'string',
                     'regex:/^[a-f0-9]{40}$/',
+                ],
+                'distribution_strategy' => [
+                    'nullable',
+                    'string',
+                    Rule::in(array_keys(LeadDistributionService::strategies())),
+                ],
+                'distribution_users' => [
+                    'nullable',
+                    'array',
+                ],
+                'distribution_users.*' => [
+                    'integer',
+                ],
+                'distribution_single_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_fallback_user_id' => [
+                    'nullable',
+                    'integer',
+                ],
+                'distribution_weights' => [
+                    'nullable',
+                    'array',
                 ],
             ],
             [
@@ -316,6 +543,26 @@ class LeadTransferController extends Controller
         }
 
         $actor = $request->user();
+        if ($request->filled('distribution_strategy')) {
+            $campaign = $this->campaignFromRequest($request, $payload['campaign_id'] ?? null);
+            $assignableUsers = LeadDistributionService::getAssignableUsers($actor, $campaign);
+            $distConfig = [
+                'strategy' => (string) $request->input('distribution_strategy'),
+                'user_ids' => $request->input('distribution_users', []),
+                'single_user_id' => $request->input('distribution_single_user_id'),
+                'fallback_user_id' => $request->input('distribution_fallback_user_id'),
+                'weights' => $request->input('distribution_weights', []),
+            ];
+            $distService = app(LeadDistributionService::class);
+            $distResult = $distService->distribute(
+                $rows,
+                [],
+                $distConfig,
+                $assignableUsers,
+                $actor
+            );
+            $rows = $distResult['valid_rows'];
+        }
         $result = DB::transaction(
             function () use (
                 $rows,
@@ -429,6 +676,26 @@ class LeadTransferController extends Controller
                     $lead = Lead::query()->create(
                         $data
                     );
+                    if (! empty($data['custom_fields']) && is_array($data['custom_fields'])) {
+                        foreach ($data['custom_fields'] as $fKey => $fVal) {
+                            $stageField = PipelineStageField::query()
+                                ->where('key', $fKey)
+                                ->where('is_active', true)
+                                ->first();
+
+                            if ($stageField !== null) {
+                                LeadStageFieldValue::query()->create([
+                                    'lead_id' => $lead->id,
+                                    'pipeline_stage_id' => $stageField->pipeline_stage_id,
+                                    'pipeline_stage_field_id' => $stageField->id,
+                                    'field_key' => $fKey,
+                                    'field_type' => $stageField->type,
+                                    'value' => (string) $fVal,
+                                    'created_by_user_id' => $actor->id,
+                                ]);
+                            }
+                        }
+                    }
 
                     if ($campaign !== null) {
                         $campaign->leads()->attach(
@@ -576,11 +843,32 @@ class LeadTransferController extends Controller
                     'nullable',
                     'date_format:Y-m-d',
                 ],
-
                 'date_to' => [
                     'nullable',
                     'date_format:Y-m-d',
-                    'after_or_equal:date_from',
+                ],
+                'from_date' => [
+                    'nullable',
+                    'date_format:Y-m-d',
+                ],
+                'to_date' => [
+                    'nullable',
+                    'date_format:Y-m-d',
+                ],
+                'q' => [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+                'follow_up' => [
+                    'nullable',
+                    'string',
+                    Rule::in(['today', 'upcoming', 'overdue', 'none', '']),
+                ],
+                'sort' => [
+                    'nullable',
+                    'string',
+                    Rule::in(['latest', 'oldest', 'name', 'followup', '']),
                 ],
 
                 'columns' => [
@@ -615,6 +903,7 @@ class LeadTransferController extends Controller
             ->with([
                 'status.stage',
                 'assignedUser:id,name',
+                'stageValues:id,lead_id,field_key,value',
             ]);
 
         if (
@@ -691,35 +980,51 @@ class LeadTransferController extends Controller
             );
         }
 
-        if (
-            ! empty(
-                $validated['date_from']
-            )
-        ) {
-            $query->whereDate(
-                'created_at',
-                '>=',
-                (string)
-                    $validated[
-                        'date_from'
-                    ]
-            );
+        $dateFrom = $validated['from_date'] ?? $validated['date_from'] ?? null;
+        $dateTo = $validated['to_date'] ?? $validated['date_to'] ?? null;
+
+        if ($dateFrom !== null && $dateTo !== null && $dateTo < $dateFrom) {
+            return back()->withInput()->withErrors([
+                'date_to' => 'تاريخ النهاية يجب أن يكون بعد أو مساويًا لتاريخ البداية.',
+            ]);
         }
 
-        if (
-            ! empty(
-                $validated['date_to']
-            )
-        ) {
-            $query->whereDate(
-                'created_at',
-                '<=',
-                (string)
-                    $validated[
-                        'date_to'
-                    ]
-            );
+        if (! empty($dateFrom)) {
+            $query->whereDate('created_at', '>=', (string) $dateFrom);
         }
+
+        if (! empty($dateTo)) {
+            $query->whereDate('created_at', '<=', (string) $dateTo);
+        }
+
+        if (! empty($validated['q'])) {
+            $search = '%' . trim((string) $validated['q']) . '%';
+            $query->where(function ($qQuery) use ($search): void {
+                $qQuery->where('name', 'like', $search)
+                    ->orWhere('company_name', 'like', $search)
+                    ->orWhere('phone', 'like', $search)
+                    ->orWhere('email', 'like', $search)
+                    ->orWhere('source', 'like', $search);
+            });
+        }
+
+        if (! empty($validated['follow_up'])) {
+            match ($validated['follow_up']) {
+                'today' => $query->whereBetween('next_follow_up_at', [now()->startOfDay(), now()->endOfDay()]),
+                'upcoming' => $query->where('next_follow_up_at', '>', now()->endOfDay()),
+                'overdue' => $query->where('next_follow_up_at', '<', now()->startOfDay()),
+                'none' => $query->whereNull('next_follow_up_at'),
+                default => null,
+            };
+        }
+
+        $sort = $validated['sort'] ?? 'latest';
+        match ($sort) {
+            'oldest' => $query->orderBy('created_at')->orderBy('id'),
+            'name' => $query->orderBy('name')->orderBy('id'),
+            'followup' => $query->orderByRaw('next_follow_up_at IS NULL')->orderBy('next_follow_up_at')->orderByDesc('id'),
+            default => $query->orderByDesc('created_at')->orderByDesc('id'),
+        };
 
         $count = (clone $query)
             ->count();
@@ -818,9 +1123,9 @@ class LeadTransferController extends Controller
             ->values();
     }
 
-    private function importColumns(): array
+    private function importColumns(?int $stageId = null): array
     {
-        return [
+        $columns = [
             'first_name' => 'اسم العميل الأول',
             'last_name' => 'اسم العميل الأخير',
             'phone' => 'الهاتف',
@@ -843,6 +1148,51 @@ class LeadTransferController extends Controller
             'assigned_employee' => 'الموظف المسؤول',
             'notes' => 'ملاحظات',
         ];
+
+        try {
+            $customQuery = PipelineStageField::query()
+                ->where('is_active', true)
+                ->where('binding_type', 'custom')
+                ->with('stage:id,name_ar,code')
+                ->orderBy('position');
+
+            if ($stageId !== null && $stageId > 0) {
+                $customQuery->where('pipeline_stage_id', $stageId);
+            }
+
+            $customFields = $customQuery->get();
+
+            $existingLabelsNormalized = [];
+            foreach ($columns as $k => $lbl) {
+                $existingLabelsNormalized[$this->normalizeHeader((string) $lbl)] = $k;
+            }
+
+            foreach ($customFields as $field) {
+                $rawLabel = trim((string) ($field->label_ar ?: ($field->label_en ?: $field->key)));
+                $normLabel = $this->normalizeHeader($rawLabel);
+
+                // If this label or concept is already covered by canonical columns, skip adding duplicate column
+                if (
+                    isset($existingLabelsNormalized[$normLabel])
+                    || in_array($field->key, ['reason', 'disinterest_reason', 'lines_count'], true)
+                    || str_starts_with($field->key, 'notes')
+                    || str_contains($normLabel, 'عدمالاهتمام')
+                    || str_contains($normLabel, 'عددالخطوط')
+                    || str_contains($normLabel, 'ملاحظات')
+                ) {
+                    continue;
+                }
+
+                $colKey = 'custom_' . $field->key;
+                if (! isset($columns[$colKey])) {
+                    $columns[$colKey] = $rawLabel;
+                    $existingLabelsNormalized[$normLabel] = $colKey;
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        return $columns;
     }
 
     private function importHeaderAliases(): array
@@ -991,13 +1341,67 @@ class LeadTransferController extends Controller
                 ] = $key;
             }
         }
+        try {
+            $customFields = PipelineStageField::query()
+                ->where('is_active', true)
+                ->where('binding_type', 'custom')
+                ->with('stage:id,name_ar,code')
+                ->get();
+            foreach ($customFields as $field) {
+                $rawLabel = trim((string) ($field->label_ar ?: ($field->label_en ?: $field->key)));
+                $normLabel = $this->normalizeHeader($rawLabel);
 
+                if (
+                    in_array($field->key, ['reason', 'disinterest_reason'], true)
+                    || str_contains($normLabel, 'عدمالاهتمام')
+                ) {
+                    $map[$this->normalizeHeader((string) $field->key)] = 'disinterest_reason';
+                    if ($field->label_ar) {
+                        $map[$this->normalizeHeader((string) $field->label_ar)] = 'disinterest_reason';
+                    }
+                    continue;
+                }
+
+                if (
+                    in_array($field->key, ['lines_count'], true)
+                    || str_contains($normLabel, 'عددالخطوط')
+                ) {
+                    $map[$this->normalizeHeader((string) $field->key)] = 'lines_count';
+                    if ($field->label_ar) {
+                        $map[$this->normalizeHeader((string) $field->label_ar)] = 'lines_count';
+                    }
+                    continue;
+                }
+
+                if (
+                    str_starts_with($field->key, 'notes')
+                    || str_contains($normLabel, 'ملاحظات')
+                ) {
+                    $map[$this->normalizeHeader((string) $field->key)] = 'notes';
+                    if ($field->label_ar) {
+                        $map[$this->normalizeHeader((string) $field->label_ar)] = 'notes';
+                    }
+                    continue;
+                }
+
+                $key = 'custom_' . $field->key;
+                $map[$this->normalizeHeader((string) $field->key)] = $key;
+                if ($field->label_ar) {
+                    $map[$this->normalizeHeader((string) $field->label_ar)] = $key;
+                }
+                if ($field->label_en) {
+                    $map[$this->normalizeHeader((string) $field->label_en)] = $key;
+                }
+            }
+        } catch (\Throwable) {
+        }
         return $map;
     }
 
     private function buildImportPreview(
         array $rows,
-        ?int $campaignId = null
+        ?int $campaignId = null,
+        array $distributionConfig = []
     ): array {
         if ($rows === []) {
             throw new \RuntimeException(
@@ -1518,22 +1922,36 @@ class LeadTransferController extends Controller
                         'disinterest_reason'
                     )
                 );
-            $assignedEmployee =
-                $this->nullableText(
-                    $value(
-                        'assigned_employee'
-                    )
-                )
-                ?? $this
-                    ->currentEmployeeName();
+            $strategy = $distributionConfig['strategy'] ?? LeadDistributionService::STRATEGY_FROM_FILE;
+            $rawAssignedEmployee = $this->nullableText($value('assigned_employee'));
+            $assignedEmployee = $rawAssignedEmployee;
+            $assignedUserId = null;
 
-            $assignedUserId = $userIdMap[
-                $this->normalizeToken($assignedEmployee)
-            ] ?? null;
+            if ($assignedEmployee !== null) {
+                $assignedUserId = $userIdMap[$this->normalizeToken($assignedEmployee)] ?? null;
+            }
 
-            if ($assignedUserId === null) {
-                $errors[] =
-                    'لا تملك صلاحية الإسناد إلى الموظف المسؤول المحدد.';
+            if ($strategy === LeadDistributionService::STRATEGY_FROM_FILE) {
+                if ($assignedUserId === null) {
+                    $fallbackId = isset($distributionConfig['fallback_user_id'])
+                        ? (int) $distributionConfig['fallback_user_id']
+                        : null;
+
+                    if ($fallbackId !== null && in_array($fallbackId, $userIdMap, true)) {
+                        $assignedUserId = $fallbackId;
+                        $assignedEmployee = $assignableUsers->firstWhere('id', $fallbackId)?->name ?? $this->currentEmployeeName();
+                    } elseif ($rawAssignedEmployee === null) {
+                        $assignedUserId = (int) $actor->id;
+                        $assignedEmployee = $this->currentEmployeeName();
+                    } else {
+                        $errors[] = 'الموظف المسؤول المذكور بالملف غير موجود أو لا تملك صلاحية الإسناد إليه.';
+                    }
+                }
+            } else {
+                if ($assignedUserId === null) {
+                    $assignedUserId = (int) $actor->id;
+                    $assignedEmployee = $this->currentEmployeeName();
+                }
             }
 
             $notes =
@@ -1773,6 +2191,19 @@ class LeadTransferController extends Controller
 
                     'notes' => $notes,
                 ];
+                $customFieldValues = [];
+                foreach ($indexes as $colKey => $colIdx) {
+                    if (str_starts_with($colKey, 'custom_')) {
+                        $fieldKey = substr($colKey, 7);
+                        $val = trim((string) ($row[$colIdx] ?? ''));
+                        if ($val !== '') {
+                            $customFieldValues[$fieldKey] = $val;
+                        }
+                    }
+                }
+                if ($customFieldValues !== []) {
+                    $leadData['custom_fields'] = $customFieldValues;
+                }
 
                 $validPayloadRows[] = [
                     'row_number' => $excelRowNumber,
@@ -1815,13 +2246,42 @@ class LeadTransferController extends Controller
             );
         }
 
+        $distributionSummary = null;
+
+        if ($validPayloadRows !== []) {
+            $distributionService = app(LeadDistributionService::class);
+            $distResult = $distributionService->distribute(
+                $validPayloadRows,
+                $previewRows,
+                $distributionConfig,
+                $assignableUsers,
+                $actor
+            );
+
+            $validPayloadRows = $distResult['valid_rows'];
+            $previewRows = $distResult['preview_rows'];
+            $distributionSummary = $distResult['summary'];
+        }
+
         $token = null;
 
         if ($validPayloadRows !== []) {
             $token =
                 $this->writePreviewPayload(
                     $validPayloadRows,
-                    $campaignId
+                    $campaignId,
+                    [
+                        'preview_rows' => $previewRows,
+                        'distribution' => $distributionSummary,
+                        'distribution_config' => $distributionConfig,
+                        'total_count' => count($previewRows),
+                        'valid_count' => $validCount,
+                        'error_count' => $errorCount,
+                        'duplicate_count' => $duplicateCount,
+                        'ignored_headers' => array_values(
+                            array_unique($ignoredHeaders)
+                        ),
+                    ]
                 );
         }
 
@@ -1837,6 +2297,8 @@ class LeadTransferController extends Controller
                     $ignoredHeaders
                 )
             ),
+            'distribution' => $distributionSummary,
+            'distribution_config' => $distributionConfig,
         ];
     }
 
@@ -2296,7 +2758,8 @@ class LeadTransferController extends Controller
 
     private function writePreviewPayload(
         array $rows,
-        ?int $campaignId = null
+        ?int $campaignId = null,
+        array $extra = []
     ): string {
         $directory =
             $this->previewDirectory();
@@ -2322,7 +2785,7 @@ class LeadTransferController extends Controller
             random_bytes(20)
         );
 
-        $payload = [
+        $payload = array_merge([
             'version' => 1,
             'created_at' => time(),
             'session_id' => session()->getId(),
@@ -2331,7 +2794,7 @@ class LeadTransferController extends Controller
                 ->currentEmployeeName(),
             'campaign_id' => $campaignId,
             'rows' => $rows,
-        ];
+        ], $extra);
 
         File::put(
             $this->previewPath(
@@ -2615,7 +3078,7 @@ class LeadTransferController extends Controller
 
     private function exportColumns(): array
     {
-        return [
+        $columns = [
             'id' => 'رقم العميل',
             'name' => 'اسم العميل',
             'first_name' => 'الاسم الأول',
@@ -2646,13 +3109,72 @@ class LeadTransferController extends Controller
             'created_at' => 'تاريخ الإضافة',
             'updated_at' => 'آخر تحديث',
         ];
+        try {
+            $customFields = PipelineStageField::query()
+                ->where('is_active', true)
+                ->where('binding_type', 'custom')
+                ->with('stage:id,name_ar,code')
+                ->orderBy('position')
+                ->get();
+
+            $existingLabelsNormalized = [];
+            foreach ($columns as $k => $lbl) {
+                $existingLabelsNormalized[$this->normalizeHeader((string) $lbl)] = $k;
+            }
+
+            foreach ($customFields as $field) {
+                $rawLabel = trim((string) ($field->label_ar ?: ($field->label_en ?: $field->key)));
+                $normLabel = $this->normalizeHeader($rawLabel);
+
+                // If this label or concept is already covered by canonical columns, skip adding duplicate column
+                if (
+                    isset($existingLabelsNormalized[$normLabel])
+                    || in_array($field->key, ['reason', 'disinterest_reason', 'lines_count'], true)
+                    || str_starts_with($field->key, 'notes')
+                    || str_contains($normLabel, 'عدمالاهتمام')
+                    || str_contains($normLabel, 'عددالخطوط')
+                    || str_contains($normLabel, 'ملاحظات')
+                ) {
+                    continue;
+                }
+
+                $colKey = 'custom_' . $field->key;
+                if (! isset($columns[$colKey])) {
+                    $columns[$colKey] = $rawLabel;
+                    $existingLabelsNormalized[$normLabel] = $colKey;
+                }
+            }
+        } catch (\Throwable) {
+        }
+        return $columns;
     }
 
     private function exportValue(
         Lead $lead,
         string $column
     ): string {
+        if (str_starts_with($column, 'custom_')) {
+            $fieldKey = substr($column, 7);
+
+            $stageVal = $lead->relationLoaded('stageValues')
+                ? $lead->stageValues->firstWhere('field_key', $fieldKey)
+                : $lead->stageValues()->where('field_key', $fieldKey)->latest('created_at')->first();
+
+            if ($stageVal !== null && $stageVal->value !== null && $stageVal->value !== '') {
+                return (string) $stageVal->value;
+            }
+
+            $customFields = (array) ($lead->custom_fields ?? []);
+            if (isset($customFields[$fieldKey]) && $customFields[$fieldKey] !== null && $customFields[$fieldKey] !== '') {
+                return is_array($customFields[$fieldKey])
+                    ? implode(', ', $customFields[$fieldKey])
+                    : (string) $customFields[$fieldKey];
+            }
+
+            return '';
+        }
         return match ($column) {
+
             'id' => (string) $lead->id,
 
             'name' => (string) $lead->name,

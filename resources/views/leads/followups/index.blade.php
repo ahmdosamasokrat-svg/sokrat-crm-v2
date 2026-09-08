@@ -10,6 +10,17 @@
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+<script>
+(() => {
+    try {
+        const theme = localStorage.getItem('sokrat.crm.theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (theme === 'dark' || (theme !== 'light' && prefersDark)) {
+            document.documentElement.classList.add('dark-mode');
+        }
+    } catch (e) {}
+})();
+</script>
 
 <style>
 :root {
@@ -723,7 +734,7 @@ body.kanban-followup-popup .client-actions {
                 </div>
 
                 <div class="panel-body">
-                    <form method="POST" enctype="multipart/form-data" action="{{ route('v2.leads.followups.store', $lead) }}" id="followupForm">
+                    <form method="POST" enctype="multipart/form-data" action="{{ route('v2.leads.followups.store', $lead, false) }}" id="followupForm">
                         @csrf
 
                         @if (request()->boolean('kanban_popup'))
@@ -785,19 +796,32 @@ body.kanban-followup-popup .client-actions {
                             </div>
 
                             <!-- DYNAMIC STAGE QUESTIONS CONTAINER -->
+                            @php
+                                $statusesCol = collect($statuses ?? []);
+                                $selectedStatus = $statusesCol->firstWhere('id', $selectedStatusId);
+                                $selectedStageId = $selectedStatus?->pipeline_stage_id ?? $lead->status?->pipeline_stage_id;
+                            @endphp
                             <div id="dynamicStageQuestionsSection" class="field full" style="margin-top:4px;">
                                 @foreach (($activeStages ?? []) as $astage)
                                     @if ($astage->activeFields->isNotEmpty())
-                                        <div class="stage-questions-block" id="stage_q_block_{{ $astage->id }}" data-stage-id="{{ $astage->id }}" style="display:none; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;">
+                                        @php
+                                            $isTargetStage = (int) $astage->id === (int) $selectedStageId;
+                                        @endphp
+                                        <div class="stage-questions-block" id="stage_q_block_{{ $astage->id }}" data-stage-id="{{ $astage->id }}" style="{{ $isTargetStage ? 'display:block;' : 'display:none;' }} background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;">
                                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; font-weight:800; font-size:14px; color:var(--dark);">
                                                 <i class="bi bi-ui-checks" style="color:var(--red);"></i>
                                                 <span>{{ __('crm.stage_questions') }} ({{ $astage->localizedName() }})</span>
                                             </div>
+                                            @php
+                                                $prefilled = \App\Support\StageFieldSchema::prefillValues($lead, $astage);
+                                                $mergedValues = array_merge($prefilled, old('stage_fields', []));
+                                            @endphp
                                             @include('partials.stage-field-inputs', [
                                                 'fields' => $astage->activeFields,
-                                                'recordValues' => old('stage_fields', []),
+                                                'recordValues' => $mergedValues,
                                                 'prefix' => 'stage_fields',
                                                 'scope' => 'followup_' . $astage->id,
+                                                'disabled' => ! $isTargetStage,
                                             ])
                                         </div>
                                     @endif
@@ -809,12 +833,12 @@ body.kanban-followup-popup .client-actions {
                                 <div class="field">
                                     <label for="followupCampaign"><i class="bi bi-megaphone"></i> {{ __('crm.campaign') }}</label>
                                     <select class="control" id="followupCampaign" name="campaign_id">
-                                        <option value="">{{ __('crm.no_campaign_change') }}</option>
+                                        <option value="" @selected(empty(old('campaign_id')))>{{ __('crm.no_campaign_change') }}</option>
                                         @foreach ($manageableCampaigns as $campaignOption)
                                             <option
                                                 value="{{ $campaignOption->id }}"
                                                 data-user-ids="{{ implode(',', $campaignOption->users->modelKeys()) }}"
-                                                @selected(old('campaign_id', $currentCampaign?->id) === $campaignOption->id)
+                                                @selected((int) old('campaign_id', 0) === (int) $campaignOption->id)
                                             >
                                                 {{ $campaignOption->name }}
                                             </option>
@@ -902,78 +926,20 @@ body.kanban-followup-popup .client-actions {
                             </div>
                         </div>
 
-                        <!-- CONDITIONAL: QUOTATION DATA -->
-                        <section class="followup-stage-editor is-hidden" id="quotationSection">
-                            <div class="followup-editor-head">
-                                <h4><i class="bi bi-file-earmark-text"></i> {{ __('crm.quotation_data') }}</h4>
-                                <p>بيانات عرض السعر والحل المطلوب لهذا العميل.</p>
-                            </div>
-                            <div class="followup-editor-grid">
-                                <div class="field">
-                                    <label for="solutionType">{{ __('crm.system_type') }} <span class="required">*</span></label>
-                                    <select class="control" id="solutionType" name="solution_type">
-                                        <option value="">{{ __('crm.select_system_type') }}</option>
-                                        <option value="call_center" @selected(old('solution_type', $lead->solution_type) === 'call_center')>Call Center</option>
-                                        <option value="erp" @selected(old('solution_type', $lead->solution_type) === 'erp')>ERP</option>
-                                    </select>
-                                </div>
-
-                                <div class="field followup-detail-panel is-hidden" id="callCenterFields">
-                                    <label for="linesCount">{{ __('crm.lines_count') }}</label>
-                                    <input class="control" id="linesCount" type="number" min="0" name="lines_count" value="{{ old('lines_count', $lead->lines_count) }}" placeholder="مثال: 4">
-                                </div>
-
-                                <div class="field followup-detail-panel is-hidden" id="erpFields">
-                                    <label for="departments">{{ __('crm.departments') }}</label>
-                                    <input class="control" id="departments" type="text" name="departments" value="{{ old('departments', $lead->departments) }}" placeholder="مثال: الحسابات، المبيعات">
-                                </div>
-
-                                <div class="field">
-                                    <label for="quotationFile">{{ __('crm.quotation_file') }}</label>
-                                    <input class="control" id="quotationFile" type="file" name="quotation_file">
-                                    <small id="quotationFileHelp">{{ $quotationFileHelpText }}</small>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- CONDITIONAL: NOT INTERESTED REASON -->
-                        <section class="followup-stage-editor is-hidden" id="notInterestedSection">
-                            <div class="followup-editor-head">
-                                <h4><i class="bi bi-x-circle"></i> {{ __('crm.not_interested_reason') }}</h4>
-                                <p>سجّل سبب عدم اهتمام العميل بالخدمة.</p>
-                            </div>
-                            <div class="field full">
-                                <textarea class="control" id="disinterestReason" name="disinterest_reason" rows="3" placeholder="اكتب سبب الرفض أو عدم الاهتمام بالتفصيل...">{{ old('disinterest_reason', $lead->disinterest_reason) }}</textarea>
-                            </div>
-                        </section>
-
-                        @if (($customerFields ?? collect())->isNotEmpty())
-                            <!-- CONFIGURABLE CUSTOMER & COMPANY DATA -->
-                            <section class="followup-stage-editor" id="businessDataSection">
-                                <div class="followup-editor-head">
-                                    <h4><i class="bi bi-building"></i> {{ __('crm.company_lead_data') }}</h4>
-                                    <p>{{ __('crm.followup_customer_fields_employee_desc') }}</p>
-                                </div>
-                                @foreach ($customerFields as $customerField)
-                                    <input type="hidden" name="customer_field_presence[]" value="{{ $customerField->key }}">
-                                @endforeach
-                                @include('partials.stage-field-inputs', [
-                                    'fields' => $customerFields,
-                                    'recordValues' => $customerFieldValues ?? [],
-                                    'prefix' => 'customer_fields',
-                                    'scope' => 'followup_customer_fields',
-                                ])
-                            </section>
-                        @endif
-
                         <!-- FORM ACTION BUTTONS -->
                         <div style="display:flex;align-items:center;gap:12px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)">
                             <button type="submit" class="btn primary" style="height:44px;min-height:44px;padding:0 24px;font-size:14px">
                                 <i class="bi bi-check-lg"></i> {{ __('crm.save_followup') }}
                             </button>
-                            <a href="{{ route('v2.leads.show', $lead) }}" class="btn soft" style="height:44px;min-height:44px">
-                                {{ __('crm.cancel') }}
-                            </a>
+                            @if (request()->boolean('kanban_popup'))
+                                <button type="button" class="btn soft" id="kanbanPopupCancelBtn" style="height:44px;min-height:44px" onclick="cancelKanbanPopup()">
+                                    {{ __('crm.cancel') }}
+                                </button>
+                            @else
+                                <a href="{{ route('v2.leads.show', $lead) }}" class="btn soft" style="height:44px;min-height:44px">
+                                    {{ __('crm.cancel') }}
+                                </a>
+                            @endif
                         </div>
                     </form>
                 </div>
@@ -1068,75 +1034,90 @@ function setNextDate(daysAhead, hour) {
 
 (() => {
     const statusSelect = document.getElementById('lead_status_id');
-    const notInterestedSection = document.getElementById('notInterestedSection');
-    const quotationSection = document.getElementById('quotationSection');
-    const solutionTypeSelect = document.getElementById('solutionType');
-    const callCenterFields = document.getElementById('callCenterFields');
-    const erpFields = document.getElementById('erpFields');
-    const disinterestReason = document.getElementById('disinterestReason');
-    const linesCount = document.getElementById('linesCount');
     const questionBlocks = document.querySelectorAll('.stage-questions-block');
-
-    const quotationStatuses = ['quotation', 'discussion', 'contract_closed', 'execution'];
-
-    function getSelectedStatusCode() {
-        const opt = statusSelect?.selectedOptions?.[0];
-        return opt?.dataset?.statusCode || '';
-    }
-
-    function updateStageSections() {
-        const code = getSelectedStatusCode();
-        const isNotInterested = code === 'not_interested';
-        const isQuotation = quotationStatuses.includes(code);
-
-        if (notInterestedSection) notInterestedSection.classList.toggle('is-hidden', !isNotInterested);
-        if (quotationSection) quotationSection.classList.toggle('is-hidden', !isQuotation);
-
-        if (disinterestReason) disinterestReason.required = isNotInterested;
-        if (solutionTypeSelect) solutionTypeSelect.required = isQuotation;
-
-        updateSolutionFields();
-    }
-
-    function updateSolutionFields() {
-        const code = getSelectedStatusCode();
-        const isQuotation = quotationStatuses.includes(code);
-        const sol = isQuotation ? solutionTypeSelect?.value : '';
-        const isCallCenter = sol === 'call_center';
-        const isErp = sol === 'erp';
-
-        if (callCenterFields) callCenterFields.classList.toggle('is-hidden', !isCallCenter);
-        if (erpFields) erpFields.classList.toggle('is-hidden', !isErp);
-        if (linesCount) linesCount.required = isCallCenter;
-    }
 
     function syncStageQuestions() {
         const selectedOpt = statusSelect?.options?.[statusSelect.selectedIndex];
         const stageId = selectedOpt ? selectedOpt.getAttribute('data-stage-id') : null;
 
+        let hasMatchingStageBlock = false;
+
         questionBlocks.forEach(block => {
             const blockStageId = block.getAttribute('data-stage-id');
             const isMatch = blockStageId && stageId && String(blockStageId) === String(stageId);
+            if (isMatch) {
+                hasMatchingStageBlock = true;
+            }
             block.style.display = isMatch ? 'block' : 'none';
             block.querySelectorAll('input, select, textarea').forEach(input => {
                 if (isMatch) {
                     input.removeAttribute('disabled');
+                    const req = input.closest('.stage-field-item')?.getAttribute('data-sf-required') === '1';
+                    if (req) {
+                        input.setAttribute('required', 'required');
+                    }
                 } else {
                     input.setAttribute('disabled', 'disabled');
+                    input.removeAttribute('required');
                 }
             });
         });
+
+        const hiddenStatus = document.querySelector('input[type="hidden"][name="lead_status_id"]');
+        if (hiddenStatus && statusSelect && statusSelect.value) {
+            hiddenStatus.value = statusSelect.value;
+        }
+
+        const genericFollowupField = document.getElementById('nextFollowUpAt')?.closest('.field');
+        const genericFollowupInput = document.getElementById('nextFollowUpAt');
+        const activeBlock = hasMatchingStageBlock ? Array.from(questionBlocks).find(b => b.style.display !== 'none') : null;
+        const hasStageScheduling = activeBlock ? (activeBlock.querySelector('[data-sf-key="callback_at"]') !== null || activeBlock.querySelector('[data-sf-key="next_follow_up_at"]') !== null) : false;
+
+        if (genericFollowupField && genericFollowupInput) {
+            if (hasStageScheduling) {
+                genericFollowupField.style.display = 'none';
+                genericFollowupInput.setAttribute('disabled', 'disabled');
+                genericFollowupInput.removeAttribute('required');
+            } else {
+                genericFollowupField.style.display = '';
+                genericFollowupInput.removeAttribute('disabled');
+            }
+        }
     }
 
-    statusSelect?.addEventListener('change', () => {
-        updateStageSections();
-        syncStageQuestions();
-    });
+    const campaignSelect = document.getElementById('followupCampaign');
+    const assigneeSelect = document.getElementById('followupCampaignAssignee');
 
-    solutionTypeSelect?.addEventListener('change', updateSolutionFields);
+    function syncCampaignAssignees() {
+        if (!campaignSelect || !assigneeSelect) return;
+        const selectedOpt = campaignSelect.options[campaignSelect.selectedIndex];
+        const userIdsRaw = selectedOpt ? selectedOpt.getAttribute('data-user-ids') : null;
+        const allowedIds = userIdsRaw ? userIdsRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
 
-    updateStageSections();
+        Array.from(assigneeSelect.options).forEach(opt => {
+            if (!opt.value) {
+                opt.hidden = false;
+                opt.disabled = false;
+                return;
+            }
+            if (allowedIds !== null) {
+                const isAllowed = allowedIds.includes(opt.value);
+                opt.hidden = !isAllowed;
+                opt.disabled = !isAllowed;
+                if (!isAllowed && assigneeSelect.value === opt.value) {
+                    assigneeSelect.value = '';
+                }
+            } else {
+                opt.hidden = false;
+                opt.disabled = false;
+            }
+        });
+    }
+
+    statusSelect?.addEventListener('change', syncStageQuestions);
+    campaignSelect?.addEventListener('change', syncCampaignAssignees);
     syncStageQuestions();
+    syncCampaignAssignees();
 })();
 </script>
 
@@ -1170,5 +1151,26 @@ function setNextDate(daysAhead, hour) {
 </script>
 @endif
 <script src="{{ asset('crm-notifications.js') }}?v=1.0.0"></script>
+<script>
+function cancelKanbanPopup() {
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'crm-kanban-popup-close' }, window.location.origin);
+            return;
+        }
+    } catch (e) {}
+}
+</script>
+@if (request()->boolean('kanban_popup') && (request()->boolean('saved') || session('success')))
+<script>
+(() => {
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'crm-kanban-followup-saved' }, window.location.origin);
+        }
+    } catch (e) {}
+})();
+</script>
+@endif
 </body>
 </html>

@@ -23,10 +23,14 @@
  data-label-load-more="{{ __('crm.load_more') }}"
  data-label-tasks-loading="{{ __('crm.notification_tasks_loading') }}"
  data-label-tasks-empty="{{ __('crm.notification_tasks_empty') }}"
- data-label-tasks-overdue="{{ __('crm.notification_tasks_overdue') }}"
- data-label-tasks-today="{{ __('crm.notification_tasks_today') }}"
+ data-label-tasks-overdue="{{ __('crm.overdue_short') }}"
+ data-label-tasks-today="{{ __('crm.today') }}"
+ data-label-tasks-tomorrow="{{ __('crm.tomorrow') }}"
+ data-label-tasks-later="{{ __('crm.later') }}"
  data-label-tasks-truncated="{{ __('crm.notification_tasks_truncated') }}"
- >
+ data-label-view-all="{{ __('crm.notification_view_all_tasks') }}"
+ data-daily-tasks-url="{{ route('v2.tasks.daily', ['employee_id' => auth()->id()]) }}"
+>
  <div class="crm-notification-backdrop" data-notification-close hidden></div>
  <section
   class="crm-notification-drawer"
@@ -37,8 +41,12 @@
   aria-hidden="true"
  >
   <header class="crm-notification-head">
-   <div>
-    <h2 id="crmNotificationTitle">{{ __('crm.notifications') }}</h2>
+   <div class="crm-notification-title-group">
+    <h2 id="crmNotificationTitle">
+     <i class="bi bi-bell-fill" style="color: #ec4899;" aria-hidden="true"></i>
+     {{ __('crm.notifications') }}
+     <span class="crm-attention-total-badge" id="crmNotificationTasksTotal" hidden>0</span>
+    </h2>
     <p>{{ __('crm.notification_center_subtitle') }}</p>
    </div>
    <button class="crm-notification-close" type="button" data-notification-close aria-label="{{ __('crm.close') }}">
@@ -46,34 +54,38 @@
    </button>
   </header>
 
-  @can('tasks.view')
-   <section class="crm-notification-tasks" aria-labelledby="crmNotificationTasksTitle">
-    <header class="crm-notification-tasks-head">
-     <div>
-      <h3 id="crmNotificationTasksTitle"><i class="bi bi-list-check" aria-hidden="true"></i>{{ __('crm.notification_my_tasks') }} <span id="crmNotificationTasksTotal" hidden>0</span></h3>
-      <p>{{ __('crm.notification_my_tasks_desc') }}</p>
-     </div>
-     <a href="{{ route('v2.tasks.daily', ['employee_id' => auth()->id()]) }}">{{ __('crm.notification_view_all_tasks') }}</a>
-    </header>
-    <div class="crm-notification-task-list" id="crmNotificationTaskList" aria-live="polite"></div>
-   </section>
-  @endcan
-
-  <div class="crm-notification-controls">
-   <div class="crm-notification-tabs" role="tablist" aria-label="{{ __('crm.notification_filter') }}">
-    <button class="active" type="button" data-notification-filter="unread" role="tab" aria-selected="true">{{ __('crm.unread') }}</button>
-    <button type="button" data-notification-filter="all" role="tab" aria-selected="false">{{ __('crm.all') }}</button>
-   </div>
-   <button class="crm-notification-read-all" type="button" id="crmNotificationReadAll">{{ __('crm.mark_all_read') }}</button>
+  <div class="crm-attention-filters" role="tablist" aria-label="{{ __('crm.notification_filter') }}">
+   <button class="crm-attention-pill is-overdue" type="button" data-attention-filter="overdue" role="tab" aria-selected="false">
+    <span class="pill-dot dot-overdue"></span>
+    <span class="pill-label">{{ __('crm.overdue_short') }}</span>
+    <span class="pill-count" id="countOverdue">0</span>
+   </button>
+   <button class="crm-attention-pill is-today active" type="button" data-attention-filter="today" role="tab" aria-selected="true">
+    <span class="pill-dot dot-today"></span>
+    <span class="pill-label">{{ __('crm.today') }}</span>
+    <span class="pill-count" id="countToday">0</span>
+   </button>
+   <button class="crm-attention-pill is-tomorrow" type="button" data-attention-filter="tomorrow" role="tab" aria-selected="false">
+    <span class="pill-dot dot-tomorrow"></span>
+    <span class="pill-label">{{ __('crm.tomorrow') }}</span>
+    <span class="pill-count" id="countTomorrow">0</span>
+   </button>
+   <button class="crm-attention-pill is-later" type="button" data-attention-filter="later" role="tab" aria-selected="false">
+    <span class="pill-dot dot-later"></span>
+    <span class="pill-label">{{ __('crm.later') }}</span>
+    <span class="pill-count" id="countLater">0</span>
+   </button>
   </div>
 
-  <div class="crm-notification-list" id="crmNotificationList" aria-live="polite"></div>
+  <section class="crm-attention-content" aria-labelledby="crmNotificationTitle">
+   <div class="crm-notification-task-list crm-attention-list" id="crmNotificationTaskList" aria-live="polite"></div>
+  </section>
 
-  <footer class="crm-notification-footer">
-   <button type="button" id="crmNotificationLoadMore" hidden>{{ __('crm.load_more') }}</button>
-   <a href="{{ route('v2.notifications.preferences.edit') }}">
-    <i class="bi bi-sliders" aria-hidden="true"></i>
-    {{ __('crm.notification_preferences') }}
+  <footer class="crm-attention-footer" id="crmAttentionFooter">
+   <span class="crm-attention-summary" id="crmAttentionSummary"></span>
+   <a href="{{ route('v2.tasks.daily', ['employee_id' => auth()->id()]) }}" class="crm-attention-view-all" id="crmAttentionViewAll">
+    <span>{{ __('crm.notification_view_all_tasks') }}</span>
+    <i class="bi bi-arrow-{{ app()->getLocale() === 'en' ? 'right' : 'left' }}"></i>
    </a>
   </footer>
  </section>

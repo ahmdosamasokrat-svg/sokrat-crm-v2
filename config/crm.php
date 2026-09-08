@@ -11,4 +11,6 @@ return [
         'email' => env('CRM_V2_ADMIN_EMAIL', 'admin@localhost.invalid'),
         'password' => env('CRM_V2_ADMIN_PASSWORD', 'Admin@123'),
     ],
+
+    'kanban_column_page_size' => 10,
 ];

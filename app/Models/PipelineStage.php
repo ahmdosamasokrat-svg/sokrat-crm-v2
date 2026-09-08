@@ -9,10 +9,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Lang;
 
 class PipelineStage extends Model
 {
+    use SoftDeletes;
     public const SIDEBAR_CACHE_KEY = 'crm.sidebar.active_pipeline_stages';
     public const DASHBOARD_CACHE_KEY = 'crm.dashboard.active_pipeline_stages';
 
@@ -165,6 +167,8 @@ class PipelineStage extends Model
         'color',
         'icon',
         'is_primary',
+        'is_system',
+        'is_default',
         'is_active',
     ];
 
@@ -173,7 +177,10 @@ class PipelineStage extends Model
         return [
             'position' => 'integer',
             'is_primary' => 'boolean',
+            'is_system' => 'boolean',
+            'is_default' => 'boolean',
             'is_active' => 'boolean',
+            'deleted_at' => 'datetime',
         ];
     }
 
@@ -185,6 +192,21 @@ class PipelineStage extends Model
     public function hasLeads(): bool
     {
         return $this->leads()->exists();
+    }
+
+    public static function getDefaultStage(): ?PipelineStage
+    {
+        return self::query()
+            ->whereNull('deleted_at')
+            ->where('is_active', true)
+            ->where('is_default', true)
+            ->first()
+            ?? self::query()
+                ->whereNull('deleted_at')
+                ->where('is_active', true)
+                ->orderBy('position')
+                ->orderBy('id')
+                ->first();
     }
 
     public function leadsCount(): int

@@ -101,7 +101,7 @@
         <label for="username">{{ __('crm.username_label') }}</label>
         <input id="username" name="username" value="{{ old('username') }}" autocomplete="username" required autofocus>
 
-        <label for="password">كلمة المرور</label>
+        <label for="password">{{ __('crm.password_label') }}</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
 
         <button type="submit">تسجيل الدخول</button>

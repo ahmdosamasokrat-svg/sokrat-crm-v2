@@ -54,7 +54,7 @@
   :focus-visible{outline:3px solid rgba(220,38,55,.28);outline-offset:3px}
   .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
   
-  .support-shell{min-height:100vh;display:flex;flex-direction:row;max-width:100vw;overflow-x:hidden}
+  .support-shell{min-height:100vh;display:flex;flex-direction:row;max-width:100vw;overflow-x:clip}
   .support-main{flex:1;min-width:0;max-width:100%;padding:24px 32px 52px}
   
   .detail-topbar, .crm-topbar, .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap;min-height:56px}

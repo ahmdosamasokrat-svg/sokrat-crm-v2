@@ -100,7 +100,7 @@ a{color:inherit}
  min-height:100vh;
  width:100%;
  max-width:100vw;
- overflow-x:hidden!important;
+ overflow-x:clip;
 }
 .crm-main,main{
  flex:1 1 auto;
@@ -151,6 +151,39 @@ a{color:inherit}
  background:#eef0f4;
  box-shadow:var(--shadow)
 }
+.board-top-scroll{
+ width:100%;
+ height:18px;
+ overflow-x:auto;
+ overflow-y:hidden;
+ overscroll-behavior-x:contain;
+ scrollbar-width:thin;
+ scrollbar-color:#cbd5e1 transparent
+}
+.board-top-scroll[hidden]{display:none}
+.board-top-scroll:focus-visible{
+ outline:none;
+ box-shadow:inset 0 0 0 2px #dc263766
+}
+.board-top-scroll-inner{
+ height:1px;
+ pointer-events:none
+}
+.board-top-scroll::-webkit-scrollbar{
+ height:8px
+}
+.board-top-scroll::-webkit-scrollbar-track{
+ background:rgba(0,0,0,0.03);
+ border-radius:999px;
+ margin:0 14px
+}
+.board-top-scroll::-webkit-scrollbar-thumb{
+ background:#cbd5e1;
+ border-radius:999px
+}
+.board-top-scroll::-webkit-scrollbar-thumb:hover{
+ background:#94a3b8
+}
 .board{
  display:grid;
  grid-auto-flow:column;
@@ -159,8 +192,11 @@ a{color:inherit}
  min-height:610px;
  padding:14px;
  overflow-x:auto;
- overscroll-behavior-inline:contain;
- scroll-snap-type:x proximity
+ overscroll-behavior-x:contain;
+ scrollbar-width:none
+}
+.board::-webkit-scrollbar{
+ display:none
 }
 .kanban-column{
  --column-color:#3478f6;
@@ -1002,78 +1038,317 @@ body.kanban-modal-open{
 /* CRM KANBAN UTILITY POPUPS END */
 
 
-/* CRM KANBAN PAGE SIZE 15 V7 START */
-
-/*
- * Make all columns occupy the same grid-row
- * height, even when a column has no toolbar.
- */
-.board{
- align-items:stretch
+/* CRM KANBAN TOOLBAR & REDESIGNED FILTERS START */
+.kanban-filters-form{
+ display:inline-flex;
+ align-items:center;
+ gap:10px;
+ flex-wrap:wrap
 }
 
-.kanban-column{
+.kanban-filter-control{
+ display:inline-flex;
+ align-items:center;
+ position:relative;
+ height:42px;
+ padding:0;
+ border:1px solid #e2e8f0;
+ border-radius:11px;
+ background:#ffffff;
+ box-shadow:0 1px 3px rgba(0,0,0,0.03);
+ transition:border-color 0.15s,box-shadow 0.15s,background-color 0.15s
+}
+
+.kanban-filter-control:hover{
+ border-color:#cbd5e1
+}
+
+.kanban-filter-control:focus-within{
+ border-color:var(--red,#dc2637);
+ box-shadow:0 0 0 3px rgba(220,38,55,0.15)
+}
+
+.kanban-filter-control .filter-icon{
+ display:grid;
+ place-items:center;
+ margin-inline-start:12px;
+ margin-inline-end:6px;
+ color:#64748b;
+ font-size:15px;
+ pointer-events:none;
+ flex-shrink:0
+}
+
+.kanban-filter-control .filter-label{
+ font-size:12px;
+ font-weight:700;
+ color:#64748b;
+ white-space:nowrap;
+ margin-inline-end:6px;
+ user-select:none;
+ cursor:pointer
+}
+
+.kanban-filter-control select{
+ appearance:none;
+ -webkit-appearance:none;
+ border:none;
+ background:transparent;
+ outline:none;
+ height:100%;
+ padding-inline-start:4px;
+ padding-inline-end:32px;
+ font-family:inherit;
+ font-size:13px;
+ font-weight:700;
+ color:var(--dark,#182033);
+ cursor:pointer
+}
+
+.kanban-filter-control select option{
+ background:#ffffff;
+ color:#182033
+}
+
+.kanban-filter-control .filter-chevron{
+ position:absolute;
+ inset-inline-end:11px;
+ display:grid;
+ place-items:center;
+ color:#94a3b8;
+ font-size:11px;
+ pointer-events:none
+}
+
+
+.kanban-cards-list{
  display:flex;
  flex-direction:column;
- height:auto!important;
- align-self:stretch
+ gap:10px;
+ min-height:50px;
+ width:100%;
+ transition:opacity 0.15s ease
 }
 
-.kanban-column .column-body{
- flex:1 1 auto;
- width:100%
+.kanban-cards-list.is-loading{
+ opacity:0.45;
+ pointer-events:none
 }
 
-/*
- * "More" button used after the first
- * 15 cards in the currently selected panel.
- */
-.kanban-more-wrap{
+.kanban-column-pagination{
  display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:8px;
+ margin-top:auto;
+ padding:8px 10px;
+ border:1px solid #e5e8ef;
+ border-radius:11px;
+ background:#ffffff;
+ box-shadow:0 2px 6px rgba(0,0,0,0.03)
+}
+
+.kanban-page-info{
+ display:inline-flex;
+ align-items:center;
+ gap:4px;
+ color:#64748b;
+ font-size:11px;
+ font-weight:700;
+ font-variant-numeric:tabular-nums;
+ white-space:nowrap;
+ user-select:none
+}
+
+.kanban-page-range{
+ color:#1e293b;
+ font-weight:800
+}
+
+.kanban-page-sep{
+ color:#94a3b8;
+ font-size:10px
+}
+
+.kanban-page-total{
+ color:#475569;
+ font-weight:800
+}
+
+.kanban-page-actions{
+ display:inline-flex;
+ align-items:center;
+ gap:5px
+}
+
+.kanban-page-btn{
+ display:inline-flex;
+ align-items:center;
  justify-content:center;
- width:100%;
- padding-top:5px
-}
-
-.kanban-more-wrap[hidden]{
- display:none!important
-}
-
-.kanban-more-btn{
- width:100%;
- min-height:38px;
- padding:8px 12px;
- border:1px solid
-  color-mix(
-   in srgb,
-   var(--column-color) 30%,
-   #dce1e9
-  );
- border-radius:10px;
- background:
-  color-mix(
-   in srgb,
-   var(--column-color) 7%,
-   white
-  );
- color:var(--column-color);
- font-family:inherit;
- font-size:10px;
- font-weight:900;
+ width:34px;
+ height:34px;
+ padding:0;
+ border:1px solid #e2e8f0;
+ border-radius:8px;
+ background:#f8fafc;
+ color:#334155;
+ font-size:13px;
+ font-weight:700;
  cursor:pointer;
- box-shadow:none
+ transition:background-color 0.15s,border-color 0.15s,color 0.15s,opacity 0.15s;
+ -webkit-tap-highlight-color:transparent
 }
 
-.kanban-more-btn:hover{
- background:
-  color-mix(
-   in srgb,
-   var(--column-color) 13%,
-   white
-  )
+.kanban-page-btn:hover:not(:disabled){
+ background:#ffffff;
+ border-color:var(--column-color,#3478f6);
+ color:var(--column-color,#3478f6);
+ box-shadow:0 2px 6px rgba(0,0,0,0.06)
 }
 
-/* CRM KANBAN PAGE SIZE 15 V7 CSS END */
+.kanban-page-btn:active:not(:disabled){
+ transform:scale(0.96)
+}
+
+.kanban-page-btn:disabled{
+ opacity:0.35;
+ cursor:not-allowed;
+ background:#f1f5f9;
+ border-color:#e2e8f0;
+ color:#94a3b8;
+ pointer-events:none
+}
+
+/* Dark Mode Overrides */
+html.dark-mode .summary span,
+html.dark .summary span,
+[data-theme="dark"] .summary span{
+ background:#1e293b;
+ border-color:rgba(255,255,255,0.12);
+ color:#94a3b8
+}
+
+html.dark-mode .summary b,
+html.dark .summary b,
+[data-theme="dark"] .summary b{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-filter-control,
+html.dark .kanban-filter-control,
+[data-theme="dark"] .kanban-filter-control{
+ background:#1e293b;
+ border-color:rgba(255,255,255,0.12);
+ box-shadow:0 1px 3px rgba(0,0,0,0.2)
+}
+
+html.dark-mode .kanban-filter-control:hover,
+html.dark .kanban-filter-control:hover,
+[data-theme="dark"] .kanban-filter-control:hover{
+ border-color:rgba(255,255,255,0.25)
+}
+
+html.dark-mode .kanban-filter-control select,
+html.dark .kanban-filter-control select,
+[data-theme="dark"] .kanban-filter-control select{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-filter-control select option,
+html.dark .kanban-filter-control select option,
+[data-theme="dark"] .kanban-filter-control select option{
+ background:#18181b;
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-filter-control .filter-icon,
+html.dark-mode .kanban-filter-control .filter-label,
+html.dark-mode .kanban-filter-control .filter-chevron,
+html.dark .kanban-filter-control .filter-icon,
+html.dark .kanban-filter-control .filter-label,
+html.dark .kanban-filter-control .filter-chevron,
+[data-theme="dark"] .kanban-filter-control .filter-icon,
+[data-theme="dark"] .kanban-filter-control .filter-label,
+[data-theme="dark"] .kanban-filter-control .filter-chevron{
+ color:#94a3b8
+}
+
+html.dark-mode .kanban-column-pagination,
+html.dark .kanban-column-pagination,
+[data-theme="dark"] .kanban-column-pagination{
+ background:#1e293b;
+ border-color:rgba(255,255,255,0.12)
+}
+
+html.dark-mode .kanban-page-range,
+html.dark-mode .kanban-page-total,
+html.dark .kanban-page-range,
+html.dark .kanban-page-total,
+[data-theme="dark"] .kanban-page-range,
+[data-theme="dark"] .kanban-page-total{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-page-btn,
+html.dark .kanban-page-btn,
+[data-theme="dark"] .kanban-page-btn{
+ background:rgba(255,255,255,0.05);
+ border-color:rgba(255,255,255,0.12);
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-page-btn:disabled,
+html.dark .kanban-page-btn:disabled,
+[data-theme="dark"] .kanban-page-btn:disabled{
+ background:rgba(255,255,255,0.02);
+ border-color:rgba(255,255,255,0.06);
+ color:#64748b
+}
+html.dark-mode .board-top-scroll,
+html.dark .board-top-scroll,
+[data-theme="dark"] .board-top-scroll{
+ scrollbar-color:#475569 transparent
+}
+html.dark-mode .board-top-scroll::-webkit-scrollbar-track,
+html.dark .board-top-scroll::-webkit-scrollbar-track,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-track{
+ background:rgba(255,255,255,0.03)
+}
+html.dark-mode .board-top-scroll::-webkit-scrollbar-thumb,
+html.dark .board-top-scroll::-webkit-scrollbar-thumb,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-thumb{
+ background:#475569
+}
+html.dark-mode .board-top-scroll::-webkit-scrollbar-thumb:hover,
+html.dark .board-top-scroll::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-thumb:hover{
+ background:#64748b
+}
+
+@media(max-width:768px){
+ .page-tools{
+  flex-direction:column;
+  align-items:stretch;
+  gap:12px
+ }
+ .kanban-filters-form{
+  width:100%;
+  gap:8px
+ }
+ .kanban-filter-control{
+  flex:1 1 auto;
+  min-width:140px
+ }
+ .kanban-column-pagination{
+  padding:8px 10px
+ }
+ .kanban-page-btn{
+  width:40px;
+  height:40px;
+  font-size:15px
+ }
+}
+/* CRM KANBAN TOOLBAR & REDESIGNED FILTERS END */
 
 </style>
 </head>
@@ -1102,41 +1377,70 @@ body.kanban-modal-open{
 
   <section class="kanban-toolbar">
    <div class="page-tools">
-   @if ($canFilterByEmployee)
-    <form class="employee-filter" method="get" action="{{ route('v2.leads.kanban') }}">
-     <i class="bi bi-person-check" aria-hidden="true"></i>
-     <select id="kanbanEmployee" name="employee_id" aria-label="{{ __('crm.responsible_employee') }}" onchange="this.form.submit()">
-      <option value="">{{ __('crm.all_employees') }}</option>
-      @foreach ($employees as $employee)
-       <option value="{{ $employee->id }}" @selected($selectedEmployeeId === $employee->id)>
-        {{ $employee->name }}
-       </option>
-      @endforeach
-     </select>
+    <form class="kanban-filters-form" id="kanbanFiltersForm" method="get" action="{{ route('v2.leads.kanban') }}">
+     @if ($canFilterByEmployee)
+      <div class="kanban-filter-control employee-filter-control">
+       <span class="filter-icon"><i class="bi bi-person-badge"></i></span>
+       <select id="kanbanEmployee" name="employee_id" aria-label="{{ __('crm.responsible_employee') }}" onchange="this.form.submit()">
+        <option value="">{{ __('crm.all_employees') }}</option>
+        @foreach ($employees as $employee)
+         <option value="{{ $employee->id }}" @selected($selectedEmployeeId === $employee->id)>
+          {{ $employee->name }}
+         </option>
+        @endforeach
+       </select>
+       <span class="filter-chevron"><i class="bi bi-chevron-down"></i></span>
+      </div>
+     @endif
+
+     <div class="kanban-filter-control per-page-filter-control">
+      <span class="filter-icon"><i class="bi bi-grid-3x3-gap"></i></span>
+      <label for="kanbanPerPage" class="filter-label">{{ __('crm.cards_per_column') }}</label>
+      <select id="kanbanPerPage" name="per_page" aria-label="{{ __('crm.cards_per_column') }}" onchange="this.form.submit()">
+       @foreach ($allowedPageSizes ?? [10, 20, 30, 40, 50] as $size)
+        <option value="{{ $size }}" @selected(($perPage ?? 10) === $size)>
+         {{ $size }}
+        </option>
+       @endforeach
+      </select>
+      <span class="filter-chevron"><i class="bi bi-chevron-down"></i></span>
+     </div>
     </form>
-   @endif
 
-   <div class="summary">
-    <span>
-     {{ __('crm.total_leads') }}
-     <b>
-      {{ number_format($totalLeads) }}
-     </b>
-    </span>
+    <div class="summary">
+     <span>
+      {{ __('crm.total_leads') }}
+      <b>
+       {{ number_format($totalLeads) }}
+      </b>
+     </span>
 
-    <span>
-     {{ __('crm.status_count') }}
-     <b>
-      {{ count($kanbanColumns) }}
-     </b>
-    </span>
+     <span>
+      {{ __('crm.status_count') }}
+      <b>
+       {{ count($kanbanColumns) }}
+      </b>
+     </span>
+    </div>
    </div>
-  </div>
  </section>
 
  <section class="board-shell">
   <div
+   class="board-top-scroll"
+   data-kanban-top-scroll
+   role="region"
+   tabindex="0"
+   aria-label="{{ __('crm.kanban_horizontal_scroll') }}"
+   aria-controls="kanbanBoard"
+   hidden
+  >
+   <div class="board-top-scroll-inner" data-kanban-top-scroll-inner></div>
+  </div>
+
+  <div
    class="board"
+   id="kanbanBoard"
    aria-label="{{ __('crm.kanban_board_title') }}"
   >
    @foreach (
@@ -1381,202 +1685,64 @@ body.kanban-modal-open{
          hidden
         @endif
        >
-        @forelse (
-         $scopeLeads
-         as $lead
-        )
-         <article
-          class="kanban-card"
-          draggable="{{ auth()->user()->can('leads.followups.create') ? 'true' : 'false' }}"
-          data-kanban-lead="{{ $lead->id }}"
-          data-kanban-lead-name="{{ $lead->name }}"
-          data-current-status-id="{{ $column['status_id'] }}"
-          data-current-status-name="{{ $column['name'] }}"
-          data-followup-url="{{ route(
-           'v2.leads.followups.index',
-           $lead
-          ) }}"
-          data-kanban-lead-scope="{{ $scope }}"
-          style="
-           --card-stage-color:
-            {{ $column['stage_color'] }};
-          "
-         >
-          <div class="kanban-card-head">
-           <a
-            class="kanban-card-name"
-            href="{{ route(
-             'v2.leads.show',
-             $lead
-            ) }}"
-           >
-            {{ $lead->name }}
-           </a>
-
-           <span class="kanban-card-stage">
-            {{
-             $column['stage_name']
-             ?: $column['name']
-            }}
-           </span>
-          </div>
-
-          <div class="kanban-card-info">
-           <div class="kanban-card-row">
-            <span><i class="bi bi-telephone"></i> {{ __('crm.phone') }}</span>
-
-            <strong>
-             @if ($lead->phone)
-              <a
-               class="kanban-phone"
-               href="tel:{{
-                preg_replace(
-                 '/[^0-9+]/',
-                 '',
-                 (string) $lead->phone
-                )
-               }}"
-              >
-               {{ $lead->phone }}
-              </a>
-             @else
-              {{ __('crm.not_registered') }}
-             @endif
-            </strong>
-           </div>
-
-           <div class="kanban-card-row">
-            <span><i class="bi bi-building"></i> {{ __('crm.company_or_source') }}</span>
-
-            <strong>
-             {{
-              $lead->company_name
-              ?: $lead->source
-              ?: __('crm.not_specified')
-             }}
-            </strong>
-           </div>
-
-           <div class="kanban-card-row">
-            <span><i class="bi bi-person-badge"></i> {{ __('crm.employee') }}</span>
-
-            <strong>
-             {{
-              $lead->assignedUser?->name
-              ?? $lead->assigned_employee
-              ?: __('crm.unassigned')
-             }}
-            </strong>
-           </div>
-
-           <div class="kanban-card-row">
-            <span><i class="bi bi-clock-history"></i> {{ __('crm.followup_date') }}</span>
-
-            <strong>
-             {{
-              $lead
-               ->next_follow_up_at
-               ?->format(
-                'd/m/Y H:i'
-               )
-              ?? __('crm.no_date')
-             }}
-            </strong>
-           </div>
-          </div>
-
-          <div class="kanban-card-actions">
-           @if ($lead->phone)
-            <a
-             class="btn call"
-             @can('leads.followups.create')
-             data-kanban-call-dial-popup
-             data-followup-url="{{ route(
-              'v2.leads.followups.index',
-              $lead
-             ) }}"
-             @endcan
-             data-tel-href="tel:{{
-              preg_replace(
-               '/[^0-9+]/',
-               '',
-               (string) $lead->phone
-              )
-             }}"
-             href="tel:{{
-              preg_replace(
-               '/[^0-9+]/',
-               '',
-               (string) $lead->phone
-              )
-             }}"
-             draggable="false"
-             title="اتصال وتسجيل متابعة"
-            >
-             <i class="bi bi-telephone-outbound-fill"></i> {{ __('crm.call') }}
-            </a>
-           @endif
-
-           <a
-            class="btn light"
-            href="{{ route(
-             'v2.leads.show',
-             $lead
-            ) }}"
-           
-             data-kanban-customer-popup
-             draggable="false">
-            <i class="bi bi-eye"></i> {{ __('crm.view_lead') }}
-           </a>
-
-           @can('leads.followups.create')
-           <a
-            class="btn"
-            href="{{ route(
-             'v2.leads.followups.index',
-             $lead
-            ) }}"
-           
-             data-kanban-followup-popup
-             draggable="false">
-            <i class="bi bi-plus-circle"></i> {{ __('crm.log_followup') }}
-           </a>
-           @endcan
-          </div>
-         </article>
-        @empty
-         <div class="kanban-scope-empty">
-          <i><i class="bi bi-inbox-fill"></i></i>
-
-          <strong>
-           {{ __('crm.no_leads_found') }}
-          </strong>
-
-          <p>
-           {{ __('crm.no_leads_in_column') }}
-           {{ $column['name'] }}
-           {{ __('crm.in_scope') }}
-           {{ $scopeLabel }}.
+        @php
+         $panelScope = $kanbanDirectStatus ? 'all' : $scope;
+         $scopeTotal = $kanbanDirectStatus ? $column['total_count'] : ($column['scope_counts'][$scope] ?? 0);
+         $initialFrom = $scopeTotal === 0 ? 0 : 1;
+         $initialTo = min($scopeTotal, $perPage ?? 10);
+        @endphp
+        <div class="kanban-cards-list" data-kanban-cards-list>
+         @include('leads.partials.kanban-column-cards', [
+             'leads' => $scopeLeads,
+             'column' => $column,
+             'scope' => $panelScope,
+         ])
+        </div>
+        <footer
+         class="kanban-column-pagination"
+         data-kanban-pagination
+         data-status-id="{{ $column['status_id'] }}"
+         data-scope="{{ $panelScope }}"
+         data-page="1"
+         data-page-size="{{ $perPage ?? 10 }}"
+         data-total="{{ $scopeTotal }}"
+        >
+         <div class="kanban-page-info" data-kanban-page-info>
+          <span class="kanban-page-range" data-kanban-page-range>{{ $initialFrom }}–{{ $initialTo }}</span>
+          <span class="kanban-page-sep">{{ __('crm.of') }}</span>
+          <span class="kanban-page-total" data-kanban-page-total>{{ number_format($scopeTotal) }}</span>
          </div>
-        @endforelse
-
-        @if (($kanbanDirectStatus && $column['total_count'] > $scopeLeads->count()) || (!$kanbanDirectStatus && ($column['scope_counts'][$scope] ?? 0) > $scopeLeads->count()))
-         @php
-          $remCount = $kanbanDirectStatus 
-            ? ($column['total_count'] - $scopeLeads->count())
-            : (($column['scope_counts'][$scope] ?? 0) - $scopeLeads->count());
-         @endphp
-         <div class="kanban-more-wrap">
-          <a
-           href="{{ route('v2.leads', ['status' => $column['code']]) }}"
-           class="kanban-more-btn"
-           title="{{ __('crm.view_all_leads_in_status') ?? 'View all leads' }}"
+         <div class="kanban-page-actions">
+          <button
+           type="button"
+           class="kanban-page-btn prev"
+           data-kanban-page-btn="prev"
+           aria-label="{{ __('crm.previous') }}"
+           title="{{ __('crm.previous') }}"
+           disabled
           >
-           <i class="bi bi-arrow-up-right-square"></i>
-           <span>{{ __('crm.more') ?? 'المزيد' }} (+{{ number_format($remCount) }})</span>
-          </a>
+           @if (app()->getLocale() === 'ar')
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+           @else
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+           @endif
+          </button>
+          <button
+           type="button"
+           class="kanban-page-btn next"
+           data-kanban-page-btn="next"
+           aria-label="{{ __('crm.next') }}"
+           title="{{ __('crm.next') }}"
+           @if ($scopeTotal <= ($perPage ?? 10)) disabled @endif
+          >
+           @if (app()->getLocale() === 'ar')
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+           @else
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+           @endif
+          </button>
          </div>
-        @endif
+        </footer>
        </div>
       @endforeach
      </div>
@@ -1725,6 +1891,63 @@ body.kanban-modal-open{
  aria-live="polite"
 ></div>
 
+
+
+<!-- CRM KANBAN TOP SCROLL JS START -->
+<script>
+(() => {
+ const board = document.getElementById('kanbanBoard');
+ const topScroll = document.querySelector('[data-kanban-top-scroll]');
+ const topScrollInner = document.querySelector('[data-kanban-top-scroll-inner]');
+
+ if (!board || !topScroll || !topScrollInner) {
+  return;
+ }
+
+ let syncing = false;
+
+ const syncScroll = (source, target) => {
+  if (syncing) {
+   return;
+  }
+
+  syncing = true;
+  target.scrollLeft = source.scrollLeft;
+  syncing = false;
+ };
+
+ const updateTopScroll = () => {
+  topScrollInner.style.width = `${board.scrollWidth}px`;
+  topScroll.hidden = board.scrollWidth <= board.clientWidth + 1;
+
+  if (!topScroll.hidden) {
+   topScroll.scrollLeft = board.scrollLeft;
+  }
+ };
+
+ topScroll.addEventListener(
+  'scroll',
+  () => syncScroll(topScroll, board),
+  { passive: true }
+ );
+
+ board.addEventListener(
+  'scroll',
+  () => syncScroll(board, topScroll),
+  { passive: true }
+ );
+
+ if ('ResizeObserver' in window) {
+  const resizeObserver = new ResizeObserver(updateTopScroll);
+  resizeObserver.observe(board);
+ }
+
+ window.addEventListener('resize', updateTopScroll, { passive: true });
+ updateTopScroll();
+ window.requestAnimationFrame(updateTopScroll);
+})();
+</script>
+<!-- CRM KANBAN TOP SCROLL JS END -->
 
 
 <!-- CRM KANBAN FOLLOWUP FILTER JS START -->
@@ -1966,6 +2189,8 @@ document.addEventListener(
    dragData.followupUrl,
    window.location.href
   );
+  url.protocol = window.location.protocol;
+  url.host = window.location.host;
 
   url.searchParams.set(
    'kanban_popup',
@@ -2202,143 +2427,92 @@ document.addEventListener(
   }
  );
 
- document
-  .querySelectorAll(
-   '[data-kanban-call]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+ document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-kanban-call]');
+  if (!button) {
+   return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  openCallFollowupModal(button);
+ });
 
-      openCallFollowupModal(
-       button
-      );
-     }
-    );
+ document.addEventListener('dragstart', (event) => {
+  const callBtn = event.target.closest('[data-kanban-call]');
+  if (callBtn) {
+   event.preventDefault();
+   event.stopPropagation();
+   return;
+  }
 
-    button.addEventListener(
-     'dragstart',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-     }
-    );
-   }
-  );
+  const card = event.target.closest('.kanban-card[draggable="true"]');
+  if (!card) {
+   return;
+  }
 
- /* CRM KANBAN CALL POPUP END */
+  dragData = {
+   leadId:
+    card.dataset
+     .kanbanLead || '',
+   leadName:
+    card.dataset
+     .kanbanLeadName
+     || 'العميل',
+   currentStatusId:
+    card.dataset
+     .currentStatusId
+     || '',
+   currentStatusName:
+    card.dataset
+     .currentStatusName
+     || '',
+   followupUrl:
+    card.dataset
+     .followupUrl
+     || '',
+  };
 
- document
-  .querySelectorAll(
-   '.kanban-card[draggable="true"]'
-  )
-  .forEach(
-   (card) => {
-    card.addEventListener(
-     'dragstart',
-     (event) => {
-      dragData = {
-       leadId:
-        card.dataset
-         .kanbanLead || '',
+  card.classList.add('is-dragging');
 
-       leadName:
-        card.dataset
-         .kanbanLeadName
-         || 'العميل',
+  if (event.dataTransfer) {
+   event.dataTransfer.effectAllowed = 'move';
+   event.dataTransfer.setData('text/plain', dragData.leadId);
+  }
+ });
 
-       currentStatusId:
-        card.dataset
-         .currentStatusId
-         || '',
+ document.addEventListener('dragend', (event) => {
+  const card = event.target.closest('.kanban-card');
+  if (card) {
+   card.classList.remove('is-dragging');
+  }
+  clearDropTargets();
+ });
 
-       currentStatusName:
-        card.dataset
-         .currentStatusName
-         || '',
+ document.addEventListener('dragover', (event) => {
+  if (!dragData) {
+   return;
+  }
+  const column = event.target.closest('[data-kanban-status-id]');
+  if (!column) {
+   return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) {
+   event.dataTransfer.dropEffect = 'move';
+  }
+  clearDropTargets();
+  column.classList.add('is-drop-target');
+ });
 
-       followupUrl:
-        card.dataset
-         .followupUrl
-         || '',
-      };
-
-      card.classList.add(
-       'is-dragging'
-      );
-
-      if (event.dataTransfer) {
-       event.dataTransfer
-        .effectAllowed = 'move';
-
-       event.dataTransfer
-        .setData(
-         'text/plain',
-         dragData.leadId
-        );
-      }
-     }
-    );
-
-    card.addEventListener(
-     'dragend',
-     () => {
-      card.classList.remove(
-       'is-dragging'
-      );
-
-      clearDropTargets();
-     }
-    );
-   }
-  );
-
- document
-  .querySelectorAll(
-   '[data-kanban-status-id]'
-  )
-  .forEach(
-   (column) => {
-    column.addEventListener(
-     'dragover',
-     (event) => {
-      if (!dragData) {
-       return;
-      }
-
-      event.preventDefault();
-
-      if (event.dataTransfer) {
-       event.dataTransfer
-        .dropEffect = 'move';
-      }
-
-      clearDropTargets();
-
-      column.classList.add(
-       'is-drop-target'
-      );
-     }
-    );
-
-    column.addEventListener(
-     'drop',
-     (event) => {
-      event.preventDefault();
-
-      clearDropTargets();
-
-      openFollowupModal(
-       column
-      );
-     }
-    );
-   }
-  );
+ document.addEventListener('drop', (event) => {
+  const column = event.target.closest('[data-kanban-status-id]');
+  if (!column || !dragData) {
+   return;
+  }
+  event.preventDefault();
+  clearDropTargets();
+  openFollowupModal(column);
+ });
 
  closeButton?.addEventListener(
   'click',
@@ -2375,6 +2549,23 @@ document.addEventListener(
     event.origin
     !== window.location.origin
    ) {
+    return;
+   }
+
+   if (
+    event.data?.type
+    === 'crm-kanban-popup-close'
+    || event.data?.type
+    === 'crm-kanban-cancel'
+   ) {
+    document.querySelectorAll('.kanban-followup-modal.open').forEach(modalEl => {
+     modalEl.classList.remove('open');
+     modalEl.setAttribute('aria-hidden', 'true');
+     const iframe = modalEl.querySelector('iframe');
+     if (iframe) iframe.src = 'about:blank';
+    });
+    document.body.classList.remove('kanban-modal-open');
+    closeModal();
     return;
    }
 
@@ -2474,6 +2665,8 @@ document.addEventListener(
    followupUrl,
    window.location.href
   );
+  url.protocol = window.location.protocol;
+  url.host = window.location.host;
 
   url.searchParams.set(
    'kanban_popup',
@@ -2614,71 +2807,50 @@ document.addEventListener(
   }
  );
 
- document
-  .querySelectorAll(
-   '[data-kanban-call-dial-popup]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      const telHref =
-       button.dataset.telHref
-       || button.getAttribute(
-        'href'
-       )
-       || '';
-
-      /*
-       * Open the CRM popup FIRST.
-       * Then invoke the operating-system
-       * telephone handler.
-       *
-       * On mobile the dialer may come to the
-       * foreground. When the employee returns
-       * to the browser, the follow-up popup
-       * remains open.
-       */
-      const popupOpened =
-       prepareCallPopup(
-        button
-       );
-
-      if (!popupOpened) {
-       if (telHref) {
-        window.location.href =
-         telHref;
-       }
-
-       return;
-      }
-
-      if (telHref) {
-       window.setTimeout(
-        () => {
-         window.location.href =
-          telHref;
-        },
-        180
-       );
-      }
-     },
-     true
-    );
-
-    button.addEventListener(
-     'dragstart',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-     }
-    );
+ document.addEventListener(
+  'click',
+  (event) => {
+   const button = event.target.closest('[data-kanban-call-dial-popup]');
+   if (!button) {
+    return;
    }
-  );
+
+   event.preventDefault();
+   event.stopImmediatePropagation();
+
+   const telHref =
+    button.dataset.telHref
+    || button.getAttribute('href')
+    || '';
+
+   const popupOpened = prepareCallPopup(button);
+
+   if (!popupOpened) {
+    if (telHref) {
+     window.location.href = telHref;
+    }
+    return;
+   }
+
+   if (telHref) {
+    window.setTimeout(() => {
+     window.location.href = telHref;
+    }, 180);
+   }
+  },
+  true
+ );
+
+ document.addEventListener(
+  'dragstart',
+  (event) => {
+   const button = event.target.closest('[data-kanban-call-dial-popup]');
+   if (button) {
+    event.preventDefault();
+    event.stopPropagation();
+   }
+  }
+ );
 
  window.addEventListener(
   'message',
@@ -2859,152 +3031,73 @@ document.addEventListener(
   }
  );
 
- document
-  .querySelectorAll(
-   '[data-kanban-followup-popup]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+ document.addEventListener('click', (event) => {
+  const followupBtn = event.target.closest('[data-kanban-followup-popup]');
+  if (followupBtn) {
+   event.preventDefault();
+   event.stopPropagation();
 
-      const href =
-       button.getAttribute(
-        'href'
-       );
-
-      if (!href) {
-       return;
-      }
-
-      const card =
-       button.closest(
-        '[data-kanban-lead]'
-       );
-
-      const leadName =
-       card?.dataset
-        .kanbanLeadName
-       || 'العميل';
-
-      const statusName =
-       card?.dataset
-        .currentStatusName
-       || '';
-
-      const url = new URL(
-       href,
-       window.location.href
-      );
-
-      url.searchParams.set(
-       'kanban_popup',
-       '1'
-      );
-
-      url.searchParams.delete(
-       'target_status_id'
-      );
-
-      openPopup(
-       url.toString(),
-       'تسجيل متابعة - '
-        + leadName,
-       statusName
-        ? (
-         'الحالة الحالية: '
-         + statusName
-         + ' — سجل المتابعة ثم احفظ.'
-        )
-        : 'سجل المتابعة ثم احفظ.',
-       'followup'
-      );
-     }
-    );
-
-    button.addEventListener(
-     'dragstart',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-     }
-    );
+   const href = followupBtn.getAttribute('href');
+   if (!href) {
+    return;
    }
-  );
 
- /*
-  * Customer details use a separate iframe
-  * from the call/drag popup, therefore the
-  * existing call and drag behavior remains
-  * completely isolated.
-  */
- document
-  .querySelectorAll(
-   '[data-kanban-customer-popup]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+   const card = followupBtn.closest('[data-kanban-lead]');
+   const leadName = card?.dataset.kanbanLeadName || 'العميل';
+   const statusName = card?.dataset.currentStatusName || '';
 
-      const href =
-       button.getAttribute(
-        'href'
-       );
+   const url = new URL(href, window.location.href);
+   url.protocol = window.location.protocol;
+   url.host = window.location.host;
+   url.searchParams.set('kanban_popup', '1');
+   url.searchParams.delete('target_status_id');
 
-      if (!href) {
-       return;
-      }
+   openPopup(
+    url.toString(),
+    'تسجيل متابعة - ' + leadName,
+    statusName
+     ? ('الحالة الحالية: ' + statusName + ' — سجل المتابعة ثم احفظ.')
+     : 'سجل المتابعة ثم احفظ.',
+    'followup'
+   );
+   return;
+  }
 
-      const card =
-       button.closest(
-        '[data-kanban-lead]'
-       );
+  const customerBtn = event.target.closest('[data-kanban-customer-popup]');
+  if (customerBtn) {
+   event.preventDefault();
+   event.stopPropagation();
 
-      const leadName =
-       card?.dataset
-        .kanbanLeadName
-       || 'العميل';
-
-      const statusName =
-       card?.dataset
-        .currentStatusName
-       || '';
-
-      openPopup(
-       new URL(
-        href,
-        window.location.href
-       ).toString(),
-       'بيانات العميل - '
-        + leadName,
-       statusName
-        ? (
-         'الحالة الحالية: '
-         + statusName
-        )
-        : 'عرض بيانات العميل.',
-       'customer'
-      );
-     }
-    );
-
-    button.addEventListener(
-     'dragstart',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-     }
-    );
+   const href = customerBtn.getAttribute('href');
+   if (!href) {
+    return;
    }
-  );
 
+   const card = customerBtn.closest('[data-kanban-lead]');
+   const leadName = card?.dataset.kanbanLeadName || 'العميل';
+   const statusName = card?.dataset.currentStatusName || '';
+
+   const customerUrl = new URL(href, window.location.href);
+   customerUrl.searchParams.set('kanban_popup', '1');
+   openPopup(
+    customerUrl.toString(),
+    'بيانات العميل - ' + leadName,
+    statusName
+     ? ('الحالة الحالية: ' + statusName)
+     : 'عرض بيانات العميل.',
+    'customer'
+   );
+   return;
+  }
+ });
+
+ document.addEventListener('dragstart', (event) => {
+  const btn = event.target.closest('[data-kanban-followup-popup], [data-kanban-customer-popup]');
+  if (btn) {
+   event.preventDefault();
+   event.stopPropagation();
+  }
+ });
  closeButton?.addEventListener(
   'click',
   closePopup
@@ -3202,91 +3295,58 @@ document.addEventListener(
   );
  };
 
- document
-  .querySelectorAll(
-   '[data-kanban-no-date-popup]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+ document.addEventListener('click', (event) => {
+  const noDateBtn = event.target.closest('[data-kanban-no-date-popup]');
+  if (noDateBtn) {
+   event.preventDefault();
+   event.stopPropagation();
 
-      const url =
-       button.dataset
-        .popupUrl;
-
-      if (!url) {
-       return;
-      }
-
-      const statusName =
-       button.dataset
-        .statusName
-       || 'المرحلة';
-
-      const count =
-       button.dataset
-        .count
-       || '0';
-
-      openPopup(
-       url,
-       'عملاء بدون موعد - '
-        + statusName,
-       'عدد العملاء بدون موعد: '
-        + count,
-       'no_date'
-      );
-     }
-    );
+   const url = noDateBtn.dataset.popupUrl;
+   if (!url) {
+    return;
    }
-  );
 
- document
-  .querySelectorAll(
-   '[data-kanban-create-popup]'
-  )
-  .forEach(
-   (button) => {
-    button.addEventListener(
-     'click',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+   const statusName = noDateBtn.dataset.statusName || 'المرحلة';
+   const count = noDateBtn.dataset.count || '0';
 
-      const href =
-       button.getAttribute(
-        'href'
-       );
+   openPopup(
+    url,
+    'عملاء بدون موعد - ' + statusName,
+    'عدد العملاء بدون موعد: ' + count,
+    'no_date'
+   );
+   return;
+  }
 
-      if (!href) {
-       return;
-      }
+  const createBtn = event.target.closest('[data-kanban-create-popup]');
+  if (createBtn) {
+   event.preventDefault();
+   event.stopPropagation();
 
-      openPopup(
-       new URL(
-        href,
-        window.location.href
-       ).toString(),
-       'إضافة عميل جديد',
-       'أضف بيانات العميل من داخل Kanban.',
-       'create'
-      );
-     }
-    );
-
-    button.addEventListener(
-     'dragstart',
-     (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-     }
-    );
+   const href = createBtn.getAttribute('href');
+   if (!href) {
+    return;
    }
-  );
+
+   const createUrl = new URL(href, window.location.href);
+   createUrl.searchParams.set('kanban_popup', '1');
+   openPopup(
+    createUrl.toString(),
+    'إضافة عميل جديد',
+    'أضف بيانات العميل من داخل Kanban.',
+    'create'
+   );
+   return;
+  }
+ });
+
+ document.addEventListener('dragstart', (event) => {
+  const btn = event.target.closest('[data-kanban-no-date-popup], [data-kanban-create-popup]');
+  if (btn) {
+   event.preventDefault();
+   event.stopPropagation();
+  }
+ });
 
  /*
   * Normal successful creation redirects
@@ -3435,7 +3495,128 @@ document.addEventListener(
 <!-- CRM KANBAN UTILITY POPUPS JS END -->
 
 
+<!-- CRM KANBAN INTERNAL PER-COLUMN PAGINATION JS START -->
+<script>
+(() => {
+ const columnEndpoint = @json(route('v2.leads.kanban.column'));
+ const employeeFilterSelect = document.querySelector('select[name="employee_id"]');
+ const perPageSelect = document.querySelector('select[name="per_page"]');
+ const locale = @json(app()->getLocale());
+ const isRtl = locale === 'ar';
 
+ const updatePaginationUI = (paginationEl, data) => {
+  paginationEl.dataset.page = String(data.page);
+  paginationEl.dataset.pageSize = String(data.pageSize || 10);
+  paginationEl.dataset.total = String(data.total);
+
+  const rangeEl = paginationEl.querySelector('[data-kanban-page-range]');
+  const totalEl = paginationEl.querySelector('[data-kanban-page-total]');
+  const prevBtn = paginationEl.querySelector('[data-kanban-page-btn="prev"]');
+  const nextBtn = paginationEl.querySelector('[data-kanban-page-btn="next"]');
+
+  if (rangeEl) {
+   rangeEl.textContent = `${data.from}–${data.to}`;
+  }
+  if (totalEl) {
+   totalEl.textContent = new Intl.NumberFormat('en-US').format(data.total);
+  }
+  if (prevBtn) {
+   prevBtn.disabled = !data.hasPrevious;
+  }
+  if (nextBtn) {
+   nextBtn.disabled = !data.hasMore;
+  }
+ };
+
+ const loadColumnPage = async (paginationEl, targetPage) => {
+  const statusId = paginationEl.dataset.statusId;
+  const scope = paginationEl.dataset.scope || 'all';
+  const pageSize = paginationEl.dataset.pageSize || (perPageSelect ? perPageSelect.value : '10');
+  const panel = paginationEl.closest('[data-kanban-panel]');
+  const cardsList = panel ? panel.querySelector('[data-kanban-cards-list]') : null;
+  const prevBtn = paginationEl.querySelector('[data-kanban-page-btn="prev"]');
+  const nextBtn = paginationEl.querySelector('[data-kanban-page-btn="next"]');
+
+  if (!statusId || !cardsList) {
+   return;
+  }
+
+  if (prevBtn) prevBtn.disabled = true;
+  if (nextBtn) nextBtn.disabled = true;
+  cardsList.classList.add('is-loading');
+
+  const url = new URL(columnEndpoint, window.location.origin);
+  url.searchParams.set('status_id', statusId);
+  url.searchParams.set('scope', scope);
+  url.searchParams.set('page', String(targetPage));
+  url.searchParams.set('per_page', String(pageSize));
+
+  if (employeeFilterSelect && employeeFilterSelect.value) {
+   url.searchParams.set('employee_id', employeeFilterSelect.value);
+  }
+
+  try {
+   const response = await fetch(url.toString(), {
+    headers: {
+     'Accept': 'application/json',
+     'X-Requested-With': 'XMLHttpRequest',
+    },
+   });
+
+   if (!response.ok) {
+    throw new Error(`HTTP error ${response.status}`);
+   }
+
+   const data = await response.json();
+
+   if (!data.success) {
+    throw new Error('Failed to load cards');
+   }
+
+   cardsList.innerHTML = data.html;
+   updatePaginationUI(paginationEl, data);
+  } catch (error) {
+   console.error('Kanban column pagination error:', error);
+   const currentPage = Number(paginationEl.dataset.page || 1);
+   const total = Number(paginationEl.dataset.total || 0);
+   const currentPageSize = Number(paginationEl.dataset.pageSize || 10);
+   if (prevBtn) prevBtn.disabled = currentPage <= 1;
+   if (nextBtn) nextBtn.disabled = (currentPage * currentPageSize) >= total;
+
+   const toast = document.getElementById('crmKanbanDragToast');
+   if (toast) {
+    toast.textContent = isRtl ? 'تعذر تحميل البيانات، يرجى المحاولة مرة أخرى' : 'Failed to load data, please try again.';
+    toast.classList.add('show');
+    window.setTimeout(() => toast.classList.remove('show'), 3000);
+   }
+  } finally {
+   cardsList.classList.remove('is-loading');
+  }
+ };
+
+ document.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-kanban-page-btn]');
+  if (!btn || btn.disabled) {
+   return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const paginationEl = btn.closest('[data-kanban-pagination]');
+  if (!paginationEl) {
+   return;
+  }
+
+  const action = btn.dataset.kanbanPageBtn;
+  const currentPage = Number(paginationEl.dataset.page || 1);
+  const targetPage = action === 'prev' ? Math.max(1, currentPage - 1) : (currentPage + 1);
+
+  loadColumnPage(paginationEl, targetPage);
+ });
+})();
+</script>
+<!-- CRM KANBAN INTERNAL PER-COLUMN PAGINATION JS END -->
 
 </body>
 </html>

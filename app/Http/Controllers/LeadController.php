@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Lead;
 use App\Models\LeadFollowup;
+use App\Models\LeadDocument;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
 use App\Models\Campaign;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Security\CrmPermission;
 use App\Security\LeadAssignment;
 use App\Support\CrmDatabaseGuard;
+use App\Support\LeadStageFieldFilters;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -88,6 +90,19 @@ class LeadController extends Controller
                 $filters['status'] = '';
             }
         }
+
+        [
+            $availableStageFields,
+            $selectedStageFields,
+            $stageFieldFilters,
+        ] = LeadStageFieldFilters::resolve(
+            $request->query('field_ids', []),
+            $request->query('field_filters', []),
+        );
+        $selectedStageFieldIds = $selectedStageFields
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
 
         $allowedFollowUpFilters = [
             '',
@@ -171,6 +186,7 @@ class LeadController extends Controller
             ->with([
                 'status.stage:id,name_ar',
                 'assignedUser:id,name',
+                'stageValues:id,lead_id,pipeline_stage_field_id,value',
             ]);
 
         if ($filters['q'] !== '') {
@@ -261,6 +277,12 @@ class LeadController extends Controller
                 break;
         }
 
+        LeadStageFieldFilters::apply(
+            $query,
+            $selectedStageFields,
+            $stageFieldFilters,
+        );
+
         switch ($filters['sort']) {
             case 'oldest':
                 $query
@@ -302,6 +324,18 @@ class LeadController extends Controller
                 && $value !== 'latest'
         );
 
+        if ($selectedStageFieldIds !== []) {
+            $activeQuery['field_ids'] = implode(',', $selectedStageFieldIds);
+            $activeStageFieldFilters = array_filter(
+                $stageFieldFilters,
+                static fn (string $value): bool => $value !== '',
+            );
+
+            if ($activeStageFieldFilters !== []) {
+                $activeQuery['field_filters'] = $activeStageFieldFilters;
+            }
+        }
+
         $queryWithoutStatus = $activeQuery;
         unset($queryWithoutStatus['status'], $queryWithoutStatus['stage']);
 
@@ -312,6 +346,10 @@ class LeadController extends Controller
                 'pipelineStages',
                 'selectedStage',
                 'selectedStatus',
+                'availableStageFields',
+                'selectedStageFields',
+                'selectedStageFieldIds',
+                'stageFieldFilters',
                 'statuses',
                 'employees',
                 'sources',
@@ -667,9 +705,9 @@ class LeadController extends Controller
         if ($campaign !== null) {
             abort_unless(
                 $assignee->is($actor)
-                || $campaign->users()->whereKey($assignee->id)->exists(),
+                || LeadAssignment::canAssignTo($actor, $assignee),
                 403,
-                'The assignee must belong to this campaign.'
+                'لا تملك صلاحية إسناد العميل إلى هذا الموظف.'
             );
         }
 
@@ -867,6 +905,12 @@ class LeadController extends Controller
         if ($stage !== null) {
             $rawStageInputs = $request->input('stage_fields', []);
             $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+            $split = \App\Support\StageFieldSchema::splitValues($stage, $normalizedStageValues);
+            foreach ($split['canonical'] as $cAttr => $cVal) {
+                if (! in_array($cAttr, ['id', 'created_at', 'updated_at', 'lead_status_id'], true)) {
+                    $leadData[$cAttr] = $cVal;
+                }
+            }
         }
 
         try {
@@ -874,7 +918,10 @@ class LeadController extends Controller
                 static function () use ($campaign, $leadData, $stage, $normalizedStageValues, $actor): Lead {
                     $lead = Lead::query()->create($leadData);
 
-                    $campaign?->leads()->attach($lead->id);
+                    if ($campaign !== null) {
+                        $campaign->leads()->syncWithoutDetaching([$lead->id]);
+                        $campaign->users()->syncWithoutDetaching([$lead->assigned_user_id]);
+                    }
 
                     if ($stage !== null && ! empty($normalizedStageValues)) {
                         \App\Support\StageFieldSchema::persistValues($lead, $stage, $normalizedStageValues, null, $actor);
@@ -912,7 +959,6 @@ class LeadController extends Controller
             return redirect()
                 ->route('v2.campaigns.show', [
                     'campaign' => $campaign,
-                    'assigned_user_id' => $createdLead->assigned_user_id,
                 ])
                 ->with('success', 'تمت إضافة العميل إلى الحملة بنجاح.');
         }
@@ -1012,7 +1058,8 @@ class LeadController extends Controller
                     if ($item['type'] === 'followup' && abs(($item['timestamp']?->timestamp ?? 0) - ($history->changed_at?->timestamp ?? 0)) < 60) {
                         $alreadyIncluded = true;
                         if (! empty($stageValuesForHistory)) {
-                            $timelineEvents[$key]['stage_values'] = $stageValuesForHistory;
+                            $item['stage_values'] = $stageValuesForHistory;
+                            $timelineEvents->put($key, $item);
                         }
                         break;
                     }
@@ -1353,6 +1400,8 @@ class LeadController extends Controller
         $stageFields = $currentStage ? \App\Support\StageFieldSchema::getFieldsForStage($currentStage, true) : collect();
         $latestStageValues = $leadRecord->stageValues()
             ->where('pipeline_stage_id', $leadRecord->status?->pipeline_stage_id)
+            ->get()
+            ->unique('field_key')
             ->pluck('value', 'field_key')
             ->all();
 
@@ -1664,6 +1713,38 @@ class LeadController extends Controller
         }
     }
 
+    public function bulkDelete(
+        Request $request,
+        \App\Services\LeadTrashService $trashService
+    ): RedirectResponse {
+        $this->assertCrmV2Database();
+        $actor = $request->user();
+        abort_unless($actor !== null && $actor->hasPermission(CrmPermission::LEADS_DELETE), 403);
+
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'lead_ids.*' => ['required', 'integer'],
+        ], [
+            'lead_ids.required' => 'اختر عميلًا واحدًا على الأقل.',
+            'lead_ids.min' => 'اختر عميلًا واحدًا على الأقل.',
+        ]);
+
+        $leads = Lead::query()
+            ->whereIn('id', $validated['lead_ids'])
+            ->accessibleTo($actor)
+            ->get();
+
+        $trashedCount = 0;
+        foreach ($leads as $lead) {
+            $trashService->trashLead($lead, $actor, 'حذف متعدد من قائمة العملاء');
+            $trashedCount++;
+        }
+
+        return redirect()
+            ->back()
+            ->with('success', "تم نقل {$trashedCount} عميل إلى سلة المهملات بنجاح.");
+    }
+
     public function quotationPreview(
         string $lead
     ): BinaryFileResponse|RedirectResponse {
@@ -1800,6 +1881,47 @@ class LeadController extends Controller
             ]
         );
     }
+    public function downloadDocument(
+        Request $request,
+        string $lead,
+        string $document
+    ): BinaryFileResponse {
+        $this->assertCrmV2Database();
+
+        $leadRecord = Lead::query()->findOrFail((int) $lead);
+        $doc = LeadDocument::query()->where('lead_id', $leadRecord->id)->findOrFail((int) $document);
+
+        abort_unless($doc->isAccessibleTo($request->user()), 403);
+        $disk = Storage::disk($doc->disk ?: 'local');
+        abort_unless($disk->exists($doc->path), 404, 'Document file not found.');
+
+        return $disk->download($doc->path, $doc->original_name);
+    }
+
+    public function previewDocument(
+        Request $request,
+        string $lead,
+        string $document
+    ): BinaryFileResponse {
+        $this->assertCrmV2Database();
+
+        $leadRecord = Lead::query()->findOrFail((int) $lead);
+        $doc = LeadDocument::query()->where('lead_id', $leadRecord->id)->findOrFail((int) $document);
+
+        abort_unless($doc->isAccessibleTo($request->user()), 403);
+        $disk = Storage::disk($doc->disk ?: 'local');
+        abort_unless($disk->exists($doc->path), 404, 'Document file not found.');
+
+        return response()->file(
+            $disk->path($doc->path),
+            [
+                'Content-Type' => $doc->mime_type ?: 'application/octet-stream',
+                'Content-Disposition' => 'inline; filename="' . addcslashes($doc->original_name, '"\\') . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]
+        );
+    }
+
 
     public function update(
         Request $request,
@@ -2204,6 +2326,12 @@ class LeadController extends Controller
         if ($stage !== null) {
             $rawStageInputs = $request->input('stage_fields', []);
             $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+            $split = \App\Support\StageFieldSchema::splitValues($stage, $normalizedStageValues);
+            foreach ($split['canonical'] as $cAttr => $cVal) {
+                if (! in_array($cAttr, ['id', 'created_at', 'updated_at', 'lead_status_id'], true)) {
+                    $leadData[$cAttr] = $cVal;
+                }
+            }
         }
 
 

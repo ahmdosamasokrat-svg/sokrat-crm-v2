@@ -10,6 +10,17 @@
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+<script>
+(() => {
+    try {
+        const theme = localStorage.getItem('sokrat.crm.theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (theme === 'dark' || (theme !== 'light' && prefersDark)) {
+            document.documentElement.classList.add('dark-mode');
+        }
+    } catch (e) {}
+})();
+</script>
 
 <style>
 :root {
@@ -327,9 +338,25 @@ html.dark-mode .control {
   .form-card { padding: 16px; }
   .presets-wrap .preset-chip { min-height: 36px; padding: 6px 12px; }
 }
+/* Kanban popup embedded mode */
+body.kanban-followup-popup {
+  background: transparent !important;
+}
+body.kanban-followup-popup .crm-app {
+  min-height: auto;
+  display: block;
+}
+body.kanban-followup-popup .crm-main {
+  padding: 14px;
+}
+body.kanban-followup-popup .crm-topbar,
+body.kanban-followup-popup .topbar,
+body.kanban-followup-popup .crm-side {
+  display: none !important;
+}
 </style>
 </head>
-<body>
+<body class="{{ request()->boolean('kanban_popup') ? 'kanban-followup-popup' : '' }}">
 @include('partials.page-loader')
 <div class="crm-app lead-create-page">
     @include('partials.crm-sidebar')
@@ -355,7 +382,7 @@ html.dark-mode .control {
             </div>
         @endif
 
-        <form method="POST" action="{{ route('v2.leads.store') }}" enctype="multipart/form-data" id="createLeadForm">
+        <form method="POST" action="{{ route('v2.leads.store', [], false) }}" enctype="multipart/form-data" id="createLeadForm">
             @csrf
 
             <!-- CARD 1: PRIMARY CONTACT & IDENTITY -->
@@ -544,14 +571,22 @@ html.dark-mode .control {
                 </div>
 
                 <!-- DYNAMIC STAGE QUESTIONS & FIELDS SECTION -->
+                @php
+                    $initStatusId = (int) old('lead_status_id', $defaultStatusId ?? ($statuses->firstWhere('code', 'new')?->id ?? ($statuses->first()?->id ?? 1)));
+                    $initStatus = $statuses->firstWhere('id', $initStatusId);
+                    $initStageId = $initStatus?->pipeline_stage_id;
+                @endphp
                 <div id="dynamicStageQuestionsSection" style="margin-top:20px;">
                     @foreach ($activeStages as $astage)
                         @if ($astage->activeFields->isNotEmpty())
+                            @php
+                                $isInitStage = $initStageId && ((int) $astage->id === (int) $initStageId);
+                            @endphp
                             <div
                                 class="stage-questions-block"
                                 id="stage_q_block_{{ $astage->id }}"
                                 data-stage-id="{{ $astage->id }}"
-                                style="display:none; background:var(--bg); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px;"
+                                style="{{ $isInitStage ? 'display:block;' : 'display:none;' }} background:var(--bg); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px;"
                             >
                                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; font-weight:900; font-size:14px; color:var(--dark);">
                                     <i class="bi bi-ui-checks" style="color:var(--red);font-size:18px"></i>
@@ -562,6 +597,7 @@ html.dark-mode .control {
                                     'recordValues' => old('stage_fields', []),
                                     'prefix' => 'stage_fields',
                                     'scope' => 'create_' . $astage->id,
+                                    'disabled' => ! $isInitStage,
                                 ])
                             </div>
                         @endif
@@ -598,99 +634,6 @@ html.dark-mode .control {
                 </div>
             </section>
 
-            <!-- CARD 4: QUOTATION & SYSTEM SOLUTION (CONDITIONAL) -->
-            <section class="form-card is-hidden" id="quotationSection">
-                <div class="section-head">
-                    <h2><i class="bi bi-file-earmark-text"></i> {{ __('crm.quotation_data') }}</h2>
-                    <p>بيانات عروض الأسعار والحلول المطلوبة (تظهر في مراحل عروض الأسعار والعقود)</p>
-                </div>
-
-                <div class="form-grid">
-                    <div class="field">
-                        <label for="solutionType">
-                            {{ __('crm.system_type') }} <span class="required">*</span>
-                        </label>
-                        <select class="control" id="solutionType" name="solution_type">
-                            <option value="">{{ __('crm.select_system_type') }}</option>
-                            <option value="call_center" @selected(old('solution_type') === 'call_center')>Call Center</option>
-                            <option value="erp" @selected(old('solution_type') === 'erp')>ERP</option>
-                        </select>
-                    </div>
-
-                    <div class="field is-hidden" id="callCenterFields">
-                        <label for="linesCount">{{ __('crm.lines_count') }} <span class="required">*</span></label>
-                        <input class="control" id="linesCount" type="number" min="0" name="lines_count" value="{{ old('lines_count') }}" placeholder="مثال: 4">
-                    </div>
-
-                    <div class="field is-hidden" id="erpFields">
-                        <label for="departments">{{ __('crm.departments') }} <span class="required">*</span></label>
-                        <input class="control" id="departments" type="text" name="departments" value="{{ old('departments') }}" placeholder="مثال: الحسابات، المبيعات">
-                    </div>
-
-                    <div class="field full">
-                        <label for="quotationFile">{{ __('crm.quotation_file') }} <span class="required">*</span></label>
-                        <input class="control" id="quotationFile" type="file" name="quotation_file">
-                        <small>الملفات المدعومة: PDF, Word, Excel والصور. الحد الأقصى 2MB.</small>
-                    </div>
-                </div>
-            </section>
-
-            <!-- CARD 5: NOT INTERESTED REASON (CONDITIONAL) -->
-            <section class="form-card is-hidden" id="notInterestedSection">
-                <div class="section-head">
-                    <h2><i class="bi bi-x-circle"></i> {{ __('crm.not_interested_reason') }}</h2>
-                    <p>سجّل سبب عدم اهتمام العميل بالخدمة</p>
-                </div>
-
-                <div class="field full">
-                    <textarea class="control" id="disinterestReason" name="disinterest_reason" rows="3" placeholder="اكتب سبب الرفض أو عدم الاهتمام بالتفصيل...">{{ old('disinterest_reason') }}</textarea>
-                </div>
-            </section>
-
-            <!-- CARD 6: BUSINESS & LOCATION DETAILS -->
-            <section class="form-card is-hidden" id="businessDetailsSection">
-                <div class="section-head">
-                    <h2><i class="bi bi-building"></i> {{ __('crm.company_lead_data') }}</h2>
-                    <p>بيانات الشركة والمقر والنشاط</p>
-                </div>
-
-                <div class="form-grid">
-                    <div class="field">
-                        <label for="companyName">{{ __('crm.company_name') }}</label>
-                        <input class="control" id="companyName" type="text" name="company_name" value="{{ old('company_name') }}" maxlength="150" placeholder="اسم الشركة أو المؤسسة">
-                    </div>
-
-                    <div class="field">
-                        <label for="activity">{{ __('crm.activity') }}</label>
-                        <input class="control" id="activity" type="text" name="activity" value="{{ old('activity') }}" maxlength="150" placeholder="مثال: تجارة وتوزيع">
-                    </div>
-
-                    <div class="field">
-                        <label for="governorate">{{ __('crm.governorate') }}</label>
-                        <input class="control" id="governorate" type="text" name="governorate" value="{{ old('governorate') }}" maxlength="100" placeholder="مثال: القاهرة أو الرياض">
-                    </div>
-
-                    <div class="field full">
-                        <label for="address">{{ __('crm.address') }}</label>
-                        <input class="control" id="address" type="text" name="address" value="{{ old('address') }}" maxlength="255" placeholder="العنوان التفصيلي">
-                    </div>
-
-                    <div class="field">
-                        <label for="usersCount">{{ __('crm.user_count') }}</label>
-                        <input class="control" id="usersCount" type="number" name="users_count" value="{{ old('users_count') }}" min="0" max="1000000" placeholder="0">
-                    </div>
-
-                    <div class="field">
-                        <label for="branchesCount">{{ __('crm.branch_count') }}</label>
-                        <input class="control" id="branchesCount" type="number" name="branches_count" value="{{ old('branches_count') }}" min="0" max="1000000" placeholder="0">
-                    </div>
-
-                    <div class="field">
-                        <label for="jobTitle">{{ __('crm.job_title') }}</label>
-                        <input class="control" id="jobTitle" type="text" name="job_title" value="{{ old('job_title') }}" maxlength="150" placeholder="مثال: المدير التنفيذي">
-                    </div>
-                </div>
-            </section>
 
             <!-- SUBMIT ACTIONS BAR -->
             <div style="display:flex;align-items:center;gap:12px;margin-top:24px;flex-wrap:wrap">
@@ -700,15 +643,30 @@ html.dark-mode .control {
                 <button type="submit" name="after_save" value="followup" class="btn soft" style="height:46px;min-height:46px;padding:0 20px;font-size:14px">
                     <i class="bi bi-telephone-forward"></i> {{ __('حفظ والبدء بتسجيل متابعة') }}
                 </button>
-                <a href="{{ route('v2.leads') }}" class="btn soft" style="height:46px;min-height:46px">
-                    {{ __('crm.cancel') }}
-                </a>
+                @if (request()->boolean('kanban_popup'))
+                    <button type="button" class="btn soft" style="height:46px;min-height:46px" onclick="cancelKanbanPopup()">
+                        {{ __('crm.cancel') }}
+                    </button>
+                @else
+                    <a href="{{ route('v2.leads') }}" class="btn soft" style="height:46px;min-height:46px">
+                        {{ __('crm.cancel') }}
+                    </a>
+                @endif
             </div>
         </form>
     </main>
 </div>
 
 <script>
+function cancelKanbanPopup() {
+    try {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'crm-kanban-popup-close' }, window.location.origin);
+            return;
+        }
+    } catch (e) {}
+}
+
 function setNextDate(daysAhead, hour) {
     const d = new Date();
     d.setDate(d.getDate() + daysAhead);
@@ -723,23 +681,11 @@ function setNextDate(daysAhead, hour) {
     const statusSelect = document.getElementById('leadStatus');
     const nextFollowupSection = document.getElementById('createNextFollowupSection');
     const nextFollowupInput = document.getElementById('createNextFollowupAt');
-    const businessSection = document.getElementById('businessDetailsSection');
-    const quotationSection = document.getElementById('quotationSection');
-    const notInterestedSection = document.getElementById('notInterestedSection');
-    const solutionType = document.getElementById('solutionType');
-    const callCenterFields = document.getElementById('callCenterFields');
-    const erpFields = document.getElementById('erpFields');
-    const linesCount = document.getElementById('linesCount');
-    const departments = document.getElementById('departments');
-    const quotationFile = document.getElementById('quotationFile');
-    const disinterestReason = document.getElementById('disinterestReason');
     const questionBlocks = document.querySelectorAll('.stage-questions-block');
 
     const stageDot = document.getElementById('stageDot');
     const stageText = document.getElementById('stageText');
 
-    const businessStatuses = ['interested', 'no_answer', 'meeting', 'quotation', 'discussion', 'contract_closed', 'execution'];
-    const quotationStatuses = ['quotation', 'discussion', 'contract_closed', 'execution'];
     const noFollowupStatuses = ['new', 'no_answer', 'not_interested', 'execution'];
 
     function getSelectedOption() {
@@ -750,9 +696,6 @@ function setNextDate(daysAhead, hour) {
         const opt = getSelectedOption();
         if (!opt || !opt.value) {
             nextFollowupSection?.classList.add('is-hidden');
-            businessSection?.classList.add('is-hidden');
-            quotationSection?.classList.add('is-hidden');
-            notInterestedSection?.classList.add('is-hidden');
             if (stageText) stageText.textContent = 'اختر حالة العميل';
             if (stageDot) stageDot.style.background = '#64748b';
             hideAllStageQuestions();
@@ -779,51 +722,8 @@ function setNextDate(daysAhead, hour) {
         if (nextFollowupInput) {
             nextFollowupInput.required = needsFollowup;
         }
-
-        // Business Details Section
-        const isBusiness = businessStatuses.includes(code);
-        if (businessSection) {
-            businessSection.classList.toggle('is-hidden', !isBusiness);
-        }
-
-        // Quotation Section
-        const isQuotation = quotationStatuses.includes(code);
-        if (quotationSection) {
-            quotationSection.classList.toggle('is-hidden', !isQuotation);
-        }
-        if (solutionType) {
-            solutionType.required = isQuotation;
-        }
-        if (quotationFile) {
-            quotationFile.required = isQuotation;
-        }
-
-        // Not Interested Section
-        const isNotInterested = code === 'not_interested';
-        if (notInterestedSection) {
-            notInterestedSection.classList.toggle('is-hidden', !isNotInterested);
-        }
-        if (disinterestReason) {
-            disinterestReason.required = isNotInterested;
-        }
-
-        updateSolutionTypeFields();
     }
 
-    function updateSolutionTypeFields() {
-        const opt = getSelectedOption();
-        const code = opt?.dataset?.code || '';
-        const isQuotation = quotationStatuses.includes(code);
-        const sol = isQuotation ? solutionType?.value : '';
-
-        const isCallCenter = sol === 'call_center';
-        const isErp = sol === 'erp';
-
-        if (callCenterFields) callCenterFields.classList.toggle('is-hidden', !isCallCenter);
-        if (erpFields) erpFields.classList.toggle('is-hidden', !isErp);
-        if (linesCount) linesCount.required = isCallCenter;
-        if (departments) departments.required = isErp;
-    }
 
     function syncStageQuestions(stageId) {
         questionBlocks.forEach(block => {
@@ -833,8 +733,13 @@ function setNextDate(daysAhead, hour) {
             block.querySelectorAll('input, select, textarea').forEach(input => {
                 if (isMatch) {
                     input.removeAttribute('disabled');
+                    const req = input.closest('.stage-field-item')?.getAttribute('data-sf-required') === '1';
+                    if (req) {
+                        input.setAttribute('required', 'required');
+                    }
                 } else {
                     input.setAttribute('disabled', 'disabled');
+                    input.removeAttribute('required');
                 }
             });
         });
@@ -845,12 +750,12 @@ function setNextDate(daysAhead, hour) {
             block.style.display = 'none';
             block.querySelectorAll('input, select, textarea').forEach(input => {
                 input.setAttribute('disabled', 'disabled');
+                input.removeAttribute('required');
             });
         });
     }
 
     statusSelect?.addEventListener('change', updateFormVisibility);
-    solutionType?.addEventListener('change', updateSolutionTypeFields);
 
     updateFormVisibility();
 })();

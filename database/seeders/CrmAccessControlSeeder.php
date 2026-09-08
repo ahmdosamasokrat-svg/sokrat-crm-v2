@@ -80,6 +80,7 @@ class CrmAccessControlSeeder extends Seeder
                     'technical_support.view',
                     'technical_support.manage',
                     'technical_support.reports',
+                    'technical_support.tasks.manage',
                 ],
             ],
             'sales-agent' => [

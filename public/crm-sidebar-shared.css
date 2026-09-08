@@ -483,79 +483,114 @@ font-size:11px
 }
 
 @media(min-width:901px){
+ html,
+ body {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+  margin: 0 !important;
+ }
+
  .app,
  .crm-app,
  .settings-shell,
- .crm-quote-shell{
-  display:flex!important;
-  flex-direction:row!important;
-  align-items:flex-start!important;
-  min-height:100vh!important;
-  background:transparent!important
+ .crm-quote-shell,
+ .crm-list-layout,
+ .support-shell,
+ .report-shell,
+ .task-shell {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  min-height: 100vh !important;
+  max-width: 100vw !important;
+  overflow: visible !important;
+  overflow-x: clip !important;
+  background: transparent !important;
+  margin: 0 !important;
  }
 
  .crm-side,
- .side{
-  order:0!important;
-  flex:0 0 288px!important;
-  width:288px!important;
-  min-width:288px!important;
-  max-width:288px!important;
-  position:sticky!important;
-  top:0!important;
-  height:100vh!important;
-  max-height:100vh!important;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
-  align-self:flex-start!important;
-  box-sizing:border-box!important
+ .side,
+ #crmSidebar {
+  order: 0 !important;
+  flex: 0 0 288px !important;
+  width: 288px !important;
+  min-width: 288px !important;
+  max-width: 288px !important;
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  align-self: flex-start !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  z-index: 90 !important;
  }
 
  .main,
  .crm-main,
  .settings-main,
  .crm-quote-main,
- .main-content{
-  order:1!important;
-  flex:1 1 auto!important;
-  width:calc(100% - 288px)!important;
-  min-width:0!important;
-  align-self:stretch!important
+ .crm-list-main,
+ .support-main,
+ .report-main,
+ .task-main,
+ .main-content {
+  order: 1 !important;
+  flex: 1 1 auto !important;
+  width: calc(100% - 288px) !important;
+  min-width: 0 !important;
+  align-self: stretch !important;
  }
 
  html.crm-sidebar-collapsed .crm-side,
- html.crm-sidebar-collapsed .side{
-  flex:0 0 88px!important;
-  width:88px!important;
-  min-width:88px!important;
-  max-width:88px!important;
-  padding:18px 12px!important;
-  position:sticky!important;
-  top:0!important;
-  height:100vh!important;
-  max-height:100vh!important;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
-  align-self:flex-start!important;
-  box-sizing:border-box!important
+ html.crm-sidebar-collapsed .side,
+ html.crm-sidebar-collapsed #crmSidebar {
+  flex: 0 0 88px !important;
+  width: 88px !important;
+  min-width: 88px !important;
+  max-width: 88px !important;
+  padding: 18px 12px !important;
+  position: sticky !important;
+  top: 0 !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  align-self: flex-start !important;
+  box-sizing: border-box !important;
  }
+
  html.crm-sidebar-collapsed .main,
  html.crm-sidebar-collapsed .crm-main,
  html.crm-sidebar-collapsed .settings-main,
  html.crm-sidebar-collapsed .crm-quote-main,
- html.crm-sidebar-collapsed .main-content{
-  width:calc(100% - 88px)!important;
-  flex:1 1 auto!important
+ html.crm-sidebar-collapsed .crm-list-main,
+ html.crm-sidebar-collapsed .support-main,
+ html.crm-sidebar-collapsed .report-main,
+ html.crm-sidebar-collapsed .task-main,
+ html.crm-sidebar-collapsed .main-content {
+  width: calc(100% - 88px) !important;
+  flex: 1 1 auto !important;
  }
 
  html.crm-sidebar-collapsed .app,
  html.crm-sidebar-collapsed .crm-app,
  html.crm-sidebar-collapsed .settings-shell,
- html.crm-sidebar-collapsed .crm-quote-shell{
-  display:flex!important;
-  flex-direction:row!important
+ html.crm-sidebar-collapsed .crm-quote-shell,
+ html.crm-sidebar-collapsed .crm-list-layout,
+ html.crm-sidebar-collapsed .support-shell,
+ html.crm-sidebar-collapsed .report-shell,
+ html.crm-sidebar-collapsed .task-shell {
+  display: flex !important;
+  flex-direction: row !important;
  }
-
  html.crm-sidebar-collapsed .crm-side-brand{
   justify-content:center;
   gap:0;

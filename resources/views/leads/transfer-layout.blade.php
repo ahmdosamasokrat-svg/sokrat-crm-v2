@@ -44,12 +44,12 @@
             font-family: var(--font-primary);
             font-size: 14px;
             line-height: 1.5;
-            overflow-x: hidden !important;
+            overflow-x: clip;
         }
         button, input, select, textarea { font: inherit; }
         a { color: inherit; text-decoration: none; }
 
-        .crm-app { display: flex; min-height: 100vh; width: 100%; max-width: 100vw; overflow-x: hidden !important; min-width: 0; }
+        .crm-app { display: flex; min-height: 100vh; width: 100%; max-width: 100vw; overflow-x: clip; min-width: 0; }
         .crm-main { flex: 1; min-width: 0; max-width: 100%; padding: 24px 32px 60px; box-sizing: border-box; }
         /* Topbar */
         .topbar {

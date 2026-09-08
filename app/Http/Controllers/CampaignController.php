@@ -41,8 +41,16 @@ class CampaignController extends Controller
                 'creator:id,name',
                 'users:id,name',
             ])
-            ->withCount('leads');
-
+            ->withCount([
+                'leads as user_leads_count' => static function (Builder $leadQuery) use ($user): void {
+                    $leadQuery->where('leads.assigned_user_id', $user->id)
+                        ->select(DB::raw('count(distinct leads.id)'));
+                },
+                'leads as total_leads_count' => static function (Builder $leadQuery) use ($user): void {
+                    $leadQuery->accessibleTo($user)
+                        ->select(DB::raw('count(distinct leads.id)'));
+                },
+            ]);
         if (! $user->isSuperAdmin()) {
             $query->where(function ($campaignQuery) use ($user): void {
                 $campaignQuery->whereHas(
@@ -105,12 +113,15 @@ class CampaignController extends Controller
             ->paginate(20);
 
         $campaigns->getCollection()->each(
-            fn (Campaign $campaign) => $campaign->setAttribute(
-                'can_manage',
-                $this->canManageCampaign($user, $campaign),
-            ),
+            function (Campaign $campaign) use ($user): void {
+                $canManage = $this->canManageCampaign($user, $campaign);
+                $campaign->setAttribute('can_manage', $canManage);
+                $count = $canManage
+                    ? (int) ($campaign->total_leads_count ?? $campaign->user_leads_count ?? 0)
+                    : (int) ($campaign->user_leads_count ?? 0);
+                $campaign->setAttribute('leads_count', $count);
+            },
         );
-
         return view('campaigns.index', compact(
             'campaigns',
             'filters',
@@ -274,41 +285,29 @@ class CampaignController extends Controller
         ]);
 
         $canManage = $this->canManageCampaign($user, $campaign);
-        $filterUsers = collect([$user]);
-        $selectedAssignee = $user;
-        $showUnassigned = false;
+        $totalCampaignLeads = $campaign->leads()->distinct()->count('leads.id');
 
-        if ($canManage) {
-            $filterUsers = collect($campaign->users->all());
+        $pipelineStages = PipelineStage::activeOrdered()->load('statuses:id,pipeline_stage_id,name_ar,code');
 
-            if (! $filterUsers->contains('id', $user->id)) {
-                $filterUsers->push($user);
-            }
+        $statusParam = trim((string) $request->query('status', ''));
+        $stageParam = trim((string) $request->query('stage', ''));
 
-            $filterUsers = $filterUsers
-                ->sortBy('name')
-                ->values();
+        $selectedStage = $stageParam !== ''
+            ? ($pipelineStages->firstWhere('code', $stageParam) ?? $pipelineStages->firstWhere('id', (int) $stageParam))
+            : null;
 
-            $requestedAssignee = (string) $request->query(
-                'assigned_user_id',
-                $user->id,
-            );
-
-            if ($requestedAssignee === 'unassigned') {
-                $selectedAssignee = null;
-                $showUnassigned = true;
-            } elseif (ctype_digit($requestedAssignee)) {
-                $selectedAssignee = $filterUsers->firstWhere(
-                    'id',
-                    (int) $requestedAssignee,
-                ) ?? $user;
-            }
+        $selectedStatus = null;
+        if ($statusParam !== '') {
+            $allStatuses = $pipelineStages->pluck('statuses')->flatten();
+            $selectedStatus = $allStatuses->firstWhere('code', $statusParam) ?? $allStatuses->firstWhere('id', (int) $statusParam);
         }
 
-        $assignmentCounts = DB::table('campaign_lead')
+        // 1. Overall assignment counts for the entire campaign (excluding soft-deleted leads)
+        $overallAssignmentCounts = DB::table('campaign_lead')
             ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
             ->where('campaign_lead.campaign_id', $campaign->id)
-            ->selectRaw('leads.assigned_user_id, COUNT(*) as lead_count')
+            ->whereNull('leads.deleted_at')
+            ->selectRaw('leads.assigned_user_id, COUNT(DISTINCT leads.id) as lead_count')
             ->groupBy('leads.assigned_user_id')
             ->get()
             ->mapWithKeys(static fn (object $row): array => [
@@ -317,28 +316,126 @@ class CampaignController extends Controller
                     : (string) $row->assigned_user_id => (int) $row->lead_count,
             ]);
 
-        $pipelineStages = PipelineStage::activeOrdered()->load('statuses:id,pipeline_stage_id,name_ar,code');
+        // 2. Filtered context query and counts (reflecting active stage/status filter)
+        $contextQuery = DB::table('campaign_lead')
+            ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
+            ->where('campaign_lead.campaign_id', $campaign->id)
+            ->whereNull('leads.deleted_at');
+
+        if ($selectedStage !== null) {
+            $stageStatusIds = $selectedStage->statuses->pluck('id')->all();
+            $contextQuery->whereIn('leads.lead_status_id', $stageStatusIds);
+        } elseif ($selectedStatus !== null) {
+            $contextQuery->where('leads.lead_status_id', $selectedStatus->id);
+        }
+
+        $contextAssignmentCounts = (clone $contextQuery)
+            ->selectRaw('leads.assigned_user_id, COUNT(DISTINCT leads.id) as lead_count')
+            ->groupBy('leads.assigned_user_id')
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [
+                $row->assigned_user_id === null
+                    ? 'unassigned'
+                    : (string) $row->assigned_user_id => (int) $row->lead_count,
+            ]);
+
+        $contextTotal = (clone $contextQuery)->distinct()->count('leads.id');
+        $assignmentCounts = $contextAssignmentCounts;
+
+        $filterUsers = collect([$user]);
+        $selectedAssignee = $user;
+        $showUnassigned = false;
+        $showAllAssignees = false;
+
+        if ($canManage) {
+            $candidateUserIds = $overallAssignmentCounts->keys()
+                ->filter(fn ($k) => $k !== 'unassigned')
+                ->map(fn ($id) => (int) $id)
+                ->push((int) $user->id)
+                ->unique()
+                ->all();
+
+            $filterUsers = User::query()
+                ->whereIn('id', $candidateUserIds)
+                ->where('is_active', true)
+                ->with('groups:id,name')
+                ->orderBy('name')
+                ->get();
+
+            $requestedAssignee = (string) $request->query(
+                'assigned_user_id',
+                'all',
+            );
+
+            if ($requestedAssignee === 'all' || $requestedAssignee === '') {
+                $selectedAssignee = null;
+                $showAllAssignees = true;
+                $showUnassigned = false;
+            } elseif ($requestedAssignee === 'unassigned') {
+                $selectedAssignee = null;
+                $showAllAssignees = false;
+                $showUnassigned = true;
+            } elseif (ctype_digit($requestedAssignee)) {
+                $targetId = (int) $requestedAssignee;
+                $selectedAssignee = User::query()->where('is_active', true)->find($targetId);
+                if ($selectedAssignee !== null) {
+                    $showAllAssignees = false;
+                    $showUnassigned = false;
+                    if (! $filterUsers->contains('id', $selectedAssignee->id)) {
+                        $filterUsers->push($selectedAssignee);
+                    }
+                } else {
+                    $selectedAssignee = null;
+                    $showAllAssignees = true;
+                    $showUnassigned = false;
+                }
+            } else {
+                $selectedAssignee = null;
+                $showAllAssignees = true;
+                $showUnassigned = false;
+            }
+        }
 
         $baseCampaignLeadsQuery = DB::table('campaign_lead')
             ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
-            ->where('campaign_lead.campaign_id', $campaign->id);
+            ->where('campaign_lead.campaign_id', $campaign->id)
+            ->whereNull('leads.deleted_at');
 
         if ($showUnassigned) {
-            $baseCampaignLeadsQuery->whereNull('leads.assigned_user_id');
-        } elseif ($selectedAssignee !== null) {
-            $baseCampaignLeadsQuery->where('leads.assigned_user_id', $selectedAssignee->id);
+            $baseCampaignLeadsQuery->where(function ($q) {
+                $q->whereNull('leads.assigned_user_id')
+                    ->where(function ($eq) {
+                        $eq->whereNull('leads.assigned_employee')
+                            ->orWhere('leads.assigned_employee', '');
+                    });
+            });
+        } elseif (! $showAllAssignees && $selectedAssignee !== null) {
+            $baseCampaignLeadsQuery->where(function ($q) use ($selectedAssignee) {
+                $q->where('leads.assigned_user_id', $selectedAssignee->id)
+                    ->orWhere(function ($sq) use ($selectedAssignee) {
+                        $sq->whereNull('leads.assigned_user_id')
+                            ->where('leads.assigned_employee', $selectedAssignee->name);
+                    });
+            });
         }
 
         $stageLeadCounts = (clone $baseCampaignLeadsQuery)
             ->join('lead_statuses', 'lead_statuses.id', '=', 'leads.lead_status_id')
-            ->selectRaw('lead_statuses.pipeline_stage_id, COUNT(*) as aggregate')
+            ->selectRaw('lead_statuses.pipeline_stage_id, COUNT(DISTINCT leads.id) as aggregate')
             ->groupBy('lead_statuses.pipeline_stage_id')
             ->pluck('aggregate', 'pipeline_stage_id')
             ->all();
 
+        $stageDistributionTotal = 0;
         foreach ($pipelineStages as $stage) {
-            $stage->campaign_leads_count = (int) ($stageLeadCounts[$stage->id] ?? 0);
+            $stageCount = (int) ($stageLeadCounts[$stage->id] ?? 0);
+            $stage->campaign_leads_count = $stageCount;
+            $stageDistributionTotal += $stageCount;
         }
+
+        $operationalCampaignLeads = $stageDistributionTotal > 0
+            ? $stageDistributionTotal
+            : (int) (clone $baseCampaignLeadsQuery)->distinct()->count('leads.id');
 
         $statuses = LeadStatus::query()
             ->withCount([
@@ -348,6 +445,7 @@ class CampaignController extends Controller
                     $campaign,
                     $selectedAssignee,
                     $showUnassigned,
+                    $showAllAssignees,
                 ): void {
                     $query->whereHas(
                         'campaigns',
@@ -357,7 +455,7 @@ class CampaignController extends Controller
 
                     if ($showUnassigned) {
                         $query->whereNull('assigned_user_id');
-                    } else {
+                    } elseif (! $showAllAssignees && $selectedAssignee !== null) {
                         $query->where(
                             'assigned_user_id',
                             $selectedAssignee->id,
@@ -368,18 +466,6 @@ class CampaignController extends Controller
             ->with('stage:id,name_ar')
             ->orderBy('position')
             ->get(['id', 'pipeline_stage_id', 'code', 'name_ar', 'color']);
-
-        $statusParam = trim((string) $request->query('status', ''));
-        $stageParam = trim((string) $request->query('stage', ''));
-
-        $selectedStatus = $statusParam !== ''
-            ? ($statuses->firstWhere('code', $statusParam) ?? $statuses->firstWhere('id', (int) $statusParam))
-            : null;
-
-        $selectedStage = $stageParam !== ''
-            ? ($pipelineStages->firstWhere('code', $stageParam) ?? $pipelineStages->firstWhere('id', (int) $stageParam))
-            : null;
-
         $leadsQuery = $campaign->leads()
             ->with([
                 'status.stage:id,name_ar',
@@ -388,11 +474,22 @@ class CampaignController extends Controller
             ->orderByDesc('leads.id');
 
         if ($showUnassigned) {
-            $leadsQuery->whereNull('assigned_user_id');
-        } else {
-            $leadsQuery->where('assigned_user_id', $selectedAssignee->id);
+            $leadsQuery->where(function ($q) {
+                $q->whereNull('leads.assigned_user_id')
+                    ->where(function ($eq) {
+                        $eq->whereNull('leads.assigned_employee')
+                            ->orWhere('leads.assigned_employee', '');
+                    });
+            });
+        } elseif (! $showAllAssignees && $selectedAssignee !== null) {
+            $leadsQuery->where(function ($q) use ($selectedAssignee) {
+                $q->where('leads.assigned_user_id', $selectedAssignee->id)
+                    ->orWhere(function ($sq) use ($selectedAssignee) {
+                        $sq->whereNull('leads.assigned_user_id')
+                            ->where('leads.assigned_employee', $selectedAssignee->name);
+                    });
+            });
         }
-
         if ($selectedStage !== null) {
             $leadsQuery->whereHas('status', function (Builder $sq) use ($selectedStage): void {
                 $sq->where('pipeline_stage_id', $selectedStage->id);
@@ -401,30 +498,41 @@ class CampaignController extends Controller
             $leadsQuery->where('lead_status_id', $selectedStatus->id);
         }
 
+        $searchQuery = trim((string) $request->query('q', ''));
+        if ($searchQuery !== '') {
+            $search = '%' . $searchQuery . '%';
+            $leadsQuery->where(function ($q) use ($search) {
+                $q->where('leads.name', 'like', $search)
+                    ->orWhere('leads.company_name', 'like', $search)
+                    ->orWhere('leads.phone', 'like', $search)
+                    ->orWhere('leads.email', 'like', $search);
+            });
+        }
+
         $leads = $leadsQuery
             ->paginate(30)
             ->withQueryString();
 
         $assignableUsers = $canManage
-            ? $campaign->users
-                ->filter(
-                    static fn (User $target): bool => LeadAssignment::canAssignTo(
-                        $user,
-                        $target,
-                    ),
-                )
-                ->values()
+            ? LeadAssignment::assignableUsers($user)->loadMissing('groups:id,name')
             : collect();
 
+        $totalFilteredLeads = (clone $contextQuery)->distinct()->count('leads.id');
         return view('campaigns.show', compact(
             'campaign',
+            'totalCampaignLeads',
+            'operationalCampaignLeads',
+            'totalFilteredLeads',
             'leads',
             'canManage',
             'assignableUsers',
             'filterUsers',
             'selectedAssignee',
             'showUnassigned',
+            'showAllAssignees',
             'assignmentCounts',
+            'overallAssignmentCounts',
+            'contextTotal',
             'pipelineStages',
             'selectedStage',
             'statuses',
@@ -451,8 +559,7 @@ class CampaignController extends Controller
                 'target_user_id' => [
                     'required',
                     'integer',
-                    Rule::exists('campaign_user', 'user_id')
-                        ->where('campaign_id', $campaign->id),
+                    Rule::exists('users', 'id')->where('is_active', true),
                 ],
             ],
             [
@@ -478,6 +585,7 @@ class CampaignController extends Controller
             $leadIds,
             $target,
         ): int {
+            $campaign->users()->syncWithoutDetaching([$target->id]);
             return Lead::query()
                 ->whereIn('id', $leadIds)
                 ->whereHas(

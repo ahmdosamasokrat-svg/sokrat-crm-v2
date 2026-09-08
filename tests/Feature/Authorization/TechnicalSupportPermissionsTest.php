@@ -122,7 +122,7 @@ class TechnicalSupportPermissionsTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_employee_sees_only_owned_support_data_and_admin_sees_all(): void
+    public function test_authorized_employee_can_view_all_support_servers_and_admin_sees_all(): void
     {
         $employee = $this->createUserWithPermissions([
             CrmPermission::TECHNICAL_SUPPORT_VIEW->value,
@@ -144,19 +144,19 @@ class TechnicalSupportPermissionsTest extends TestCase
             ->get(route('v2.technical-support.index'))
             ->assertOk()
             ->assertSeeText($ownDevice->name)
-            ->assertDontSeeText($otherDevice->name);
+            ->assertSeeText($otherDevice->name);
 
         $this->actingAs($employee)
             ->get(route('v2.technical-support.cards.show', $otherDevice->device_key))
-            ->assertRedirect(route('v2.technical-support.index'));
+            ->assertOk()
+            ->assertSeeText($otherDevice->name);
 
         $this->actingAs($employee)
             ->put(route('v2.technical-support.cards.update', $otherDevice->device_key), [
-                'name' => 'Tampered server',
+                'name' => 'Updated server',
                 'os' => 'linux',
             ])
-            ->assertNotFound();
-
+            ->assertRedirect(route('v2.technical-support.cards.show', $otherDevice->device_key));
         $this->actingAs($employee)
             ->get(route('v2.technical-support.reports'))
             ->assertOk()
@@ -167,7 +167,7 @@ class TechnicalSupportPermissionsTest extends TestCase
             ->get(route('v2.technical-support.index'))
             ->assertOk()
             ->assertSeeText($ownDevice->name)
-            ->assertSeeText($otherDevice->name);
+            ->assertSeeText('Updated server');
 
         $this->actingAs($this->superAdmin)
             ->get(route('v2.technical-support.reports'))

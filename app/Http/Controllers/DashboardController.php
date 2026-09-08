@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use App\Models\CalendarEvent;
 use App\Models\Campaign;
 use App\Models\Lead;
@@ -16,9 +17,12 @@ use App\Services\VoipService;
 use App\Support\CrmDatabaseGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\DB;
 class DashboardController extends Controller
 {
+    public const KANBAN_COLUMN_PAGE_SIZE = 10;
+    public const KANBAN_ALLOWED_PAGE_SIZES = [10, 20, 30, 40, 50];
+
     private const STATUS_UI = [
         'new' => [
             'slug' => 'new',
@@ -238,22 +242,39 @@ class DashboardController extends Controller
         }
         $activePipelineStages = collect($activePipelineStages);
 
-        $contractClosed = (int) (
-            $statusCounts[
-                'contract_closed'
-            ] ?? 0
-        );
+        $firstActiveStage = $stages->first();
+        $finalActiveStage = $stages->last();
 
-        $contractRate = $totalLeads > 0
-            ? round(
-                (
-                    $contractClosed
-                    / $totalLeads
-                ) * 100,
-                1
-            )
-            : 0.0;
+        $finalConversionRate = null;
+        $finalStageReachedCount = 0;
+        $finalStageTitle = __('crm.conversion_rate');
+        $finalStageColor = '#10b981';
+        $finalStageIcon = 'bi-check-circle';
 
+        if ($stages->isEmpty()) {
+            $finalStageTitle = __('crm.conversion_rate');
+        } elseif ($stages->count() === 1) {
+            $finalStageName = $finalActiveStage->localizedName();
+            $finalStageTitle = __('crm.stage_conversion_rate_title', ['stage' => $finalStageName]);
+            $finalStageColor = $finalActiveStage->color ?: '#10b981';
+            $finalStageIcon = $finalActiveStage->icon ?: 'bi-check-circle';
+            $finalConversionRate = null;
+            $finalStatusIds = $finalActiveStage->statuses->pluck('id')->all();
+            $finalStageReachedCount = ! empty($finalStatusIds)
+                ? (clone $leadBase)->whereIn('lead_status_id', $finalStatusIds)->distinct()->count('leads.id')
+                : 0;
+        } else {
+            $finalStageName = $finalActiveStage->localizedName();
+            $finalStageTitle = __('crm.stage_conversion_rate_title', ['stage' => $finalStageName]);
+            $finalStageColor = $finalActiveStage->color ?: '#10b981';
+            $finalStageIcon = $finalActiveStage->icon ?: 'bi-check-circle';
+
+            $finalConversionMetrics = $this->calculateStageConversion($firstActiveStage, $finalActiveStage, $leadBase, $stages);
+            $finalConversionRate = $finalConversionMetrics['rate'];
+            $finalStageReachedCount = (int) ($finalConversionMetrics['numerator'] ?? 0);
+        }
+
+        $contractRate = $finalConversionRate ?? 0.0;
         $todayStart = now()
             ->startOfDay();
 
@@ -374,6 +395,151 @@ class DashboardController extends Controller
                 )
                 ->count(),
         ];
+        // Dynamic Pipeline Stage Conversion Widget (FROM -> TO)
+        $fromStageId = $request->query('from_stage_id');
+        $toStageId = $request->query('to_stage_id') ?? $request->query('conversion_stage_id');
+
+        $defaultFromStage = $stages->first();
+        $defaultToStage = $stages->skip(1)->first() ?? $stages->first();
+
+        if ($fromStageId === null && $toStageId !== null) {
+            $toStageObj = $stages->firstWhere('id', (int) $toStageId);
+            if ($toStageObj !== null) {
+                $toIdx = $stages->search(static fn (PipelineStage $s) => $s->id === $toStageObj->id);
+                if ($toIdx !== false && $toIdx > 0) {
+                    $defaultFromStage = $stages->get($toIdx - 1);
+                } elseif ($toIdx === 0) {
+                    $defaultFromStage = null;
+                }
+            }
+        }
+
+        $fromStage = $fromStageId !== null
+            ? ($stages->firstWhere('id', (int) $fromStageId) ?? $defaultFromStage)
+            : $defaultFromStage;
+
+        $toStage = $toStageId !== null
+            ? ($stages->firstWhere('id', (int) $toStageId) ?? $defaultToStage)
+            : $defaultToStage;
+        $conversionMetrics = $this->calculateStageConversion($fromStage, $toStage, $leadBase, $stages);
+
+        $kpi1StageId = $request->query('stage_kpi_1');
+        $defaultKpi1Stage = $stages->first(static fn (PipelineStage $s) => in_array($s->code, ['contract_closed', 'closing_execution', 'execution', 'donor'], true))
+            ?? $stages->last()
+            ?? $stages->first();
+        $kpi1Stage = $kpi1StageId !== null
+            ? ($stages->firstWhere('id', (int) $kpi1StageId) ?? $defaultKpi1Stage)
+            : $defaultKpi1Stage;
+        $stageKpi1 = $this->calculateStageKpi($kpi1Stage, $leadBase, $totalLeads, $filters);
+
+        $kpi2StageId = $request->query('stage_kpi_2');
+        $defaultKpi2Stage = $stages->first(static fn (PipelineStage $s) => in_array($s->code, ['meeting', 'discussion', 'quotation', 'negotiation'], true))
+            ?? ($stages->count() > 2 ? $stages->get(2) : ($stages->skip(1)->first() ?? $stages->first()));
+        $kpi2Stage = $kpi2StageId !== null
+            ? ($stages->firstWhere('id', (int) $kpi2StageId) ?? $defaultKpi2Stage)
+            : $defaultKpi2Stage;
+        $stageKpi2 = $this->calculateStageKpi($kpi2Stage, $leadBase, $totalLeads, $filters);
+
+        $activityStageId = $request->query('activity_stage_id');
+        $defaultActivityStage = $stages->first(static fn (PipelineStage $s) => $s->code === 'meeting')
+            ?? ($stages->skip(1)->first() ?? $stages->first());
+        $activityStage = $activityStageId !== null
+            ? ($stages->firstWhere('id', (int) $activityStageId) ?? $defaultActivityStage)
+            : $defaultActivityStage;
+        $stageActivity = $this->calculateStageActivity($activityStage, $leadBase, $todayStart, $todayEnd);
+
+        if ($request->ajax() || $request->wantsJson() || $request->query('ajax')) {
+            $widget = $request->query('widget');
+            if ($widget === 'conversion') {
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'conversion',
+                    'from_stage_id' => $conversionMetrics['from_stage_id'],
+                    'from_stage_name' => $conversionMetrics['from_stage_name'],
+                    'to_stage_id' => $conversionMetrics['to_stage_id'],
+                    'to_stage_name' => $conversionMetrics['to_stage_name'],
+                    'stage_id' => $conversionMetrics['stage_id'],
+                    'stage_name' => $conversionMetrics['stage_name'],
+                    'has_previous_stage' => $conversionMetrics['has_previous_stage'],
+                    'previous_stage_name' => $conversionMetrics['previous_stage_name'],
+                    'rate' => $conversionMetrics['rate'],
+                    'display_value' => $conversionMetrics['display_value'],
+                    'subtitle' => $conversionMetrics['subtitle'],
+                    'color' => $conversionMetrics['color'],
+                    'icon' => $conversionMetrics['icon'],
+                    'numerator' => $conversionMetrics['numerator'],
+                    'denominator' => $conversionMetrics['denominator'],
+                    'is_valid_direction' => $conversionMetrics['is_valid_direction'],
+                ]);
+            }
+            if ($widget === 'stage_kpi_1') {
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'stage_kpi_1',
+                    'stage_id' => $stageKpi1['stage_id'],
+                    'stage_name' => $stageKpi1['stage_name'],
+                    'count' => $stageKpi1['count'],
+                    'formatted_count' => number_format($stageKpi1['count']),
+                    'color' => $stageKpi1['color'],
+                    'icon' => $stageKpi1['icon'],
+                    'percentage' => $stageKpi1['percentage'],
+                    'subtitle' => $stageKpi1['subtitle'],
+                    'filter_url' => $stageKpi1['filter_url'],
+                ]);
+            }
+            if ($widget === 'stage_kpi_2') {
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'stage_kpi_2',
+                    'stage_id' => $stageKpi2['stage_id'],
+                    'stage_name' => $stageKpi2['stage_name'],
+                    'count' => $stageKpi2['count'],
+                    'formatted_count' => number_format($stageKpi2['count']),
+                    'color' => $stageKpi2['color'],
+                    'icon' => $stageKpi2['icon'],
+                    'percentage' => $stageKpi2['percentage'],
+                    'subtitle' => $stageKpi2['subtitle'],
+                    'filter_url' => $stageKpi2['filter_url'],
+                ]);
+            }
+            if ($widget === 'stage_activity') {
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'stage_activity',
+                    'stage_id' => $stageActivity['stage_id'],
+                    'stage_name' => $stageActivity['stage_name'],
+                    'today_count' => $stageActivity['today_count'],
+                    'overdue_count' => $stageActivity['overdue_count'],
+                    'upcoming_count' => $stageActivity['upcoming_count'],
+                    'total_count' => $stageActivity['total_count'],
+                    'leads' => $stageActivity['leads'],
+                    'empty' => empty($stageActivity['leads']),
+                ]);
+            }
+            if ($widget === 'stage_activity_leads') {
+                $bucket = (string) $request->query('bucket', 'all');
+                if (! in_array($bucket, ['all', 'today', 'overdue', 'upcoming'], true)) {
+                    $bucket = 'all';
+                }
+                $page = max(1, (int) $request->query('page', 1));
+                $perPage = max(5, min(50, (int) $request->query('per_page', 10)));
+
+                $activityLeadsData = $this->calculateStageActivityLeads(
+                    $activityStage,
+                    $leadBase,
+                    $todayStart,
+                    $todayEnd,
+                    $bucket,
+                    $page,
+                    $perPage
+                );
+
+                return response()->json(array_merge([
+                    'success' => true,
+                    'widget' => 'stage_activity_leads',
+                ], $activityLeadsData));
+            }
+        }
 
         $latestFollowups =
             LeadFollowup::query()
@@ -502,11 +668,40 @@ class DashboardController extends Controller
                 ->values()
                 ->all();
         }
+        $chartStageParam = $request->query('chart_stages');
+        $selectedChartStageIds = [];
+        if ($chartStageParam !== null) {
+            if (is_array($chartStageParam)) {
+                $selectedChartStageIds = array_values(array_filter(array_map('intval', $chartStageParam)));
+            } else {
+                $selectedChartStageIds = array_values(array_filter(array_map('intval', explode(',', (string) $chartStageParam))));
+            }
+        }
+
+        if (empty($selectedChartStageIds)) {
+            $selectedChartStageIds = $stages->pluck('id')->all();
+        }
+
+        $selectedChartStages = $stages->whereIn('id', $selectedChartStageIds)->values();
+        if ($selectedChartStages->isEmpty()) {
+            $selectedChartStages = $stages->take(3)->values();
+            $selectedChartStageIds = $selectedChartStages->pluck('id')->all();
+        }
+
         $perfLabels = [];
         $perfTotal = [];
         $perfNew = [];
         $perfFollowups = [];
         $perfContracts = [];
+        $stageMonthlyData = [];
+        foreach ($selectedChartStages as $stg) {
+            $stageMonthlyData[$stg->id] = [];
+        }
+
+        $timelineLeadBase = Lead::query()->accessibleTo($user);
+        if ($filters['employee'] !== '') {
+            $this->applyLeadFilters($timelineLeadBase, ['employee' => $filters['employee'], 'from_date' => null, 'to_date' => null]);
+        }
 
         $nowDate = now();
         for ($i = 5; $i >= 0; $i--) {
@@ -515,7 +710,7 @@ class DashboardController extends Controller
             $startOfMonth = (clone $month)->startOfMonth();
             $endOfMonth = (clone $month)->endOfMonth();
 
-            $newCount = (clone $leadBase)->whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
+            $newCount = (clone $timelineLeadBase)->whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
             $perfNew[] = $newCount;
             $perfTotal[] = $newCount;
             $perfFollowups[] = LeadFollowup::query()
@@ -524,16 +719,52 @@ class DashboardController extends Controller
                     $query->accessibleTo($user);
                 })
                 ->count();
-            $perfContracts[] = (clone $leadBase)
+            $perfContracts[] = (clone $timelineLeadBase)
                 ->whereBetween('updated_at', [$startOfMonth, $endOfMonth])
                 ->whereHas('status', static fn ($q) => $q->where('code', 'contract_closed'))
                 ->count();
+
+            foreach ($selectedChartStages as $stage) {
+                $statusIds = $stage->statuses->pluck('id')->all();
+                $stageCount = 0;
+                if (! empty($statusIds)) {
+                    $stageCount = (clone $timelineLeadBase)
+                        ->where(static function (Builder $q) use ($statusIds, $startOfMonth, $endOfMonth): void {
+                            $q->where(static function (Builder $sub) use ($statusIds, $startOfMonth, $endOfMonth): void {
+                                $sub->whereIn('lead_status_id', $statusIds)
+                                    ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
+                            })->orWhereHas('statusHistory', static function (Builder $hq) use ($statusIds, $startOfMonth, $endOfMonth): void {
+                                $hq->whereIn('to_status_id', $statusIds)
+                                    ->whereBetween('changed_at', [$startOfMonth, $endOfMonth]);
+                            });
+                        })
+                        ->distinct()
+                        ->count('leads.id');
+                }
+                $stageMonthlyData[$stage->id][] = $stageCount;
+            }
         }
 
-        $hasData = (array_sum($perfTotal) + array_sum($perfFollowups) + array_sum($perfContracts)) > 0;
+        $chartSeries = [];
+        $totalMonthlyActivity = 0;
+        $palette = ['#38bdf8', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#f97316'];
+        foreach ($selectedChartStages as $idx => $stage) {
+            $chartSeries[] = [
+                'id' => $stage->id,
+                'name' => $stage->localizedName(),
+                'code' => $stage->code,
+                'color' => $stage->color ?: ($palette[$idx % count($palette)]),
+                'data' => $stageMonthlyData[$stage->id] ?? [],
+            ];
+            $totalMonthlyActivity += array_sum($stageMonthlyData[$stage->id] ?? []);
+        }
+
+        $hasData = ($totalMonthlyActivity > 0) || ((array_sum($perfTotal) + array_sum($perfFollowups) + array_sum($perfContracts)) > 0);
 
         $performanceTimeline = [
             'labels' => $perfLabels,
+            'series' => $chartSeries,
+            'selected_stages' => $selectedChartStageIds,
             'total' => $perfTotal,
             'newLeads' => $perfNew,
             'followups' => $perfFollowups,
@@ -541,6 +772,16 @@ class DashboardController extends Controller
             'hasData' => $hasData,
         ];
 
+        if ($request->ajax() || $request->wantsJson() || $request->query('ajax')) {
+            $widget = $request->query('widget');
+            if ($widget === 'performance_chart') {
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'performance_chart',
+                    'timeline' => $performanceTimeline,
+                ]);
+            }
+        }
         $activeCampaigns = [];
         if ($user->hasPermission(CrmPermission::CAMPAIGNS_VIEW) || $user->hasPermission('campaigns.view')) {
             $campaignQuery = Campaign::query()
@@ -559,31 +800,40 @@ class DashboardController extends Controller
 
             $activeCampaigns = $campaignQuery
                 ->withCount([
-                    'leads as total_leads_count' => static function (Builder $q) use ($user): void {
+                    'leads as user_leads_count' => static function (Builder $q) use ($user, $filters): void {
                         $q->accessibleTo($user);
+                        if (! empty($filters['employee'])) {
+                            $q->where(static function (Builder $eq) use ($filters): void {
+                                $eq->whereHas('assignedUser', static fn (Builder $uq) => $uq->where('name', $filters['employee']))
+                                    ->orWhere('assigned_employee', $filters['employee']);
+                            });
+                        } else {
+                            $q->where('leads.assigned_user_id', $user->id);
+                        }
+                        $q->select(DB::raw('count(distinct leads.id)'));
                     },
-                    'leads as converted_leads_count' => static function (Builder $q) use ($user): void {
-                        $q->accessibleTo($user)->whereHas('status', static function (Builder $sq): void {
-                            $sq->where('code', 'contract_closed')
-                                ->orWhereHas('stage', static fn (Builder $stq) => $stq->whereIn('code', ['closing_execution', 'execution', 'donor']));
-                        });
+                    'leads as total_leads_count' => static function (Builder $q) use ($user, $filters): void {
+                        $q->accessibleTo($user);
+                        if (! empty($filters['employee'])) {
+                            $q->where(static function (Builder $eq) use ($filters): void {
+                                $eq->whereHas('assignedUser', static fn (Builder $uq) => $uq->where('name', $filters['employee']))
+                                    ->orWhere('assigned_employee', $filters['employee']);
+                            });
+                        }
+                        $q->select(DB::raw('count(distinct leads.id)'));
                     },
                 ])
                 ->orderByDesc('starts_at')
                 ->orderBy('id')
                 ->get()
                 ->map(static function (Campaign $c): array {
-                    $total = (int) ($c->total_leads_count ?? 0);
-                    $converted = (int) ($c->converted_leads_count ?? 0);
-                    $rate = $total > 0 ? round(($converted / $total) * 100, 1) : 0.0;
+                    $total = (int) ($c->user_leads_count ?? 0);
 
                     return [
                         'id' => $c->id,
                         'name' => $c->name,
                         'cost' => $c->cost ? (float) $c->cost : null,
                         'total_leads' => $total,
-                        'converted_leads' => $converted,
-                        'progress' => $rate,
                         'url' => route('v2.campaigns.show', $c->id),
                     ];
                 })
@@ -604,8 +854,14 @@ class DashboardController extends Controller
                 'distribution' => $distribution,
                 'miniCalendarEvents' => $miniCalendarEvents,
                 'performanceTimeline' => $performanceTimeline,
+                'firstActiveStage' => $firstActiveStage,
+                'finalActiveStage' => $finalActiveStage,
+                'finalStageTitle' => $finalStageTitle,
+                'finalConversionRate' => $finalConversionRate,
+                'finalStageReachedCount' => $finalStageReachedCount,
+                'finalStageColor' => $finalStageColor,
+                'finalStageIcon' => $finalStageIcon,
                 'contractRate' => $contractRate,
-
                 'followupCounts' => $followupCounts,
 
                 'meetingCounts' => $meetingCounts,
@@ -620,6 +876,10 @@ class DashboardController extends Controller
 
                 'voipStatus' => $voipStatus,
                 'activeCampaigns' => $activeCampaigns,
+                'conversionMetrics' => $conversionMetrics,
+                'stageKpi1' => $stageKpi1,
+                'stageKpi2' => $stageKpi2,
+                'stageActivity' => $stageActivity,
             ]
         );
     }
@@ -628,6 +888,7 @@ class DashboardController extends Controller
     {
         $this->assertCrmDatabase();
         $user = $request->user();
+        abort_unless($user && $user->hasPermission(CrmPermission::LEADS_VIEW), 403);
         $canFilterByEmployee = $user->hasPermission(
             CrmPermission::LEADS_SCOPE_ALL,
         );
@@ -669,10 +930,17 @@ class DashboardController extends Controller
             ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
             ->orderBy('position')
             ->get();
-
         $kanbanColumns = [];
         $totalLeads = 0;
-        $INITIAL_CARD_LIMIT = 15;
+        $perPageRaw = $request->query('per_page', self::KANBAN_COLUMN_PAGE_SIZE);
+        $perPage = self::KANBAN_COLUMN_PAGE_SIZE;
+        if (is_numeric($perPageRaw)) {
+            $parsedPerPage = (int) $perPageRaw;
+            if (in_array($parsedPerPage, self::KANBAN_ALLOWED_PAGE_SIZES, true)) {
+                $perPage = $parsedPerPage;
+            }
+        }
+        $INITIAL_CARD_LIMIT = $perPage;
         $leadSelect = [
             'id',
             'name',
@@ -686,6 +954,28 @@ class DashboardController extends Controller
             'updated_at',
         ];
 
+        $statusIds = $statuses->pluck('id')->all();
+
+        $scopeStatsRaw = Lead::query()
+            ->accessibleTo($user)
+            ->whereIn('lead_status_id', $statusIds)
+            ->when(
+                $shouldFilterByEmployee,
+                static fn (Builder $query): Builder => $query
+                    ->where('assigned_user_id', $selectedEmployeeId),
+            )
+            ->selectRaw("
+                lead_status_id,
+                count(*) as total_count,
+                count(case when next_follow_up_at is null then 1 end) as no_date_count,
+                count(case when next_follow_up_at between ? and ? then 1 end) as today_count,
+                count(case when next_follow_up_at < ? then 1 end) as overdue_count,
+                count(case when next_follow_up_at > ? then 1 end) as upcoming_count
+            ", [$todayStart, $todayEnd, $todayStart, $todayEnd])
+            ->groupBy('lead_status_id')
+            ->get()
+            ->keyBy('lead_status_id');
+
         foreach ($statuses as $status) {
             $ui = self::STATUS_UI[
                 $status->code
@@ -694,6 +984,20 @@ class DashboardController extends Controller
                 'icon' => '•',
                 'class' => '',
                 'kanban_class' => '',
+            ];
+
+            $stats = $scopeStatsRaw->get($status->id);
+            $totalCount = (int) ($stats->total_count ?? 0);
+            $totalLeads += $totalCount;
+            $noDateCount = (int) ($stats->no_date_count ?? 0);
+            $todayCount = (int) ($stats->today_count ?? 0);
+            $overdueCount = (int) ($stats->overdue_count ?? 0);
+            $upcomingCount = (int) ($stats->upcoming_count ?? 0);
+
+            $scopeCounts = [
+                'today' => $todayCount,
+                'overdue' => $overdueCount,
+                'upcoming' => $upcomingCount,
             ];
 
             $baseQuery = Lead::query()
@@ -705,68 +1009,51 @@ class DashboardController extends Controller
                         ->where('assigned_user_id', $selectedEmployeeId),
                 );
 
-            $totalCount = (clone $baseQuery)->count();
-            $totalLeads += $totalCount;
-
             $datedBase = (clone $baseQuery)->whereNotNull('next_follow_up_at');
 
-            $todayCount = (clone $datedBase)
-                ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
-                ->count();
+            $todayLeads = $todayCount > 0
+                ? (clone $datedBase)
+                    ->select($leadSelect)
+                    ->with('assignedUser:id,name')
+                    ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
+                    ->orderBy('next_follow_up_at')
+                    ->orderByDesc('updated_at')
+                    ->take($INITIAL_CARD_LIMIT)
+                    ->get()
+                : collect();
 
-            $overdueCount = (clone $datedBase)
-                ->where('next_follow_up_at', '<', $todayStart)
-                ->count();
+            $overdueLeads = $overdueCount > 0
+                ? (clone $datedBase)
+                    ->select($leadSelect)
+                    ->with('assignedUser:id,name')
+                    ->where('next_follow_up_at', '<', $todayStart)
+                    ->orderByDesc('next_follow_up_at')
+                    ->orderByDesc('updated_at')
+                    ->take($INITIAL_CARD_LIMIT)
+                    ->get()
+                : collect();
 
-            $upcomingCount = (clone $datedBase)
-                ->where('next_follow_up_at', '>', $todayEnd)
-                ->count();
+            $upcomingLeads = $upcomingCount > 0
+                ? (clone $datedBase)
+                    ->select($leadSelect)
+                    ->with('assignedUser:id,name')
+                    ->where('next_follow_up_at', '>', $todayEnd)
+                    ->orderBy('next_follow_up_at')
+                    ->orderByDesc('updated_at')
+                    ->take($INITIAL_CARD_LIMIT)
+                    ->get()
+                : collect();
 
-            $noDateCount = (clone $baseQuery)
-                ->whereNull('next_follow_up_at')
-                ->count();
-
-            $scopeCounts = [
-                'today' => $todayCount,
-                'overdue' => $overdueCount,
-                'upcoming' => $upcomingCount,
-            ];
-
-            $todayLeads = (clone $datedBase)
-                ->select($leadSelect)
-                ->with('assignedUser:id,name')
-                ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
-                ->orderBy('next_follow_up_at')
-                ->orderByDesc('updated_at')
-                ->take($INITIAL_CARD_LIMIT)
-                ->get();
-
-            $overdueLeads = (clone $datedBase)
-                ->select($leadSelect)
-                ->with('assignedUser:id,name')
-                ->where('next_follow_up_at', '<', $todayStart)
-                ->orderByDesc('next_follow_up_at')
-                ->orderByDesc('updated_at')
-                ->take($INITIAL_CARD_LIMIT)
-                ->get();
-
-            $upcomingLeads = (clone $datedBase)
-                ->select($leadSelect)
-                ->with('assignedUser:id,name')
-                ->where('next_follow_up_at', '>', $todayEnd)
-                ->orderBy('next_follow_up_at')
-                ->orderByDesc('updated_at')
-                ->take($INITIAL_CARD_LIMIT)
-                ->get();
-
-            $allLeads = (clone $baseQuery)
-                ->select($leadSelect)
-                ->with('assignedUser:id,name')
-                ->orderByRaw('next_follow_up_at IS NULL')
-                ->orderBy('next_follow_up_at')
-                ->orderByDesc('updated_at')
-                ->take($INITIAL_CARD_LIMIT)
-                ->get();
+            $allLeads = $totalCount > 0
+                ? (clone $baseQuery)
+                    ->select($leadSelect)
+                    ->with('assignedUser:id,name')
+                    ->orderByRaw('next_follow_up_at IS NULL')
+                    ->orderBy('next_follow_up_at')
+                    ->orderByDesc('updated_at')
+                    ->take($INITIAL_CARD_LIMIT)
+                    ->get()
+                : collect();
 
             $scopeLeads = [
                 'today' => $todayLeads,
@@ -807,8 +1094,180 @@ class DashboardController extends Controller
                 'canFilterByEmployee' => $canFilterByEmployee,
                 'employees' => $employees,
                 'selectedEmployeeId' => $selectedEmployeeId,
+                'perPage' => $perPage,
+                'allowedPageSizes' => self::KANBAN_ALLOWED_PAGE_SIZES,
             ]
         );
+    }
+
+    public function kanbanColumn(Request $request)
+    {
+        $this->assertCrmDatabase();
+        $user = $request->user();
+        abort_unless($user && $user->hasPermission(CrmPermission::LEADS_VIEW), 403);
+
+        $statusId = $request->query('status_id') ?? $request->query('status');
+        abort_unless(
+            $statusId !== null && (is_int($statusId) || ctype_digit((string) $statusId)),
+            404,
+        );
+
+        $status = LeadStatus::query()
+            ->with('stage')
+            ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
+            ->find((int) $statusId);
+
+        abort_unless($status !== null, 404);
+
+        $scope = (string) ($request->query('scope') ?: 'all');
+        abort_unless(
+            in_array($scope, ['today', 'overdue', 'upcoming', 'all'], true),
+            400,
+        );
+
+        $pageRaw = $request->query('page', 1);
+        abort_unless(
+            is_int($pageRaw) || (is_string($pageRaw) && ctype_digit($pageRaw)),
+            400,
+        );
+        $page = max(1, (int) $pageRaw);
+
+        $canFilterByEmployee = $user->hasPermission(
+            CrmPermission::LEADS_SCOPE_ALL,
+        );
+        $selectedEmployeeId = null;
+
+        if ($canFilterByEmployee) {
+            $requestedEmployeeId = $request->query('employee_id');
+            if ($requestedEmployeeId !== null && $requestedEmployeeId !== '') {
+                abort_unless(
+                    ctype_digit((string) $requestedEmployeeId),
+                    404,
+                );
+                $selectedEmployeeId = (int) $requestedEmployeeId;
+                $employeeExists = User::query()
+                    ->where('is_active', true)
+                    ->whereKey($selectedEmployeeId)
+                    ->exists();
+                abort_unless($employeeExists, 404);
+            }
+        }
+
+        $shouldFilterByEmployee = $selectedEmployeeId !== null;
+        $todayStart = now()->startOfDay();
+        $todayEnd = now()->endOfDay();
+
+        $baseQuery = Lead::query()
+            ->accessibleTo($user)
+            ->where('lead_status_id', $status->id)
+            ->when(
+                $shouldFilterByEmployee,
+                static fn (Builder $query): Builder => $query
+                    ->where('assigned_user_id', $selectedEmployeeId),
+            );
+
+        $datedBase = (clone $baseQuery)->whereNotNull('next_follow_up_at');
+
+        $query = match ($scope) {
+            'today' => (clone $datedBase)
+                ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
+                ->orderBy('next_follow_up_at')
+                ->orderByDesc('updated_at'),
+            'overdue' => (clone $datedBase)
+                ->where('next_follow_up_at', '<', $todayStart)
+                ->orderByDesc('next_follow_up_at')
+                ->orderByDesc('updated_at'),
+            'upcoming' => (clone $datedBase)
+                ->where('next_follow_up_at', '>', $todayEnd)
+                ->orderBy('next_follow_up_at')
+                ->orderByDesc('updated_at'),
+            default => (clone $baseQuery)
+                ->orderByRaw('next_follow_up_at IS NULL')
+                ->orderBy('next_follow_up_at')
+                ->orderByDesc('updated_at'),
+        };
+
+        $total = (clone $query)->count();
+        $pageSizeRaw = $request->query('per_page') ?? $request->query('pageSize') ?? self::KANBAN_COLUMN_PAGE_SIZE;
+        $pageSize = self::KANBAN_COLUMN_PAGE_SIZE;
+        if (is_numeric($pageSizeRaw)) {
+            $parsedPageSize = (int) $pageSizeRaw;
+            if (in_array($parsedPageSize, self::KANBAN_ALLOWED_PAGE_SIZES, true)) {
+                $pageSize = $parsedPageSize;
+            }
+        }
+
+        $leadSelect = [
+            'id',
+            'name',
+            'phone',
+            'company_name',
+            'source',
+            'assigned_user_id',
+            'assigned_employee',
+            'next_follow_up_at',
+            'lead_status_id',
+            'updated_at',
+        ];
+
+        $leads = $query
+            ->select($leadSelect)
+            ->with('assignedUser:id,name')
+            ->forPage($page, $pageSize)
+            ->get();
+
+        $ui = self::STATUS_UI[
+            $status->code
+        ] ?? [
+            'slug' => $status->code,
+            'icon' => '•',
+            'class' => '',
+            'kanban_class' => '',
+        ];
+
+        $column = [
+            'id' => $status->id,
+            'stage_id' => $status->pipeline_stage_id,
+            'status_id' => $status->id,
+            'destination_status_id' => $status->id,
+            'code' => $status->code,
+            'name' => $status->name_ar,
+            'status_name' => $status->name_ar,
+            'stage_name' => $status->stage?->localizedName() ?? ($status->stage?->name_ar ?? $status->name_ar),
+            'slug' => $ui['slug'],
+            'icon' => $ui['icon'],
+            'class' => $ui['kanban_class'] ?: str_replace(['_', ' '], '-', (string) $status->code),
+            'status_color' => $status->color ?: ($status->stage?->color ?: '#3478f6'),
+            'stage_color' => $status->stage?->color ?: ($status->color ?: '#3478f6'),
+            'total_count' => $total,
+        ];
+
+        $html = view('leads.partials.kanban-column-cards', [
+            'leads' => $leads,
+            'column' => $column,
+            'scope' => $scope,
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'total' => $total,
+        ])->render();
+
+        $from = $total === 0 ? 0 : (($page - 1) * $pageSize + 1);
+        $to = min($total, $page * $pageSize);
+        $hasMore = ($page * $pageSize) < $total;
+        $hasPrevious = $page > 1;
+
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'total' => $total,
+            'from' => $from,
+            'to' => $to,
+            'hasMore' => $hasMore,
+            'hasPrevious' => $hasPrevious,
+            'count' => $leads->count(),
+        ]);
     }
 
     private function assertCrmDatabase(): void
@@ -1011,5 +1470,427 @@ class DashboardController extends Controller
                 $filters['to_date']
             );
         }
+    }
+
+    private function calculateStageConversion(?PipelineStage $fromStage, ?PipelineStage $toStage, Builder $leadBase, ?iterable $allStages = null): array
+    {
+        if ($fromStage === null || $toStage === null) {
+            $targetStage = $toStage ?? $fromStage;
+            return [
+                'from_stage_id' => $fromStage?->id,
+                'from_stage_name' => $fromStage?->localizedName() ?? '—',
+                'to_stage_id' => $toStage?->id,
+                'to_stage_name' => $toStage?->localizedName() ?? '—',
+                'stage_id' => $targetStage?->id,
+                'stage_name' => $targetStage?->localizedName() ?? '—',
+                'color' => $targetStage?->color ?: '#8b5cf6',
+                'icon' => $this->formatStageIcon($targetStage?->icon ?: 'bi-funnel'),
+                'has_previous_stage' => false,
+                'previous_stage_name' => null,
+                'rate' => null,
+                'display_value' => __('crm.not_available'),
+                'subtitle' => __('crm.first_stage_no_previous'),
+                'numerator' => 0,
+                'denominator' => 0,
+                'is_valid_direction' => false,
+            ];
+        }
+
+        $color = $toStage->color ?: '#8b5cf6';
+        $icon = $this->formatStageIcon($toStage->icon ?: 'bi-funnel');
+
+        $fromIndex = null;
+        $toIndex = null;
+        if ($allStages !== null) {
+            $allStagesCollection = $allStages instanceof \Illuminate\Support\Collection ? $allStages : collect($allStages);
+            $fromIndex = $allStagesCollection->search(static fn (PipelineStage $s) => $s->id === $fromStage->id);
+            $toIndex = $allStagesCollection->search(static fn (PipelineStage $s) => $s->id === $toStage->id);
+        }
+
+        $isReverse = ($fromIndex !== false && $toIndex !== false && $fromIndex !== null && $toIndex !== null)
+            ? ($toIndex < $fromIndex)
+            : ($toStage->position < $fromStage->position);
+
+        $isSame = ($fromStage->id === $toStage->id);
+
+        if ($isReverse) {
+            return [
+                'from_stage_id' => $fromStage->id,
+                'from_stage_name' => $fromStage->localizedName(),
+                'to_stage_id' => $toStage->id,
+                'to_stage_name' => $toStage->localizedName(),
+                'stage_id' => $toStage->id,
+                'stage_name' => $toStage->localizedName(),
+                'color' => $color,
+                'icon' => $icon,
+                'has_previous_stage' => true,
+                'previous_stage_name' => $fromStage->localizedName(),
+                'rate' => null,
+                'display_value' => '—',
+                'subtitle' => __('crm.invalid_stage_direction'),
+                'numerator' => 0,
+                'denominator' => 0,
+                'is_valid_direction' => false,
+            ];
+        }
+
+        $fromStatusIds = $fromStage->statuses->pluck('id')->all();
+        $toStatusIds = $toStage->statuses->pluck('id')->all();
+
+        if ($isSame) {
+            $denominator = (clone $leadBase)
+                ->where(static function (Builder $q) use ($fromStatusIds): void {
+                    $q->whereIn('leads.lead_status_id', $fromStatusIds);
+                    if (! empty($fromStatusIds)) {
+                        $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds): void {
+                            $hq->whereIn('to_status_id', $fromStatusIds)
+                                ->orWhereIn('from_status_id', $fromStatusIds);
+                        });
+                    }
+                })
+                ->distinct()
+                ->count('leads.id');
+
+            return [
+                'from_stage_id' => $fromStage->id,
+                'from_stage_name' => $fromStage->localizedName(),
+                'to_stage_id' => $toStage->id,
+                'to_stage_name' => $toStage->localizedName(),
+                'stage_id' => $toStage->id,
+                'stage_name' => $toStage->localizedName(),
+                'color' => $color,
+                'icon' => $icon,
+                'has_previous_stage' => true,
+                'previous_stage_name' => $fromStage->localizedName(),
+                'rate' => 100.0,
+                'display_value' => '100%',
+                'subtitle' => __('crm.same_stage_selected'),
+                'numerator' => $denominator,
+                'denominator' => $denominator,
+                'is_valid_direction' => true,
+            ];
+        }
+
+        // Forward Progression
+        $denominator = (clone $leadBase)
+            ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
+                $q->whereIn('leads.lead_status_id', $fromStatusIds);
+                if (! empty($toStatusIds)) {
+                    $q->orWhereIn('leads.lead_status_id', $toStatusIds);
+                }
+                if (! empty($fromStatusIds)) {
+                    $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
+                        $hq->whereIn('to_status_id', $fromStatusIds)
+                            ->orWhereIn('from_status_id', $fromStatusIds);
+                        if (! empty($toStatusIds)) {
+                            $hq->orWhereIn('to_status_id', $toStatusIds);
+                        }
+                    });
+                }
+            })
+            ->distinct()
+            ->count('leads.id');
+
+        $numerator = (clone $leadBase)
+            ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
+                $q->where(static function (Builder $sub) use ($fromStatusIds, $toStatusIds): void {
+                    $sub->whereIn('leads.lead_status_id', $fromStatusIds);
+                    if (! empty($toStatusIds)) {
+                        $sub->orWhereIn('leads.lead_status_id', $toStatusIds);
+                    }
+                    if (! empty($fromStatusIds)) {
+                        $sub->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
+                            $hq->whereIn('to_status_id', $fromStatusIds)
+                                ->orWhereIn('from_status_id', $fromStatusIds);
+                            if (! empty($toStatusIds)) {
+                                $hq->orWhereIn('to_status_id', $toStatusIds);
+                            }
+                        });
+                    }
+                });
+            })
+            ->where(static function (Builder $q) use ($toStatusIds): void {
+                $q->whereIn('leads.lead_status_id', $toStatusIds);
+                if (! empty($toStatusIds)) {
+                    $q->orWhereHas('statusHistory', static function (Builder $hq) use ($toStatusIds): void {
+                        $hq->whereIn('to_status_id', $toStatusIds);
+                    });
+                }
+            })
+            ->distinct()
+            ->count('leads.id');
+
+        $rate = $denominator > 0 ? round(($numerator / $denominator) * 100, 1) : 0.0;
+        $subtitle = __('crm.from_stage_prefix') . ' ' . $fromStage->localizedName() . ' ' . __('crm.to_stage_prefix') . ' ' . $toStage->localizedName();
+
+        return [
+            'from_stage_id' => $fromStage->id,
+            'from_stage_name' => $fromStage->localizedName(),
+            'to_stage_id' => $toStage->id,
+            'to_stage_name' => $toStage->localizedName(),
+            'stage_id' => $toStage->id,
+            'stage_name' => $toStage->localizedName(),
+            'color' => $color,
+            'icon' => $icon,
+            'has_previous_stage' => true,
+            'previous_stage_name' => $fromStage->localizedName(),
+            'rate' => $rate,
+            'display_value' => $rate . '%',
+            'subtitle' => $subtitle,
+            'numerator' => $numerator,
+            'denominator' => $denominator,
+            'is_valid_direction' => true,
+        ];
+    }
+
+    private function calculateStageKpi(?PipelineStage $stage, Builder $leadBase, int $totalLeads, array $filters): array
+    {
+        if ($stage === null) {
+            return [
+                'stage_id' => null,
+                'stage_name' => '—',
+                'count' => 0,
+                'color' => '#3b82f6',
+                'icon' => 'bi bi-diagram-3',
+                'percentage' => 0.0,
+                'subtitle' => '0% ' . __('crm.of_total_customers'),
+                'filter_url' => route('v2.leads'),
+            ];
+        }
+
+        $statusIds = $stage->statuses->pluck('id')->all();
+        $count = ! empty($statusIds)
+            ? (clone $leadBase)->whereIn('lead_status_id', $statusIds)->count()
+            : 0;
+
+        $percentage = $totalLeads > 0 ? round(($count / $totalLeads) * 100, 1) : 0.0;
+        $color = $stage->color ?: '#3b82f6';
+        $icon = $this->formatStageIcon($stage->icon ?: 'bi-diagram-3');
+
+        return [
+            'stage_id' => $stage->id,
+            'stage_name' => $stage->localizedName(),
+            'count' => $count,
+            'color' => $color,
+            'icon' => $icon,
+            'percentage' => $percentage,
+            'subtitle' => $percentage . '% ' . __('crm.of_total_customers'),
+            'filter_url' => route('v2.leads', array_filter(['stage' => $stage->id, 'employee' => $filters['employee'] ?? null])),
+        ];
+    }
+
+    private function calculateStageActivity(?PipelineStage $stage, Builder $leadBase, Carbon $todayStart, Carbon $todayEnd): array
+    {
+        if ($stage === null) {
+            return [
+                'stage_id' => null,
+                'stage_name' => '—',
+                'today_count' => 0,
+                'overdue_count' => 0,
+                'upcoming_count' => 0,
+                'total_count' => 0,
+                'leads' => [],
+            ];
+        }
+
+        $statusIds = $stage->statuses->pluck('id')->all();
+        $stageLeadBase = clone $leadBase;
+
+        if (! empty($statusIds)) {
+            $stageLeadBase->whereIn('lead_status_id', $statusIds);
+        } else {
+            $stageLeadBase->whereRaw('1 = 0');
+        }
+
+        $todayCount = (clone $stageLeadBase)
+            ->whereNotNull('next_follow_up_at')
+            ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
+            ->count();
+
+        $overdueCount = (clone $stageLeadBase)
+            ->whereNotNull('next_follow_up_at')
+            ->where('next_follow_up_at', '<', $todayStart)
+            ->count();
+
+        $upcomingCount = (clone $stageLeadBase)
+            ->whereNotNull('next_follow_up_at')
+            ->where('next_follow_up_at', '>', $todayEnd)
+            ->count();
+
+        $detailLeads = (clone $stageLeadBase)
+            ->whereNotNull('next_follow_up_at')
+            ->with(['status', 'assignedUser:id,name'])
+            ->orderBy('next_follow_up_at', 'asc')
+            ->limit(5)
+            ->get()
+            ->map(static function (Lead $lead) use ($todayStart, $todayEnd): array {
+                $next = $lead->next_follow_up_at;
+                $timing = 'upcoming';
+                $timingLabel = __('crm.upcoming_short');
+                $timingClass = 'badge-upcoming';
+                if ($next < $todayStart) {
+                    $timing = 'overdue';
+                    $timingLabel = __('crm.overdue_short');
+                    $timingClass = 'badge-overdue';
+                } elseif ($next <= $todayEnd) {
+                    $timing = 'today';
+                    $timingLabel = __('crm.today');
+                    $timingClass = 'badge-today';
+                }
+
+                return [
+                    'id' => $lead->id,
+                    'name' => $lead->name,
+                    'url' => route('v2.leads.show', $lead->id),
+                    'scheduled_at' => $next ? $next->format('Y-m-d H:i') : '—',
+                    'scheduled_date' => $next ? $next->format('d/m/Y') : '—',
+                    'scheduled_time' => $next ? $next->format('h:i A') : '—',
+                    'timing' => $timing,
+                    'timing_label' => $timingLabel,
+                    'timing_class' => $timingClass,
+                    'employee_name' => $lead->assignedUser?->name ?: ($lead->assigned_employee ?: '—'),
+                    'status_name' => $lead->status?->localizedName() ?? ($lead->status?->name_ar ?: '—'),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'stage_id' => $stage->id,
+            'stage_name' => $stage->localizedName(),
+            'today_count' => $todayCount,
+            'overdue_count' => $overdueCount,
+            'upcoming_count' => $upcomingCount,
+            'total_count' => $todayCount + $overdueCount + $upcomingCount,
+            'leads' => $detailLeads,
+        ];
+    }
+
+    private function calculateStageActivityLeads(
+        ?PipelineStage $stage,
+        Builder $leadBase,
+        Carbon $todayStart,
+        Carbon $todayEnd,
+        string $bucket = 'all',
+        int $page = 1,
+        int $perPage = 10
+    ): array {
+        if ($stage === null) {
+            return [
+                'stage_id' => null,
+                'stage_name' => '—',
+                'bucket' => $bucket,
+                'bucket_label' => '—',
+                'total' => 0,
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => $perPage,
+                'from' => 0,
+                'to' => 0,
+                'leads' => [],
+                'empty' => true,
+            ];
+        }
+
+        $statusIds = $stage->statuses->pluck('id')->all();
+        $stageLeadBase = clone $leadBase;
+
+        if (! empty($statusIds)) {
+            $stageLeadBase->whereIn('lead_status_id', $statusIds);
+        } else {
+            $stageLeadBase->whereRaw('1 = 0');
+        }
+
+        $query = (clone $stageLeadBase)->whereNotNull('next_follow_up_at');
+
+        if ($bucket === 'today') {
+            $query->whereBetween('next_follow_up_at', [$todayStart, $todayEnd]);
+        } elseif ($bucket === 'overdue') {
+            $query->where('next_follow_up_at', '<', $todayStart);
+        } elseif ($bucket === 'upcoming') {
+            $query->where('next_follow_up_at', '>', $todayEnd);
+        }
+
+        $paginator = $query
+            ->with(['status:id,name_ar,code,color', 'assignedUser:id,name'])
+            ->orderBy('next_follow_up_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $items = collect($paginator->items())->map(static function (Lead $lead) use ($todayStart, $todayEnd, $stage): array {
+            $next = $lead->next_follow_up_at;
+            $timing = 'upcoming';
+            $timingLabel = __('crm.upcoming_short');
+            $timingClass = 'badge-upcoming';
+            if ($next < $todayStart) {
+                $timing = 'overdue';
+                $timingLabel = __('crm.overdue_short');
+                $timingClass = 'badge-overdue';
+            } elseif ($next <= $todayEnd) {
+                $timing = 'today';
+                $timingLabel = __('crm.today');
+                $timingClass = 'badge-today';
+            }
+
+            return [
+                'id' => $lead->id,
+                'name' => $lead->name,
+                'url' => route('v2.leads.show', $lead->id),
+                'phone' => $lead->phone,
+                'company_name' => $lead->company_name,
+                'stage_name' => $stage->localizedName(),
+                'scheduled_at' => $next ? $next->format('Y-m-d H:i') : '—',
+                'scheduled_date' => $next ? $next->format('d/m/Y') : '—',
+                'scheduled_time' => $next ? $next->format('h:i A') : '—',
+                'timing' => $timing,
+                'timing_label' => $timingLabel,
+                'timing_class' => $timingClass,
+                'employee_name' => $lead->assignedUser?->name ?: ($lead->assigned_employee ?: '—'),
+                'status_name' => $lead->status?->localizedName() ?? ($lead->status?->name_ar ?: '—'),
+                'status_color' => $lead->status?->color ?: '#64748b',
+            ];
+        })->values()->all();
+
+        $bucketLabels = [
+            'all' => app()->getLocale() === 'ar' ? 'جميع المتابعات' : 'All Activity',
+            'today' => app()->getLocale() === 'ar' ? 'متابعات اليوم' : 'Today\'s Activity',
+            'overdue' => app()->getLocale() === 'ar' ? 'المتابعات المتأخرة' : 'Overdue Activity',
+            'upcoming' => app()->getLocale() === 'ar' ? 'المتابعات القادمة' : 'Upcoming Activity',
+        ];
+
+        return [
+            'stage_id' => $stage->id,
+            'stage_name' => $stage->localizedName(),
+            'bucket' => $bucket,
+            'bucket_label' => $bucketLabels[$bucket] ?? $bucketLabels['all'],
+            'total' => $paginator->total(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'from' => $paginator->firstItem() ?? 0,
+            'to' => $paginator->lastItem() ?? 0,
+            'leads' => $items,
+            'empty' => empty($items),
+        ];
+    }
+
+    private function formatStageIcon(?string $icon): string
+    {
+        if (empty($icon)) {
+            return 'bi bi-diagram-3';
+        }
+
+        $icon = trim($icon);
+        if (str_starts_with($icon, 'bi bi-')) {
+            return $icon;
+        }
+        if (str_starts_with($icon, 'bi-')) {
+            return 'bi ' . $icon;
+        }
+        if (str_starts_with($icon, 'bi ')) {
+            return $icon;
+        }
+
+        return 'bi bi-' . $icon;
     }
 }

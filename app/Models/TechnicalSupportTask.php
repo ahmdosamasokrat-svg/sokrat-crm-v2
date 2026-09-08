@@ -27,6 +27,7 @@ class TechnicalSupportTask extends Model
         'description',
         'status',
         'priority',
+        'color',
         'due_date',
         'assigned_to_user_id',
         'created_by_user_id',
@@ -44,15 +45,12 @@ class TechnicalSupportTask extends Model
 
     public function scopeAccessibleTo(Builder $query, User $user): Builder
     {
-        if ($user->isSuperAdmin()) {
+        if ($user->isSuperAdmin()
+            || $user->hasPermission('technical_support.tasks.manage')) {
             return $query;
         }
 
-        return $query->where(static function (Builder $accessQuery) use ($user): void {
-            $accessQuery
-                ->where('assigned_to_user_id', $user->getKey())
-                ->orWhere('created_by_user_id', $user->getKey());
-        });
+        return $query->where('assigned_to_user_id', $user->getKey());
     }
 
     public function assignee(): BelongsTo
@@ -72,13 +70,14 @@ class TechnicalSupportTask extends Model
 
     public function isEditableBy(User $user): bool
     {
-        return $user->isSuperAdmin() || $this->created_by_user_id === $user->getKey();
+        return $user->isSuperAdmin()
+            || $user->hasPermission('technical_support.tasks.manage');
     }
 
     public function isStatusEditableBy(User $user): bool
     {
         return $user->isSuperAdmin()
-            || $this->created_by_user_id === $user->getKey()
+            || $user->hasPermission('technical_support.tasks.manage')
             || $this->assigned_to_user_id === $user->getKey();
     }
 }

@@ -26,6 +26,13 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# Diagnostic / Temporary / Backup archives
+*.orig
+*.bak
+*.sql
+*.sql.gz
+*.tar.gz
+
 # ==================================================
 # SOKRAT CRM GITHUB SECURITY V3
 # ==================================================

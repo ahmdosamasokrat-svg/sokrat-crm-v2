@@ -12,6 +12,7 @@ use App\Security\CrmPermission;
 use App\Security\LeadAssignment;
 use App\Support\CrmDatabaseGuard;
 use App\Support\FollowupCustomerFieldSchema;
+use App\Support\StageFieldSchema;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -201,6 +202,7 @@ class LeadFollowupController extends Controller
             'leads.followups.index',
             [
                 'lead' => $leadRecord,
+                'statuses' => $statuses,
                 'statusGroups' => $statusGroups,
                 'communicationTypes' => $communicationTypes,
                 'defaultCommunicationType' => $defaultCommunicationType,
@@ -240,10 +242,12 @@ class LeadFollowupController extends Controller
         $campaign = null;
         $targetUser = null;
 
-        if ($request->filled('campaign_id') || $request->filled('assigned_user_id')) {
-            $campaign = Campaign::query()->findOrFail(
-                $request->integer('campaign_id'),
-            );
+        $currentLeadCampaignId = (int) ($leadRecord->campaigns()->value('campaigns.id') ?? 0);
+        $submittedCampaignId = $request->integer('campaign_id');
+        $isChangingCampaign = $request->filled('campaign_id') && $submittedCampaignId > 0 && $submittedCampaignId !== $currentLeadCampaignId;
+
+        if ($isChangingCampaign) {
+            $campaign = Campaign::query()->findOrFail($submittedCampaignId);
             $actor = $request->user();
 
             abort_unless(
@@ -255,15 +259,32 @@ class LeadFollowupController extends Controller
                 403,
             );
 
-            $targetUser = User::query()->findOrFail(
+            if ($request->filled('assigned_user_id')) {
+                $targetUser = User::query()->find(
+                    $request->integer('assigned_user_id'),
+                );
+
+                if ($targetUser === null || ! $campaign->users()->whereKey($targetUser->id)->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'assigned_user_id' => 'الموظف المختار غير مسجل في هذه الحملة.',
+                    ]);
+                }
+
+                if (! LeadAssignment::canAssignTo($actor, $targetUser)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'assigned_user_id' => 'ليس لديك صلاحية إسناد العميل إلى هذا الموظف.',
+                    ]);
+                }
+            }
+        } elseif ($request->filled('assigned_user_id') && $request->integer('assigned_user_id') > 0 && (int) $leadRecord->assigned_user_id !== $request->integer('assigned_user_id')) {
+            $targetUser = User::query()->find(
                 $request->integer('assigned_user_id'),
             );
-
-            abort_unless(
-                $campaign->users()->whereKey($targetUser->id)->exists()
-                && LeadAssignment::canAssignTo($actor, $targetUser),
-                403,
-            );
+            if ($targetUser && ! LeadAssignment::canAssignTo($request->user(), $targetUser)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'assigned_user_id' => 'ليس لديك صلاحية إسناد العميل إلى هذا الموظف.',
+                ]);
+            }
         }
 
         $statusInput = $request->validate(
@@ -291,18 +312,15 @@ class LeadFollowupController extends Controller
                     ]
             );
 
-        $quotationStageCodes = [
-            'quotation',
-            'discussion',
-            'contract_closed',
-            'execution',
-        ];
+        $stageFields = $status->stage ? StageFieldSchema::getFieldsForStage($status->stage, true) : collect();
+        $stageFieldKeys = $stageFields->pluck('key')->all();
 
-        $isQuotationStage = in_array(
-            $status->code,
-            $quotationStageCodes,
-            true
-        );
+        $hasSolutionTypeField = $stageFields->contains(static fn ($f) => $f->key === 'solution_type' || $f->binding_target === 'solution_type');
+        $hasQuotationFileField = $stageFields->contains(static fn ($f) => $f->key === 'quotation_file_path' || $f->binding_target === 'quotation_file_path');
+        $hasReasonField = $stageFields->contains(static fn ($f) => $f->key === 'reason' || $f->binding_target === 'disinterest_reason');
+
+        // A transition only requires quotation fields if the target stage explicitly defines them!
+        $isQuotationStage = $hasSolutionTypeField || $hasQuotationFileField;
 
         $currentQuotationPath = trim(
             (string)
@@ -315,15 +333,51 @@ class LeadFollowupController extends Controller
                 $currentQuotationPath
             )
         );
-
-        $solutionTypeInput = trim(
-            (string)
-                $request->input(
-                    'solution_type',
-                    ''
-                )
+        $rawStageInputs = array_replace_recursive(
+            (array) $request->input('stage_fields', []),
+            (array) $request->file('stage_fields', [])
         );
 
+        // Normalize solution_type from stage_fields if present
+        if (! $request->filled('solution_type') && ! empty($rawStageInputs['solution_type'])) {
+            $request->merge(['solution_type' => $rawStageInputs['solution_type']]);
+        }
+
+        $uploadedQuotationFile = $request->file('quotation_file')
+            ?? $request->file('stage_fields.quotation_file_path')
+            ?? $request->file('stage_fields.quotation_file');
+
+        $hasQuotationUpload = $uploadedQuotationFile !== null && $uploadedQuotationFile->isValid();
+
+        // Normalize lines_count from stage_fields (including q_cdljek or lines_count)
+        if (! $request->filled('lines_count')) {
+            $linesVal = $rawStageInputs['lines_count'] ?? ($rawStageInputs['q_cdljek'] ?? null);
+            if ($linesVal !== null && $linesVal !== '') {
+                $request->merge(['lines_count' => $linesVal]);
+            }
+        }
+
+        // Normalize extensions and departments from stage_fields
+        if (! $request->filled('extensions') && ! empty($rawStageInputs['extensions'])) {
+            $request->merge(['extensions' => $rawStageInputs['extensions']]);
+        }
+        if (! $request->filled('departments') && ! empty($rawStageInputs['departments'])) {
+            $request->merge(['departments' => $rawStageInputs['departments']]);
+        }
+
+        // Normalize disinterest_reason from stage_fields (including reason or disinterest_reason)
+        if (! $request->filled('disinterest_reason')) {
+            $reasonVal = $rawStageInputs['reason'] ?? ($rawStageInputs['disinterest_reason'] ?? null);
+            if ($reasonVal !== null && $reasonVal !== '') {
+                $request->merge(['disinterest_reason' => $reasonVal]);
+            }
+        }
+
+        $solutionTypeInput = trim((string) $request->input('solution_type', ''));
+
+        $hasLinesCountQuestion = in_array('lines_count', $stageFieldKeys, true) || in_array('q_cdljek', $stageFieldKeys, true);
+        $hasExtensionsQuestion = in_array('extensions', $stageFieldKeys, true);
+        $hasDepartmentsQuestion = in_array('departments', $stageFieldKeys, true);
         /*
          * CRM FOLLOWUP CONDITIONAL DATE V2 START
          *
@@ -351,8 +405,13 @@ class LeadFollowupController extends Controller
          * destination status is:
          * new, not_interested or execution.
          */
+
+        $hasStageScheduling = ! empty($rawStageInputs['callback_at'])
+            || ($status->stage && StageFieldSchema::getFieldsForStage($status->stage, true)->contains(static fn ($f) => $f->key === 'callback_at' || $f->binding_target === 'next_follow_up_at'));
+
         $requiresNextFollowUp =
-            ! in_array(
+            ! $hasStageScheduling
+            && ! in_array(
                 $followupStatusCode,
                 [
                     'new',
@@ -400,8 +459,7 @@ class LeadFollowupController extends Controller
 
                 'disinterest_reason' => [
                     Rule::requiredIf(
-                        $status->code ===
-                            'not_interested'
+                        $status->code === 'not_interested' && ! $hasReasonField
                     ),
                     'nullable',
                     'string',
@@ -410,7 +468,7 @@ class LeadFollowupController extends Controller
 
                 'solution_type' => [
                     Rule::requiredIf(
-                        $isQuotationStage
+                        $hasSolutionTypeField
                     ),
                     'nullable',
                     Rule::in([
@@ -421,9 +479,9 @@ class LeadFollowupController extends Controller
 
                 'lines_count' => [
                     Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
+                        $hasSolutionTypeField
+                        && $hasLinesCountQuestion
+                        && $solutionTypeInput === 'call_center'
                     ),
                     'nullable',
                     'integer',
@@ -433,9 +491,9 @@ class LeadFollowupController extends Controller
 
                 'extensions' => [
                     Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
+                        $hasSolutionTypeField
+                        && $hasExtensionsQuestion
+                        && $solutionTypeInput === 'call_center'
                     ),
                     'nullable',
                     'string',
@@ -444,24 +502,24 @@ class LeadFollowupController extends Controller
 
                 'departments' => [
                     Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'erp'
+                        $hasSolutionTypeField
+                        && $hasDepartmentsQuestion
+                        && $solutionTypeInput === 'erp'
                     ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
-
                 'quotation_file' => [
                     Rule::requiredIf(
-                        $isQuotationStage
+                        $hasQuotationFileField
                         && ! $hasCurrentQuotationFile
+                        && ! $hasQuotationUpload
                     ),
                     'nullable',
                     'file',
                     'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
-                    'max:2048',
+                    'max:10240',
                 ],
                 'campaign_id' => [
                     'nullable',
@@ -509,9 +567,33 @@ class LeadFollowupController extends Controller
             ]
         );
         $targetStage = $status->stage;
+        if ($uploadedQuotationFile !== null) {
+            $fileValidator = \Illuminate\Support\Facades\Validator::make(
+                ['quotation_file' => $uploadedQuotationFile],
+                ['quotation_file' => ['file', 'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg', 'max:10240']],
+                [
+                    'quotation_file.mimes' => 'صيغة ملف عرض السعر غير مدعومة.',
+                    'quotation_file.max' => 'الحد الأقصى لملف عرض السعر 10MB.',
+                ]
+            );
+            if ($fileValidator->fails()) {
+                throw new ValidationException($fileValidator);
+            }
+        }
+
         $normalizedStageValues = [];
         if ($targetStage !== null) {
-            $rawStageInputs = $request->input('stage_fields', []);
+            $rawStageInputs = array_replace_recursive(
+                (array) $request->input('stage_fields', []),
+                (array) $request->file('stage_fields', [])
+            );
+            $stageKeys = \App\Support\StageFieldSchema::getFieldsForStage($targetStage, true)->pluck('key')->all();
+            if (in_array('callback_at', $stageKeys, true) && empty($rawStageInputs['callback_at']) && $request->filled('next_follow_up_at')) {
+                $rawStageInputs['callback_at'] = (string) $request->input('next_follow_up_at');
+            }
+            if (in_array('reason', $stageKeys, true) && empty($rawStageInputs['reason']) && $request->filled('disinterest_reason')) {
+                $rawStageInputs['reason'] = (string) $request->input('disinterest_reason');
+            }
             $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($targetStage, $rawStageInputs, $request->user());
         }
         $normalizedCustomerFields = FollowupCustomerFieldSchema::validateAndExtract($request->all());
@@ -587,44 +669,44 @@ class LeadFollowupController extends Controller
 
         $newQuotationPath = null;
         $uploadedQuotationName = null;
-
-        if (
-            $request->hasFile(
-                'quotation_file'
-            )
+        if (isset($normalizedStageValues['quotation_file_path']) && is_array($normalizedStageValues['quotation_file_path']) && ($normalizedStageValues['quotation_file_path']['type'] ?? '') === 'file') {
+            $newQuotationPath = $normalizedStageValues['quotation_file_path']['path'];
+            $uploadedQuotationName = $normalizedStageValues['quotation_file_path']['original_name'] ?? null;
+        } elseif (
+            $uploadedQuotationFile !== null
+            && $uploadedQuotationFile->isValid()
         ) {
             $uploadedQuotationName =
                 mb_substr(
                     trim(
                         (string)
-                            $request
-                                ->file(
-                                    'quotation_file'
-                                )
-                                ->getClientOriginalName()
+                            $uploadedQuotationFile->getClientOriginalName()
                     ),
                     0,
                     255
                 );
 
-            $storedPath = $request
-                ->file('quotation_file')
-                ->store(
-                    'crm-v2/quotation-files',
-                    'local'
-                );
+            $storedPath = $uploadedQuotationFile->store('crm-v2/quotation-files', 'local');
 
-            if (
-                ! is_string($storedPath)
-                || trim($storedPath) === ''
-            ) {
-                throw new \RuntimeException(
-                    'Quotation file storage failed.'
-                );
+            if (! is_string($storedPath) || trim($storedPath) === '') {
+                throw new \RuntimeException('Quotation file storage failed.');
             }
 
-            $newQuotationPath =
-                $storedPath;
+            $newQuotationPath = $storedPath;
+            \App\Models\LeadDocument::query()->create([
+                'lead_id' => $leadRecord->id,
+                'pipeline_stage_id' => $status->pipeline_stage_id,
+                'pipeline_stage_field_id' => null,
+                'lead_status_history_id' => null,
+                'category' => \App\Models\LeadDocument::CATEGORY_QUOTATION,
+                'original_name' => $uploadedQuotationName ?: 'عرض سعر.pdf',
+                'stored_name' => basename($newQuotationPath),
+                'disk' => 'local',
+                'path' => $newQuotationPath,
+                'mime_type' => $uploadedQuotationFile->getClientMimeType() ?: 'application/pdf',
+                'size' => (int) $uploadedQuotationFile->getSize(),
+                'created_by_user_id' => $request->user()?->id,
+            ]);
         }
 
         $stageData = [
@@ -652,11 +734,10 @@ class LeadFollowupController extends Controller
                         'solution_type'
                     ] ?? null
                 ) === 'call_center'
+                && isset($validated['lines_count'])
+                && is_numeric($validated['lines_count'])
             )
-                ? (int)
-                    $validated[
-                        'lines_count'
-                    ]
+                ? (int) $validated['lines_count']
                 : null,
 
             'extensions' => (
@@ -747,233 +828,96 @@ class LeadFollowupController extends Controller
                 );
             };
 
+        // Prepare legacy field changes before transition
+        $fieldChanges = [];
+        $customerFieldUpdate = FollowupCustomerFieldSchema::prepareUpdates(
+            $leadRecord,
+            $normalizedCustomerFields,
+        );
+
+        if ($campaign !== null && $targetUser !== null) {
+            $oldCampaignName = $leadRecord->campaigns()->value('campaigns.name') ?? 'بدون حملة';
+            $oldAssigneeName = $leadRecord->assignedUser?->name ?? $leadRecord->assigned_employee ?? 'غير مسند';
+
+            if ($oldCampaignName !== $campaign->name) {
+                $fieldChanges[] = [
+                    'field' => 'campaign_id',
+                    'label' => 'الحملة',
+                    'old' => $oldCampaignName,
+                    'new' => $campaign->name,
+                ];
+            }
+
+            if ((int) $leadRecord->assigned_user_id !== (int) $targetUser->id) {
+                $fieldChanges[] = [
+                    'field' => 'assigned_user_id',
+                    'label' => 'الموظف المسؤول',
+                    'old' => $oldAssigneeName,
+                    'new' => $targetUser->name,
+                ];
+            }
+        }
+
+        foreach ($fieldLabels as $field => $label) {
+            $oldRaw = $leadRecord->getAttribute($field);
+            $newRaw = $stageData[$field] ?? null;
+
+            $oldComparable = $oldRaw === null ? null : (string) $oldRaw;
+            $newComparable = $newRaw === null ? null : (string) $newRaw;
+
+            if ($oldComparable === $newComparable) {
+                continue;
+            }
+
+            $oldValue = $formatChangeValue($field, $oldRaw);
+            $newValue = $formatChangeValue($field, $newRaw);
+
+            if ($field === 'quotation_file_path' && $uploadedQuotationName !== null && $uploadedQuotationName !== '') {
+                $newValue = $uploadedQuotationName;
+            }
+
+            $fieldChanges[] = [
+                'field' => $field,
+                'label' => $label,
+                'old' => $oldValue,
+                'new' => $newValue,
+            ];
+        }
+
+        $allFieldChanges = array_merge($fieldChanges, $customerFieldUpdate['changes']);
+        $legacyAttributes = array_merge($stageData, $customerFieldUpdate['attributes']);
+
         try {
-            $leadRecord = DB::transaction(
-                function () use (
-                    $lead,
-                    $status,
-                    $employeeName,
-                    $currentUserId,
-                    $communicationType,
-                    $communicationTypes,
-                    $outcome,
-                    $nextFollowUpAt,
-                    $stageData,
-                    $fieldLabels,
-                    $formatChangeValue,
-                    $uploadedQuotationName,
-                    $campaign,
-                    $targetUser,
-                    $targetStage,
-                    $normalizedStageValues,
-                    $normalizedCustomerFields,
-                    $request
-                ): Lead {
-                    $lockedLead =
-                        Lead::query()
-                            ->lockForUpdate()
-                            ->findOrFail(
-                                (int) $lead
-                            );
-
-                    $oldStatusId =
-                        (int)
-                            $lockedLead
-                                ->lead_status_id;
-
-                    $newStatusId =
-                        (int) $status->id;
-
-                    $fieldChanges = [];
-                    $customerFieldUpdate = FollowupCustomerFieldSchema::prepareUpdates(
-                        $lockedLead,
-                        $normalizedCustomerFields,
-                    );
-
-                    if ($campaign !== null && $targetUser !== null) {
-                        $oldCampaignName = $lockedLead->campaigns()
-                            ->value('campaigns.name') ?? 'بدون حملة';
-                        $oldAssigneeName = $lockedLead->assignedUser?->name
-                            ?? $lockedLead->assigned_employee
-                            ?? 'غير مسند';
-
-                        if ($oldCampaignName !== $campaign->name) {
-                            $fieldChanges[] = [
-                                'field' => 'campaign_id',
-                                'label' => 'الحملة',
-                                'old' => $oldCampaignName,
-                                'new' => $campaign->name,
-                            ];
-                        }
-
-                        if ((int) $lockedLead->assigned_user_id !== (int) $targetUser->id) {
-                            $fieldChanges[] = [
-                                'field' => 'assigned_user_id',
-                                'label' => 'الموظف المسؤول',
-                                'old' => $oldAssigneeName,
-                                'new' => $targetUser->name,
-                            ];
-                        }
-                    }
-
-                    foreach (
-                        $fieldLabels as $field => $label
-                    ) {
-                        $oldRaw =
-                            $lockedLead
-                                ->getAttribute(
-                                    $field
-                                );
-
-                        $newRaw =
-                            $stageData[
-                                $field
-                            ] ?? null;
-
-                        $oldComparable =
-                            $oldRaw === null
-                                ? null
-                                : (string)
-                                    $oldRaw;
-
-                        $newComparable =
-                            $newRaw === null
-                                ? null
-                                : (string)
-                                    $newRaw;
-
-                        if (
-                            $oldComparable
-                            === $newComparable
-                        ) {
-                            continue;
-                        }
-
-                        $oldValue =
-                            $formatChangeValue(
-                                $field,
-                                $oldRaw
-                            );
-
-                        $newValue =
-                            $formatChangeValue(
-                                $field,
-                                $newRaw
-                            );
-
-                        if (
-                            $field
-                                ===
-                                'quotation_file_path'
-                            && $uploadedQuotationName
-                                !== null
-                            && $uploadedQuotationName
-                                !== ''
-                        ) {
-                            $newValue =
-                                $uploadedQuotationName;
-                        }
-
-                        $fieldChanges[] = [
-                            'field' => $field,
-                            'label' => $label,
-                            'old' => $oldValue,
-                            'new' => $newValue,
-                        ];
-                    }
-
-                    $fieldChanges = array_merge($fieldChanges, $customerFieldUpdate['changes']);
-
-                    LeadFollowup::query()
-                        ->create(
-                            [
-                                'lead_id' => $lockedLead->id,
-
-                                'from_status_id' => $oldStatusId,
-
-                                'to_status_id' => $newStatusId,
-
-                                'employee_name' => $employeeName,
-                                'user_id' => $currentUserId,
-
-                                'communication_type' => $communicationType,
-
-                                'outcome' => $outcome,
-
-                                'field_changes' => $fieldChanges === []
-                                        ? null
-                                        : $fieldChanges,
-
-                                'next_follow_up_at' => $nextFollowUpAt,
-
-                                'followed_up_at' => now(),
-                            ]
-                        );
-
-                    if (
-                        $oldStatusId
-                        !== $newStatusId
-                    ) {
-                        LeadStatusHistory::query()
-                            ->create(
-                                [
-                                    'lead_id' => $lockedLead
-                                        ->id,
-
-                                    'from_status_id' => $oldStatusId,
-
-                                    'to_status_id' => $newStatusId,
-
-                                    'changed_by' => $employeeName,
-                                    'changed_by_user_id' => $currentUserId,
-
-                                    'note' => 'متابعة - '
-                                        .$communicationTypes[
-                                            $communicationType
-                                        ]
-                                        .': '
-                                        .$outcome,
-
-                                    'changed_at' => now(),
-                                ]
-                            );
-                    }
-
-                    $lockedLead->update(
-                        array_merge(
-                            $stageData,
-                            $customerFieldUpdate['attributes'],
-                            [
-                                'lead_status_id' => $newStatusId,
-
-                                'next_follow_up_at' => $nextFollowUpAt,
-                                'assigned_user_id' => $targetUser?->id
-                                    ?? $lockedLead->assigned_user_id,
-                                'assigned_employee' => $targetUser?->name
-                                    ?? $lockedLead->assigned_employee,
-                            ]
-                        )
-                    );
-
-                    if ($campaign !== null) {
-                        $lockedLead->campaigns()->sync([$campaign->id]);
-                    }
-                    if ($targetStage !== null && ! empty($normalizedStageValues)) {
-                        \App\Support\StageFieldSchema::persistValues($lockedLead, $targetStage, $normalizedStageValues, null, $request->user());
-                    }
-
-                    return $lockedLead;
-                }
+            /** @var \App\Services\LeadTransitionService $transitionService */
+            $transitionService = app(\App\Services\LeadTransitionService::class);
+            $transitionResult = $transitionService->transition(
+                $leadRecord,
+                $status,
+                $request->user(),
+                [
+                    'stage_fields' => $normalizedStageValues,
+                    'record_followup' => true,
+                    'communication_type' => $communicationType,
+                    'outcome' => $outcome,
+                    'next_follow_up_at' => $nextFollowUpAt,
+                    'followed_up_at' => now(),
+                    'employee_name' => $employeeName,
+                    'assigned_user_id' => $targetUser?->id ?? $leadRecord->assigned_user_id,
+                    'assigned_employee' => $targetUser?->name ?? $leadRecord->assigned_employee,
+                    'campaign' => $campaign,
+                    'campaign_id' => $campaign?->id,
+                    'lead_attributes' => $legacyAttributes,
+                    'field_changes' => $allFieldChanges,
+                    'history_note' => 'متابعة - ' . ($communicationTypes[$communicationType] ?? $communicationType) . ': ' . $outcome,
+                    'disinterest_reason' => $validated['disinterest_reason'] ?? ($normalizedStageValues['reason'] ?? null),
+                    'notes' => $stageData['notes'] ?? null,
+                ]
             );
+
+            $leadRecord = $transitionResult['lead'];
         } catch (\Throwable $exception) {
-            if (
-                $newQuotationPath
-                !== null
-            ) {
-                Storage::disk('local')
-                    ->delete(
-                        $newQuotationPath
-                    );
+            if ($newQuotationPath !== null) {
+                Storage::disk('local')->delete($newQuotationPath);
             }
 
             throw $exception;
@@ -993,33 +937,43 @@ class LeadFollowupController extends Controller
             );
         }
 
-        $redirectParameters =
-            $request->boolean(
-                'kanban_popup'
-            )
-                ? [
-                    'lead' => $leadRecord->id,
+        if ($request->boolean('kanban_popup')) {
+            return redirect()
+                ->route(
+                    'v2.leads.followups.index',
+                    [
+                        'lead' => $leadRecord->id,
+                        'kanban_popup' => 1,
+                        'saved' => 1,
+                    ]
+                )
+                ->with(
+                    'success',
+                    'تم حفظ بيانات المرحلة وتسجيل المتابعة بنجاح باسم ' . $employeeName . '.'
+                );
+        }
 
-                    'kanban_popup' => 1,
+        // If user remains authorized to view this lead, return to followups index
+        if ($leadRecord->isAccessibleTo($request->user())) {
+            return redirect()
+                ->route(
+                    'v2.leads.followups.index',
+                    $leadRecord
+                )
+                ->with(
+                    'success',
+                    'تم حفظ بيانات المرحلة وتسجيل المتابعة بنجاح باسم ' . $employeeName . '.'
+                );
+        }
 
-                    'saved' => 1,
-                ]
-                : $leadRecord;
-
+        // If transition/reassignment transferred lead outside user scope, safely return to leads index
         return redirect()
-            ->route(
-                'v2.leads.followups.index',
-                $redirectParameters
-            )
+            ->route('v2.leads')
             ->with(
                 'success',
-                'تم حفظ بيانات المرحلة '
-                .'وتسجيل المتابعة بنجاح باسم '
-                .$employeeName
-                .'.'
+                'تم حفظ بيانات المرحلة وتحديث إسناد العميل بنجاح باسم ' . $employeeName . '.'
             );
     }
-
     private function communicationTypes(): array
     {
         return [

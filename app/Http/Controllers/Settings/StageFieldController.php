@@ -167,6 +167,8 @@ class StageFieldController extends Controller
             'otherFields' => $otherFields,
             'presets' => self::PRESETS,
             'fieldTypes' => PipelineStageField::TYPES,
+            'bindingTypes' => PipelineStageField::BINDING_TYPES,
+            'canonicalFields' => PipelineStageField::CANONICAL_FIELDS,
             'operators' => PipelineStageField::OPERATORS,
         ]);
     }
@@ -183,6 +185,14 @@ class StageFieldController extends Controller
 
         $options = $this->extractOptions($request, $validated);
         $conditions = $this->extractConditions($validated);
+        $existingFields = PipelineStageField::query()
+            ->where('pipeline_stage_id', $stage->id)
+            ->whereNull('deleted_at');
+        if (StageFieldSchema::hasCyclicDependency($existingFields->get(), $validated['key'], $conditions)) {
+            throw ValidationException::withMessages([
+                'condition_field' => 'يوجد تكرار حلقي غير مسموح به في الشروط بين الحقول (Circular dependency detected).',
+            ]);
+        }
 
         PipelineStageField::query()->create([
             'pipeline_stage_id' => $stage->id,
@@ -190,11 +200,14 @@ class StageFieldController extends Controller
             'label_ar' => $validated['label_ar'],
             'label_en' => $validated['label_en'] ?? null,
             'type' => $validated['type'],
+            'binding_type' => $validated['binding_type'] ?? 'custom',
+            'binding_target' => $validated['binding_target'] ?? null,
             'placeholder_ar' => $validated['placeholder_ar'] ?? null,
             'placeholder_en' => $validated['placeholder_en'] ?? null,
             'help_text_ar' => $validated['help_text_ar'] ?? null,
             'help_text_en' => $validated['help_text_en'] ?? null,
             'is_required' => (bool) ($validated['is_required'] ?? false),
+            'default_value' => $validated['default_value'] ?? null,
             'options' => $options,
             'conditions' => $conditions,
             'show_on_transition' => (bool) ($validated['show_on_transition'] ?? true),
@@ -223,16 +236,28 @@ class StageFieldController extends Controller
 
         $options = $this->extractOptions($request, $validated);
         $conditions = $this->extractConditions($validated);
+        $existingFields = PipelineStageField::query()
+            ->where('pipeline_stage_id', $stage->id)
+            ->where('id', '!=', $field->id)
+            ->whereNull('deleted_at');
+        if (StageFieldSchema::hasCyclicDependency($existingFields->get(), $field->key, $conditions)) {
+            throw ValidationException::withMessages([
+                'condition_field' => 'يوجد تكرار حلقي غير مسموح به في الشروط بين الحقول (Circular dependency detected).',
+            ]);
+        }
 
         $field->update([
             'label_ar' => $validated['label_ar'],
             'label_en' => $validated['label_en'] ?? null,
             'type' => $validated['type'],
+            'binding_type' => $validated['binding_type'] ?? $field->binding_type ?? 'custom',
+            'binding_target' => $validated['binding_target'] ?? $field->binding_target,
             'placeholder_ar' => $validated['placeholder_ar'] ?? null,
             'placeholder_en' => $validated['placeholder_en'] ?? null,
             'help_text_ar' => $validated['help_text_ar'] ?? null,
             'help_text_en' => $validated['help_text_en'] ?? null,
             'is_required' => (bool) ($validated['is_required'] ?? false),
+            'default_value' => $validated['default_value'] ?? null,
             'options' => $options,
             'conditions' => $conditions,
             'show_on_transition' => (bool) ($validated['show_on_transition'] ?? true),
@@ -370,7 +395,52 @@ class StageFieldController extends Controller
      */
     private function validateFieldInput(Request $request, PipelineStage $stage, ?PipelineStageField $field): array
     {
+        $bindingType = $request->input('binding_type', $field?->binding_type ?? 'custom');
+        if ($bindingType === 'canonical') {
+            $target = (string) $request->input('binding_target', $field?->binding_target ?? '');
+            if (! array_key_exists($target, PipelineStageField::CANONICAL_FIELDS)) {
+                throw ValidationException::withMessages([
+                    'binding_target' => 'الحقل الأساسي المختار غير صالح.',
+                ]);
+            }
+
+            // Check duplicate canonical field on same stage
+            $existsQuery = PipelineStageField::query()
+                ->where('pipeline_stage_id', $stage->id)
+                ->where('binding_type', 'canonical')
+                ->where('binding_target', $target);
+
+            if ($field !== null) {
+                $existsQuery->where('id', '!=', $field->id);
+            }
+
+            if ($existsQuery->exists()) {
+                throw ValidationException::withMessages([
+                    'binding_target' => 'هذا الحقل الأساسي مضاف بالفعل لهذه المرحلة ولا يمكن تكراره.',
+                ]);
+            }
+
+            $canonicalDef = PipelineStageField::CANONICAL_FIELDS[$target];
+            if (! $request->filled('label_ar')) {
+                $request->merge(['label_ar' => $canonicalDef['label_ar']]);
+            }
+            if (! $request->filled('label_en') && ! empty($canonicalDef['label_en'])) {
+                $request->merge(['label_en' => $canonicalDef['label_en']]);
+            }
+            if (! $request->filled('type')) {
+                $request->merge(['type' => $canonicalDef['type']]);
+            }
+            if (! $request->filled('placeholder_ar') && ! empty($canonicalDef['placeholder_ar'])) {
+                $request->merge(['placeholder_ar' => $canonicalDef['placeholder_ar']]);
+            }
+            if (! $request->filled('placeholder_en') && ! empty($canonicalDef['placeholder_en'])) {
+                $request->merge(['placeholder_en' => $canonicalDef['placeholder_en']]);
+            }
+        }
+
         $rules = [
+            'binding_type' => ['nullable', 'string', Rule::in(array_keys(PipelineStageField::BINDING_TYPES))],
+            'binding_target' => ['nullable', 'string', Rule::in(array_keys(PipelineStageField::CANONICAL_FIELDS))],
             'label_ar' => ['required', 'string', 'max:255'],
             'label_en' => ['nullable', 'string', 'max:255'],
             'type' => ['required', 'string', Rule::in(array_keys(PipelineStageField::TYPES))],
@@ -379,6 +449,7 @@ class StageFieldController extends Controller
             'help_text_ar' => ['nullable', 'string', 'max:1000'],
             'help_text_en' => ['nullable', 'string', 'max:1000'],
             'is_required' => ['nullable', 'boolean'],
+            'default_value' => ['nullable', 'string', 'max:5000'],
             'show_on_transition' => ['nullable', 'boolean'],
             'show_on_stage_view' => ['nullable', 'boolean'],
             'show_in_history' => ['nullable', 'boolean'],
@@ -393,7 +464,11 @@ class StageFieldController extends Controller
         if ($field === null) {
             $rawKey = $request->input('key');
             if (empty($rawKey)) {
-                $baseKey = Str::slug((string) $request->input('label_en', '')) ?: 'q_' . Str::lower(Str::random(6));
+                if ($bindingType === 'canonical' && ! empty($request->input('binding_target'))) {
+                    $baseKey = (string) $request->input('binding_target');
+                } else {
+                    $baseKey = Str::slug((string) $request->input('label_en', '')) ?: 'q_' . Str::lower(Str::random(6));
+                }
                 $key = str_replace('-', '_', $baseKey);
             } else {
                 $key = str_replace('-', '_', Str::slug((string) $rawKey));
@@ -417,12 +492,13 @@ class StageFieldController extends Controller
             'label_ar.required' => 'اسم/نص السؤال مطلوب.',
             'type.required' => 'نوع الإجابة مطلوب.',
             'type.in' => 'نوع الإجابة المختار غير مدعوم.',
+            'binding_target.required' => 'اختر الحقل الأساسي المطلوب ربطه.',
         ]);
     }
 
     private function extractOptions(Request $request, array $validated): ?array
     {
-        if (! in_array($validated['type'], ['select', 'multiselect'], true)) {
+        if (! in_array($validated['type'], ['select', 'multiselect', 'radio'], true)) {
             return null;
         }
 

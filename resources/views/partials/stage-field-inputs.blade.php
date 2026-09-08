@@ -6,6 +6,7 @@
     $recordValues = is_array($recordValues ?? null) ? $recordValues : [];
     $prefix = $prefix ?? 'stage_fields';
     $scope = ($scope ?? 'stage_scope') . '_' . uniqid();
+    $isDisabled = (bool)($disabled ?? false);
 @endphp
 
 @if ($fields->isNotEmpty())
@@ -47,7 +48,7 @@
                                       placeholder="{{ $field->localizedPlaceholder() }}"
                                       class="control"
                                       style="min-height:75px; width:100%;"
-                                      {{ $field->is_required ? 'required' : '' }}>{{ is_scalar($val) ? (string) $val : '' }}</textarea>
+                                      {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>{{ is_scalar($val) ? (string) $val : '' }}</textarea>
                             @break
 
                         @case ('number')
@@ -59,7 +60,7 @@
                                    placeholder="{{ $field->localizedPlaceholder() }}"
                                    class="control"
                                    style="width:100%;"
-                                   {{ $field->is_required ? 'required' : '' }}>
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                             @break
 
                         @case ('date')
@@ -75,9 +76,18 @@
                                    value="{{ $dateStr }}"
                                    class="control"
                                    style="width:100%;"
-                                   {{ $field->is_required ? 'required' : '' }}>
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                             @break
 
+                        @case ('time')
+                            <input type="time"
+                                   id="{{ $inputId }}"
+                                   name="{{ $prefix }}[{{ $field->key }}]"
+                                   value="{{ is_scalar($val) ? (string) $val : '' }}"
+                                   class="control"
+                                   style="width:100%;"
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
+                            @break
                         @case ('datetime')
                             @php
                                 $dateTimeStr = '';
@@ -91,7 +101,7 @@
                                    value="{{ $dateTimeStr }}"
                                    class="control"
                                    style="width:100%;"
-                                   {{ $field->is_required ? 'required' : '' }}>
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                             @break
 
                         @case ('select')
@@ -99,7 +109,7 @@
                                     name="{{ $prefix }}[{{ $field->key }}]"
                                     class="control"
                                     style="width:100%;"
-                                    {{ $field->is_required ? 'required' : '' }}>
+                                    {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                                 <option value="">{{ $field->localizedPlaceholder() ?: __('crm.choose_option') }}</option>
                                 @foreach ($field->normalizedOptions() as $opt)
                                     @php $optVal = (string)$opt['value']; @endphp
@@ -121,7 +131,7 @@
                                     size="3"
                                     class="control"
                                     style="width:100%; min-height:80px;"
-                                    {{ $field->is_required ? 'required' : '' }}>
+                                    {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                                 @foreach ($field->normalizedOptions() as $opt)
                                     @php $optVal = (string)$opt['value']; @endphp
                                     <option value="{{ $optVal }}" @selected(in_array($optVal, $selectedArr, true))>
@@ -130,21 +140,65 @@
                                 @endforeach
                             </select>
                             @break
+                        @case ('radio')
+                            <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+                                @foreach ($field->normalizedOptions() as $opt)
+                                    @php $optVal = (string)$opt['value']; @endphp
+                                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                                        <input type="radio"
+                                               name="{{ $prefix }}[{{ $field->key }}]"
+                                               value="{{ $optVal }}"
+                                               style="width:auto; margin:0; accent-color:var(--red);"
+                                               @checked((string)$val === $optVal)
+                                               {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
+                                        <span>{{ app()->getLocale() === 'en' ? $opt['label_en'] : $opt['label_ar'] }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @break
 
                         @case ('checkbox')
+                        @case ('boolean')
                             <label class="check-card" style="display:flex; align-items:center; gap:8px; cursor:pointer; padding:10px; border:1px solid #dbe1e9; border-radius:10px; background:#fff; margin:0;">
                                 <input type="hidden" name="{{ $prefix }}[{{ $field->key }}]" value="0">
                                 <input type="checkbox"
                                        id="{{ $inputId }}"
                                        name="{{ $prefix }}[{{ $field->key }}]"
                                        value="1"
-                                       style="width:auto; margin:0;"
+                                       style="width:auto; margin:0; accent-color:var(--red);"
                                        @checked(filter_var($val, FILTER_VALIDATE_BOOLEAN))
-                                       {{ $field->is_required ? 'required' : '' }}>
+                                       {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                                 <span style="font-weight:600; font-size:13px;">{{ $field->localizedPlaceholder() ?: __('crm.yes') }}</span>
                             </label>
                             @break
 
+                        @case ('currency')
+                            <input type="number"
+                                   step="any"
+                                   id="{{ $inputId }}"
+                                   name="{{ $prefix }}[{{ $field->key }}]"
+                                   value="{{ is_scalar($val) ? (string) $val : '' }}"
+                                   placeholder="{{ $field->localizedPlaceholder() }}"
+                                   class="control"
+                                   style="width:100%;"
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
+                            @break
+                        @case ('file')
+                        @case ('image')
+                        @case ('pdf')
+                            <input type="file"
+                                   id="{{ $inputId }}"
+                                   name="{{ $prefix }}[{{ $field->key }}]"
+                                   class="control"
+                                   style="width:100%; padding:8px 12px; background:#fff;"
+                                   @if ($field->type === 'image') accept="image/*" @elseif ($field->type === 'pdf') accept="application/pdf" @endif
+                                   {{ ($field->is_required && ! $isDisabled && empty($val)) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
+                            @if (!empty($val) && is_string($val))
+                                <small style="display:block; margin-top:4px; color:#16a34a; font-size:11px;">
+                                    <i class="bi bi-paperclip"></i> يوجد ملف حالي: {{ basename($val) }}
+                                </small>
+                            @endif
+                            @break
                         @default
                             @php
                                 $inputHtmlType = match($field->type) {
@@ -161,7 +215,7 @@
                                    placeholder="{{ $field->localizedPlaceholder() }}"
                                    class="control"
                                    style="width:100%;"
-                                   {{ $field->is_required ? 'required' : '' }}>
+                                   {{ ($field->is_required && ! $isDisabled) ? 'required' : '' }} {{ $isDisabled ? 'disabled' : '' }}>
                     @endswitch
 
                     @if ($field->help_text_ar || $field->help_text_en)
@@ -189,56 +243,92 @@
                 case 'not_equals':
                     return actualVal.toLowerCase() !== expectedVal.toLowerCase();
                 case 'is_checked':
-                    return actualVal === '1' || actualVal === 'true' || actualVal === 'yes' || actualVal === 'on';
+                case 'is_true':
+                    return actualVal === '1' || actualVal.toLowerCase() === 'true' || actualVal.toLowerCase() === 'yes' || actualVal.toLowerCase() === 'on';
                 case 'is_not_checked':
-                    return actualVal !== '1' && actualVal !== 'true' && actualVal !== 'yes' && actualVal !== 'on';
+                case 'is_false':
+                    return actualVal !== '1' && actualVal.toLowerCase() !== 'true' && actualVal.toLowerCase() !== 'yes' && actualVal.toLowerCase() !== 'on';
                 case 'is_empty':
                     return actualVal === '';
                 case 'is_not_empty':
                     return actualVal !== '';
+                case 'contains':
+                    if (!expectedVal) return true;
+                    return actualVal.toLowerCase().indexOf(expectedVal.toLowerCase()) !== -1;
+                case 'in':
+                    const allowed = expectedVal.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+                    return allowed.includes(actualVal.toLowerCase());
                 default:
                     return true;
             }
         }
 
         function getFieldValue(fieldKey) {
-            const el = wrap.querySelector(`[name="{{ $prefix }}[${fieldKey}]"], [name="{{ $prefix }}[${fieldKey}][]"]`);
+            const multiple = wrap.querySelector(`[name="{{ $prefix }}[${fieldKey}][]"]`);
+            if (multiple) {
+                return Array.from(multiple.selectedOptions).map(o => o.value).join(',');
+            }
+
+            const radio = wrap.querySelector(`[name="{{ $prefix }}[${fieldKey}]"]:checked`);
+            if (radio) {
+                return radio.value || '';
+            }
+
+            const el = wrap.querySelector(`[name="{{ $prefix }}[${fieldKey}]"]`);
             if (!el) return '';
             if (el.type === 'checkbox') {
                 return el.checked ? '1' : '0';
-            }
-            if (el.multiple) {
-                return Array.from(el.selectedOptions).map(o => o.value).join(',');
             }
             return el.value || '';
         }
 
         function updateConditions() {
             const items = wrap.querySelectorAll('.stage-field-item[data-has-condition="1"]');
-            items.forEach(item => {
-                const parentKey = item.getAttribute('data-condition-field');
-                const op = item.getAttribute('data-condition-operator') || 'equals';
-                const exp = item.getAttribute('data-condition-value') || '';
-                const isReq = item.getAttribute('data-sf-required') === '1';
+            let changed = false;
+            let iterations = 0;
 
-                const parentVal = getFieldValue(parentKey);
-                const met = evalCondition(op, parentVal, exp);
+            // Multi-pass cascade evaluation to resolve Parent -> Child -> Grandchild
+            do {
+                changed = false;
+                iterations++;
 
-                const inputEl = item.querySelector('input:not([type="hidden"]), select, textarea');
+                items.forEach(item => {
+                    const parentKey = item.getAttribute('data-condition-field');
+                    const op = item.getAttribute('data-condition-operator') || 'equals';
+                    const exp = item.getAttribute('data-condition-value') || '';
+                    const isReq = item.getAttribute('data-sf-required') === '1';
 
-                if (met) {
-                    item.style.display = item.getAttribute('data-sf-type') === 'textarea' ? 'block' : '';
-                    if (inputEl) {
-                        if (isReq) inputEl.setAttribute('required', 'required');
-                        inputEl.removeAttribute('disabled');
+                    // Check if parent element is itself hidden in this form
+                    const parentItem = wrap.querySelector(`.stage-field-item[data-sf-key="${parentKey}"]`);
+                    const parentHidden = parentItem && parentItem.style.display === 'none';
+
+                    const parentVal = getFieldValue(parentKey);
+                    const met = !parentHidden && evalCondition(op, parentVal, exp);
+
+                    const inputEl = item.querySelector('input:not([type="hidden"]), select, textarea');
+                    const currentlyHidden = item.style.display === 'none';
+
+                    if (met) {
+                        if (currentlyHidden) {
+                            item.style.display = item.getAttribute('data-sf-type') === 'textarea' ? 'block' : '';
+                            changed = true;
+                        }
+                        if (inputEl) {
+                            if (isReq) inputEl.setAttribute('required', 'required');
+                            inputEl.removeAttribute('disabled');
+                        }
+                    } else {
+                        if (!currentlyHidden) {
+                            item.style.display = 'none';
+                            changed = true;
+                        }
+                        if (inputEl) {
+                            inputEl.removeAttribute('required');
+                            inputEl.setAttribute('disabled', 'disabled');
+                        }
                     }
-                } else {
-                    item.style.display = 'none';
-                    if (inputEl) {
-                        inputEl.removeAttribute('required');
-                    }
-                }
-            });
+                });
+            } while (changed && iterations < 10);
         }
 
         wrap.addEventListener('input', updateConditions);

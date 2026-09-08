@@ -55,6 +55,12 @@ enum CrmPermission: string
     case TECHNICAL_SUPPORT_VIEW = 'technical_support.view';
     case TECHNICAL_SUPPORT_MANAGE = 'technical_support.manage';
     case TECHNICAL_SUPPORT_REPORTS = 'technical_support.reports';
+    case TECHNICAL_SUPPORT_TASKS_MANAGE = 'technical_support.tasks.manage';
+
+    case PIPELINE_STAGES_DELETE = 'pipeline_stages.delete';
+    case LEADS_TRASH_VIEW = 'leads.trash.view';
+    case LEADS_TRASH_RESTORE = 'leads.trash.restore';
+    case LEADS_TRASH_FORCE_DELETE = 'leads.trash.force_delete';
 
     public function module(): string
     {
@@ -104,6 +110,11 @@ enum CrmPermission: string
             self::TECHNICAL_SUPPORT_VIEW => 'عرض خوادم الدعم الفني',
             self::TECHNICAL_SUPPORT_MANAGE => 'إدارة خوادم وتذاكر الدعم الفني',
             self::TECHNICAL_SUPPORT_REPORTS => 'عرض تقارير الدعم الفني',
+            self::TECHNICAL_SUPPORT_TASKS_MANAGE => 'إدارة مهام الدعم الفني',
+            self::PIPELINE_STAGES_DELETE => 'حذف مراحل العملاء',
+            self::LEADS_TRASH_VIEW => 'عرض سلة مهملات العملاء',
+            self::LEADS_TRASH_RESTORE => 'استعادة العملاء من سلة المهملات',
+            self::LEADS_TRASH_FORCE_DELETE => 'الحذف النهائي للعملاء من سلة المهملات',
         };
     }
 

@@ -112,11 +112,21 @@ class LeadTransitionService
             // 4. Resolve next_follow_up_at based on business rules and stage fields
             $nextFollowUpAt = $this->resolveNextFollowUpAt($toStatus, $context, $lockedLead, $normalizedStageValues);
 
-            // 5. Prepare Lead attributes for update
+            // 5. Prepare Lead attributes for update (including dynamic canonical stage fields)
+            $splitValues = $toStage !== null ? StageFieldSchema::splitValues($toStage, $normalizedStageValues) : ['canonical' => [], 'custom' => []];
+            $canonicalUpdates = $splitValues['canonical'];
+
             $leadUpdateData = [
                 'lead_status_id' => $toStatusId,
                 'next_follow_up_at' => $nextFollowUpAt,
             ];
+
+            // Apply validated canonical stage fields (Type A)
+            foreach ($canonicalUpdates as $cAttr => $cVal) {
+                if (! in_array($cAttr, ['id', 'created_at', 'updated_at', 'lead_status_id'], true)) {
+                    $leadUpdateData[$cAttr] = $cVal;
+                }
+            }
 
             if (array_key_exists('assigned_user_id', $context)) {
                 $leadUpdateData['assigned_user_id'] = $context['assigned_user_id'];
@@ -143,6 +153,24 @@ class LeadTransitionService
                 // Ensure lead_status_id and next_follow_up_at resolved take precedence
                 $leadUpdateData['lead_status_id'] = $toStatusId;
                 $leadUpdateData['next_follow_up_at'] = $nextFollowUpAt;
+            }
+
+            // Track canonical field changes for audit and followups
+            $canonicalFieldChanges = [];
+            foreach ($canonicalUpdates as $cAttr => $cVal) {
+                $oldVal = $lockedLead->getAttribute($cAttr);
+                $oldStr = $oldVal === null ? '' : trim((string) $oldVal);
+                $newStr = $cVal === null ? '' : trim((string) $cVal);
+                if ($oldStr !== $newStr) {
+                    $cfg = \App\Models\PipelineStageField::CANONICAL_FIELDS[$cAttr] ?? null;
+                    $label = $cfg ? (app()->getLocale() === 'en' ? $cfg['label_en'] : $cfg['label_ar']) : $cAttr;
+                    $canonicalFieldChanges[] = [
+                        'field' => $cAttr,
+                        'label' => $label,
+                        'old' => $oldStr !== '' ? $oldStr : '—',
+                        'new' => $newStr !== '' ? $newStr : '—',
+                    ];
+                }
             }
 
             $lockedLead->update($leadUpdateData);
@@ -181,8 +209,12 @@ class LeadTransitionService
                         : now(),
                 ];
 
-                if (! empty($context['field_changes']) && is_array($context['field_changes'])) {
-                    $followupData['field_changes'] = $context['field_changes'];
+                $providedChanges = (isset($context['field_changes']) && is_array($context['field_changes']))
+                    ? $context['field_changes']
+                    : [];
+                $mergedChanges = array_merge($providedChanges, $canonicalFieldChanges);
+                if (! empty($mergedChanges)) {
+                    $followupData['field_changes'] = $mergedChanges;
                 }
 
                 $followupRecord = LeadFollowup::query()->create($followupData);

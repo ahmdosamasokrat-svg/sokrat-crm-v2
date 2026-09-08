@@ -185,38 +185,174 @@ class PipelineStageController extends Controller
             ->with('success', 'تم حفظ تعديلات المرحلة بنجاح.');
     }
 
-    public function destroy(PipelineStage $stage): RedirectResponse
+    public function destroy(Request $request, PipelineStage $stage): RedirectResponse
     {
         $this->assertCrmDatabase();
 
-        // 1. Primary stages cannot be deleted
-        if ($stage->isPrimary()) {
+        // 1. Pipeline integrity protection: Cannot delete the last remaining active stage
+        $activeStagesCount = PipelineStage::query()
+            ->whereNull('deleted_at')
+            ->where('is_active', true)
+            ->count();
+
+        if ($activeStagesCount <= 1) {
             return redirect()
                 ->route('v2.settings.stages.index')
                 ->withErrors([
-                    'stage' => 'المراحل الأساسية لا يمكن حذفها.',
+                    'stage' => 'لا يمكن حذف المرحلة الأخيرة المتبقية في النظام. يجب أن يحتوي مسار العمل على مرحلة نشطة واحدة على الأقل.',
                 ]);
         }
 
-        // 2. Safety Rule: Stage containing leads cannot be deleted
-        if ($stage->hasLeads()) {
-            return redirect()
-                ->route('v2.settings.stages.index')
-                ->withErrors([
-                    'stage' => 'لا يمكن حذف هذه المرحلة لوجود عملاء مرتبطين بها حالياً. يرجى نقل العملاء إلى مرحلة أخرى أولاً.',
-                ]);
+        // If deleting the default stage, designate a new active default stage
+        if ($stage->is_default) {
+            $newDefault = PipelineStage::query()
+                ->whereNull('deleted_at')
+                ->where('is_active', true)
+                ->where('id', '!=', $stage->id)
+                ->orderBy('position')
+                ->first();
+            if ($newDefault !== null) {
+                $newDefault->update(['is_default' => true]);
+            }
+        }
+        $leadCount = (int) $stage->leads()->count();
+
+        // 2. If stage has leads: admin must choose action: 'move' or 'trash'
+        if ($leadCount > 0) {
+            $action = (string) $request->input('lead_action');
+            if (! in_array($action, ['move', 'trash'], true)) {
+                return redirect()
+                    ->route('v2.settings.stages.index')
+                    ->withErrors([
+                        'stage' => 'تحتوي هذه المرحلة على عملاء. يرجى تحديد الإجراء المطلوب (نقل العملاء أو إرسالهم إلى سلة المهملات).',
+                    ]);
+            }
+
+            if ($action === 'move') {
+                $destStageId = (int) $request->input('destination_stage_id');
+                $destStage = PipelineStage::query()
+                    ->whereNull('deleted_at')
+                    ->where('is_active', true)
+                    ->where('id', '!=', $stage->id)
+                    ->find($destStageId);
+
+                if ($destStage === null) {
+                    return redirect()
+                        ->route('v2.settings.stages.index')
+                        ->withErrors([
+                            'destination_stage_id' => 'المرحلة البديلة المختارة لنقل العملاء غير صالحة.',
+                        ]);
+                }
+
+                $destStatus = $destStage->ensureDefaultStatus();
+
+                DB::transaction(function () use ($stage, $destStage, $destStatus, $leadCount, $request): void {
+                    $moved = 0;
+                    $statusIds = $stage->statuses()->pluck('id');
+                    $actorName = trim((string) ($request->user()?->name ?: 'Admin'));
+                    $now = now();
+
+                    Lead::query()
+                        ->whereIn('lead_status_id', $statusIds)
+                        ->chunkById(100, function ($chunk) use (&$moved, $destStatus, $actorName, $now): void {
+                            foreach ($chunk as $lead) {
+                                $fromStatusId = $lead->lead_status_id;
+                                $lead->lead_status_id = $destStatus->id;
+                                $lead->save();
+
+                                DB::table('lead_status_histories')->insert([
+                                    'lead_id' => $lead->id,
+                                    'from_status_id' => $fromStatusId,
+                                    'to_status_id' => $destStatus->id,
+                                    'changed_by' => $actorName,
+                                    'changed_by_user_id' => auth()->id(),
+                                    'note' => 'نقل العميل بسبب حذف المرحلة السابقة بواسطة ' . $actorName,
+                                    'changed_at' => $now,
+                                    'created_at' => $now,
+                                    'updated_at' => $now,
+                                ]);
+
+                                $moved++;
+                            }
+                        });
+
+                    // Strict accounting check: expected Lead count == moved Lead count
+                    if ($moved !== $leadCount) {
+                        throw new \RuntimeException("Mismatch in moved leads accounting: expected {$leadCount}, moved {$moved}. Rolling back.");
+                    }
+
+                    LeadStatus::query()->where('pipeline_stage_id', $stage->id)->delete();
+                    $stage->delete();
+
+                    $allStages = PipelineStage::query()->whereNull('deleted_at')->orderBy('position')->orderBy('id')->get();
+                    $pos = 1;
+                    foreach ($allStages as $st) {
+                        if ((int) $st->position !== $pos) {
+                            $st->update(['position' => $pos]);
+                        }
+                        $pos++;
+                    }
+                });
+
+                PipelineStage::clearSidebarCache();
+
+                return redirect()
+                    ->route('v2.settings.stages.index')
+                    ->with('success', "تم حذف المرحلة ونقل {$leadCount} عميل إلى مرحلة ({$destStage->name_ar}) بنجاح.");
+            }
+
+            if ($action === 'trash') {
+                $trashService = app(\App\Services\LeadTrashService::class);
+                $actor = $request->user();
+
+                DB::transaction(function () use ($stage, $trashService, $actor, $leadCount): void {
+                    $trashed = 0;
+                    $statusIds = $stage->statuses()->pluck('id');
+
+                    Lead::query()
+                        ->whereIn('lead_status_id', $statusIds)
+                        ->chunkById(100, function ($chunk) use (&$trashed, $trashService, $actor, $stage): void {
+                            foreach ($chunk as $lead) {
+                                $trashService->trashLead($lead, $actor, "حذف مرحلة: {$stage->name_ar}");
+                                $trashed++;
+                            }
+                        });
+
+                    // Strict accounting check: expected Lead count == trashed Lead count
+                    if ($trashed !== $leadCount) {
+                        throw new \RuntimeException("Mismatch in trashed leads accounting: expected {$leadCount}, trashed {$trashed}. Rolling back.");
+                    }
+
+                    LeadStatus::query()->where('pipeline_stage_id', $stage->id)->delete();
+                    $stage->delete();
+
+                    $allStages = PipelineStage::query()->whereNull('deleted_at')->orderBy('position')->orderBy('id')->get();
+                    $pos = 1;
+                    foreach ($allStages as $st) {
+                        if ((int) $st->position !== $pos) {
+                            $st->update(['position' => $pos]);
+                        }
+                        $pos++;
+                    }
+                });
+
+                PipelineStage::clearSidebarCache();
+
+                return redirect()
+                    ->route('v2.settings.stages.index')
+                    ->with('success', "تم حذف المرحلة ونقل {$leadCount} عميل إلى سلة المهملات بنجاح.");
+            }
         }
 
+        // 3. Stage has zero leads -> safe direct deletion
         DB::transaction(function () use ($stage): void {
-            // Delete associated statuses with 0 leads
             LeadStatus::query()
                 ->where('pipeline_stage_id', $stage->id)
                 ->delete();
 
             $stage->delete();
 
-            // Re-normalize positions after delete
-            $allStages = PipelineStage::query()->orderBy('position')->orderBy('id')->get();
+            $allStages = PipelineStage::query()->whereNull('deleted_at')->orderBy('position')->orderBy('id')->get();
             $pos = 1;
             foreach ($allStages as $st) {
                 if ((int) $st->position !== $pos) {

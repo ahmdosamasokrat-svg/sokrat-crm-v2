@@ -14,24 +14,26 @@
  const triggers = () => Array.from(document.querySelectorAll('.crm-notification-trigger, #crmNotificationTrigger'));
  const badges = () => Array.from(document.querySelectorAll('.crm-notification-badge, #crmNotificationBadge'));
 
- const drawer = document.getElementById('crmNotificationDrawer');
- const list = document.getElementById('crmNotificationList');
- const dueFollowupsList = document.getElementById('crmNotificationTaskList');
- const dueFollowupsTotal = document.getElementById('crmNotificationTasksTotal');
- const readAll = document.getElementById('crmNotificationReadAll');
- const loadMore = document.getElementById('crmNotificationLoadMore');
- const toast = document.getElementById('crmNotificationToast');
- const toastTitle = document.getElementById('crmNotificationToastTitle');
- const toastBody = document.getElementById('crmNotificationToastBody');
+ const getDrawer = () => document.getElementById('crmNotificationDrawer') || center.querySelector('#crmNotificationDrawer');
+ const getTaskList = () => document.getElementById('crmNotificationTaskList') || center.querySelector('#crmNotificationTaskList');
+ const getTotalBadge = () => document.getElementById('crmNotificationTasksTotal') || center.querySelector('#crmNotificationTasksTotal');
+ const getToast = () => document.getElementById('crmNotificationToast') || center.querySelector('#crmNotificationToast');
+ const getToastTitle = () => document.getElementById('crmNotificationToastTitle') || center.querySelector('#crmNotificationToastTitle');
+ const getToastBody = () => document.getElementById('crmNotificationToastBody') || center.querySelector('#crmNotificationToastBody');
+ const getAttentionSummary = () => document.getElementById('crmAttentionSummary') || center.querySelector('#crmAttentionSummary');
+ const getAttentionViewAll = () => document.getElementById('crmAttentionViewAll') || center.querySelector('#crmAttentionViewAll');
+
+ const getCountOverdue = () => document.getElementById('countOverdue') || center.querySelector('#countOverdue');
+ const getCountToday = () => document.getElementById('countToday') || center.querySelector('#countToday');
+ const getCountTomorrow = () => document.getElementById('countTomorrow') || center.querySelector('#countTomorrow');
+ const getCountLater = () => document.getElementById('countLater') || center.querySelector('#countLater');
+
  const config = center.dataset;
  const locale = config.locale === 'en' ? 'en' : 'ar';
- const baseUrl = config.baseUrl.replace(/\/$/, '');
  const pollMs = Math.max(15, Number(config.pollSeconds || 60)) * 1000;
- let filter = 'unread';
- let page = 1;
- let lastPage = 1;
+
+ let activeFilter = 'today';
  let unreadCount = null;
- let loading = false;
  let tasksLoading = false;
  let toastTimer = null;
 
@@ -52,7 +54,7 @@
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   throw new Error(payload.message || config.labelError);
+   throw new Error(payload.message || config.labelError || 'Error loading data');
   }
 
   return response.status === 204 ? {} : response.json();
@@ -71,29 +73,16 @@
 
  const showToast = item => {
   if (!item || center.classList.contains('is-open')) return;
-  toastTitle.textContent = item.title;
-  toastBody.textContent = item.body;
-  toast.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
- };
-
- const refreshCount = async () => {
-  if (document.hidden) return;
-  try {
-   const payload = await request(config.countUrl);
-   const nextCount = Number(payload.count || 0);
-   if (unreadCount !== null && nextCount > unreadCount) {
-    const latest = await request(`${config.indexUrl}?filter=unread&per_page=1`);
-    showToast(latest.data && latest.data[0]);
-   }
-   unreadCount = nextCount;
-   setBadge(nextCount);
-   if (center.classList.contains('is-open')) {
-    if (filter === 'unread') loadNotifications(1);
-    loadDueFollowups();
-   }
-  } catch (_) {}
+  const toastTitle = getToastTitle();
+  const toastBody = getToastBody();
+  const toast = getToast();
+  if (toastTitle) toastTitle.textContent = item.title;
+  if (toastBody) toastBody.textContent = item.body;
+  if (toast) {
+   toast.hidden = false;
+   clearTimeout(toastTimer);
+   toastTimer = setTimeout(() => { toast.hidden = true; }, 5500);
+  }
  };
 
  const resolveActionUrl = rawUrl => {
@@ -109,261 +98,183 @@
   }
  };
 
- const relativeTime = iso => {
-  if (!iso) return '';
-  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  if (Math.abs(seconds) < 60) return formatter.format(seconds, 'second');
-  const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) return formatter.format(minutes, 'minute');
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return formatter.format(hours, 'hour');
-  return formatter.format(Math.round(hours / 24), 'day');
- };
-
  const stateNode = (icon, title, body = '') => {
   const state = document.createElement('div');
-  state.className = 'crm-notification-state';
-  const wrap = document.createElement('div');
+  state.className = 'crm-notification-state is-compact';
   const iconNode = document.createElement('i');
   iconNode.className = `bi ${icon}`;
   iconNode.setAttribute('aria-hidden', 'true');
   const strong = document.createElement('strong');
   strong.textContent = title;
-  wrap.append(iconNode, strong);
+  state.append(iconNode, strong);
   if (body) {
    const span = document.createElement('span');
    span.textContent = body;
-   wrap.append(span);
+   state.append(span);
   }
-  state.append(wrap);
   return state;
  };
 
- const compactStateNode = (icon, title, body = '') => {
-  const state = stateNode(icon, title, body);
-  state.classList.add('is-compact');
-  return state;
- };
+ const createAttentionItem = item => {
+  const a = document.createElement('a');
+  a.className = 'crm-attention-item';
+  a.href = resolveActionUrl(item.action_url) || resolveActionUrl(item.lead_url) || '#';
 
- const dueDateFormatter = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB', {
-  day: 'numeric',
-  month: 'short',
-  hour: 'numeric',
-  minute: '2-digit',
- });
-
- const createDueTask = item => {
-  const task = document.createElement('a');
-  task.className = `crm-notification-task is-${item.bucket}`;
-  task.href = resolveActionUrl(item.action_url) || '#';
-
-  const icon = document.createElement('span');
-  icon.className = 'crm-notification-task-icon';
-  const iconGlyph = document.createElement('i');
-  iconGlyph.className = item.bucket === 'overdue' ? 'bi bi-exclamation-lg' : 'bi bi-calendar-check';
-  iconGlyph.setAttribute('aria-hidden', 'true');
-  icon.append(iconGlyph);
-
-  const copy = document.createElement('div');
-  copy.className = 'crm-notification-task-copy';
+  const top = document.createElement('div');
+  top.className = 'crm-attention-item-top';
   const name = document.createElement('strong');
+  name.className = 'crm-attention-item-name';
   name.textContent = item.name || '';
-  const context = document.createElement('span');
-  context.textContent = [item.company_name, item.status].filter(Boolean).join(' · ');
-  copy.append(name, context);
-
-  const due = document.createElement('div');
-  due.className = 'crm-notification-task-due';
-  due.append(document.createTextNode(item.bucket === 'overdue' ? config.labelTasksOverdue : config.labelTasksToday));
-  const time = document.createElement('time');
-  time.dateTime = item.due_at || '';
-  const date = new Date(item.due_at);
-  time.textContent = Number.isNaN(date.getTime()) ? '' : dueDateFormatter.format(date);
-  due.append(time);
-  task.append(icon, copy, due);
-
-  return task;
- };
-
- const createTaskCount = (className, label, count) => {
   const badge = document.createElement('span');
-  badge.className = className;
-  badge.textContent = `${label} ${count}`;
-  return badge;
+  badge.className = `crm-attention-item-badge ${item.bucket_class || 'badge-' + item.bucket}`;
+  badge.textContent = item.bucket_label || item.status || '';
+  top.append(name, badge);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'crm-attention-item-bottom';
+  const meta = document.createElement('div');
+  meta.className = 'crm-attention-item-meta';
+
+  if (item.stage_name) {
+   const stage = document.createElement('span');
+   stage.className = 'crm-attention-item-stage';
+   stage.style.setProperty('--stage-color', item.stage_color || '#64748b');
+   stage.textContent = item.stage_name;
+   meta.append(stage);
+  }
+  if (item.employee_name && item.employee_name !== '—') {
+   const emp = document.createElement('span');
+   emp.className = 'crm-attention-item-emp';
+   emp.textContent = item.employee_name;
+   meta.append(emp);
+  }
+
+  const time = document.createElement('time');
+  time.className = 'crm-attention-item-time';
+  time.textContent = item.due_time ? `${item.due_time}` : (item.due_date || '');
+  bottom.append(meta, time);
+
+  a.append(top, bottom);
+  return a;
  };
 
- const createDueTaskStage = group => {
-  const stage = document.createElement('section');
-  stage.className = 'crm-notification-task-stage';
-  stage.style.setProperty('--crm-task-stage-color', group.stage?.color || '#64748b');
-  const header = document.createElement('header');
-  header.className = 'crm-notification-task-stage-head';
-  const name = document.createElement('strong');
-  name.className = 'crm-notification-task-stage-name';
-  name.textContent = group.stage?.name || '';
-  const counts = document.createElement('div');
-  counts.className = 'crm-notification-task-counts';
-  if (Number(group.counts?.overdue || 0) > 0) counts.append(createTaskCount('overdue', config.labelTasksOverdue, group.counts.overdue));
-  if (Number(group.counts?.today || 0) > 0) counts.append(createTaskCount('today', config.labelTasksToday, group.counts.today));
-  header.append(name, counts);
-  stage.append(header);
-  (group.items || []).forEach(item => stage.append(createDueTask(item)));
-
-  return stage;
- };
-
- const loadDueFollowups = async () => {
-  if (!config.dueFollowupsUrl || !dueFollowupsList || tasksLoading) return;
+ const loadAttentionTasks = async (filterToLoad = activeFilter) => {
+  const taskList = getTaskList();
+  if (!config.dueFollowupsUrl || !taskList || tasksLoading) return;
   tasksLoading = true;
-  dueFollowupsList.replaceChildren(compactStateNode('bi-arrow-repeat', config.labelTasksLoading));
+  activeFilter = filterToLoad;
+
+  // Update active pill UI
+  center.querySelectorAll('[data-attention-filter]').forEach(button => {
+   const isActive = button.dataset.attentionFilter === activeFilter;
+   button.classList.toggle('active', isActive);
+   button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  taskList.replaceChildren(stateNode('bi-arrow-repeat', config.labelTasksLoading || (locale === 'ar' ? 'جاري التحميل...' : 'Loading...')));
+
   try {
-   const payload = await request(config.dueFollowupsUrl);
-   const total = Number(payload.meta?.total || 0);
-   if (dueFollowupsTotal) {
-    dueFollowupsTotal.textContent = total > 99 ? '99+' : String(total);
-    dueFollowupsTotal.hidden = total === 0;
+   const payload = await request(`${config.dueFollowupsUrl}?filter=${encodeURIComponent(activeFilter)}&limit=5`);
+   const meta = payload.meta || {};
+
+   const countOverdue = getCountOverdue();
+   const countToday = getCountToday();
+   const countTomorrow = getCountTomorrow();
+   const countLater = getCountLater();
+   const totalBadge = getTotalBadge();
+   const attentionSummary = getAttentionSummary();
+   const attentionViewAll = getAttentionViewAll();
+
+   // Update pill counts
+   if (countOverdue) countOverdue.textContent = String(meta.overdue ?? 0);
+   if (countToday) countToday.textContent = String(meta.today ?? 0);
+   if (countTomorrow) countTomorrow.textContent = String(meta.tomorrow ?? 0);
+   if (countLater) countLater.textContent = String(meta.later ?? 0);
+
+   // Update top total attention count (overdue + today)
+   const totalAttention = Number(meta.total ?? 0);
+   if (totalBadge) {
+    totalBadge.textContent = totalAttention > 99 ? '99+' : String(totalAttention);
+    totalBadge.hidden = totalAttention === 0;
    }
-   if (!(payload.data || []).length) {
-    dueFollowupsList.replaceChildren(compactStateNode('bi-check2-circle', config.labelTasksEmpty));
+   setBadge(totalAttention);
+
+   const items = payload.items || [];
+   const totalForFilter = Number(meta.total_for_filter ?? items.length);
+
+   if (!items.length) {
+    taskList.replaceChildren(stateNode('bi-check2-circle', config.labelTasksEmpty || (locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period')));
+    if (attentionSummary) {
+     attentionSummary.textContent = locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period';
+    }
+    if (attentionViewAll) {
+     attentionViewAll.href = meta.view_all_url || (config.dailyTasksUrl ? `${config.dailyTasksUrl}?scope=${activeFilter}` : '#');
+    }
     return;
    }
 
    const fragment = document.createDocumentFragment();
-   (payload.data || []).forEach(group => fragment.append(createDueTaskStage(group)));
-   if (payload.meta?.truncated) {
-    const notice = document.createElement('div');
-    notice.className = 'crm-notification-task-truncated';
-    notice.textContent = config.labelTasksTruncated;
-    fragment.append(notice);
+   items.slice(0, 5).forEach(item => fragment.append(createAttentionItem(item)));
+   taskList.replaceChildren(fragment);
+
+   // Update footer summary and View All link
+   if (attentionSummary) {
+    attentionSummary.textContent = locale === 'ar'
+     ? `عرض ${Math.min(5, items.length)} من أصل ${totalForFilter}`
+     : `Showing ${Math.min(5, items.length)} of ${totalForFilter}`;
    }
-   dueFollowupsList.replaceChildren(fragment);
+
+   if (attentionViewAll) {
+    attentionViewAll.href = meta.view_all_url || (config.dailyTasksUrl ? `${config.dailyTasksUrl}?scope=${activeFilter}` : '#');
+   }
   } catch (error) {
-   dueFollowupsList.replaceChildren(compactStateNode('bi-exclamation-circle', config.labelError, error.message));
+   taskList.replaceChildren(stateNode('bi-exclamation-circle', config.labelError || 'Error', error.message));
   } finally {
    tasksLoading = false;
   }
  };
 
- const mutate = async (item, action, method = 'PATCH', body = null) => {
-  await request(`${baseUrl}/${encodeURIComponent(item.id)}${action}`, {
-   method,
-   body: body ? JSON.stringify(body) : undefined,
-  });
-  await Promise.all([loadNotifications(1), refreshCount()]);
- };
-
- const createItem = item => {
-  const article = document.createElement('article');
-  article.className = `crm-notification-item${item.read_at ? '' : ' is-unread'}`;
-  article.dataset.priority = item.priority;
-
-  const main = document.createElement('div');
-  main.className = 'crm-notification-item-main';
-  const dot = document.createElement('span');
-  dot.className = 'crm-notification-priority';
-  dot.setAttribute('aria-hidden', 'true');
-  const copy = document.createElement('div');
-  copy.className = 'crm-notification-copy';
-  const title = document.createElement('strong');
-  title.textContent = item.title;
-  const body = document.createElement('p');
-  body.textContent = item.body;
-  const meta = document.createElement('div');
-  meta.className = 'crm-notification-meta';
-  meta.textContent = relativeTime(item.created_at);
-  copy.append(title, body, meta);
-  main.append(dot, copy);
-  article.append(main);
-
-  const actions = document.createElement('div');
-  actions.className = 'crm-notification-actions';
-  const resolvedUrl = resolveActionUrl(item.action_url);
-  if (resolvedUrl) {
-   const open = document.createElement('a');
-   open.className = 'primary';
-   open.href = resolvedUrl;
-   open.textContent = config.labelOpen;
-   open.addEventListener('click', event => {
-    if (!item.read_at) {
-     event.preventDefault();
-     mutate(item, '/read').then(() => { window.location.assign(resolvedUrl); });
-    }
-   });
-   actions.append(open);
-  }
-
-  if (item.can_snooze) {
-   const snooze = document.createElement('select');
-   snooze.setAttribute('aria-label', config.labelSnooze);
-   [
-    ['', config.labelSnooze],
-    ['15', locale === 'ar' ? '15 دقيقة' : '15 minutes'],
-    ['60', locale === 'ar' ? 'ساعة' : '1 hour'],
-    ['1440', locale === 'ar' ? 'غدًا' : 'Tomorrow'],
-   ].forEach(([value, label]) => {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    option.disabled = value === '';
-    option.selected = value === '';
-    snooze.append(option);
-   });
-   snooze.addEventListener('change', () => mutate(item, '/snooze', 'POST', { minutes: Number(snooze.value) }));
-   actions.append(snooze);
-  }
-
-  const dismiss = document.createElement('button');
-  dismiss.type = 'button';
-  dismiss.textContent = config.labelDismiss;
-  dismiss.addEventListener('click', () => mutate(item, '', 'DELETE'));
-  actions.append(dismiss);
-  article.append(actions);
-  return article;
- };
-
- const loadNotifications = async (requestedPage = 1) => {
-  if (loading) return;
-  loading = true;
-  page = requestedPage;
-  if (page === 1) list.replaceChildren(stateNode('bi-arrow-repeat', config.labelLoading));
-
+ const refreshCount = async () => {
+  if (document.hidden) return;
   try {
-   const payload = await request(`${config.indexUrl}?filter=${encodeURIComponent(filter)}&page=${page}`);
-   lastPage = Number(payload.meta.last_page || 1);
-   const fragment = document.createDocumentFragment();
-   (payload.data || []).forEach(item => fragment.append(createItem(item)));
-
-   if (page === 1) list.replaceChildren();
-   if (!(payload.data || []).length && page === 1) {
-    list.append(stateNode('bi-bell-slash', config.labelEmpty));
-   } else {
-    list.append(fragment);
+   if (config.countUrl) {
+    const payload = await request(config.countUrl);
+    const nextCount = Number(payload.count || 0);
+    unreadCount = nextCount;
    }
-   loadMore.hidden = page >= lastPage;
-  } catch (error) {
-   if (page === 1) list.replaceChildren(stateNode('bi-exclamation-circle', config.labelError, error.message));
-  } finally {
-   loading = false;
-  }
+   if (center.classList.contains('is-open')) {
+    loadAttentionTasks(activeFilter);
+   } else if (config.dueFollowupsUrl) {
+    const payload = await request(`${config.dueFollowupsUrl}?limit=1`);
+    const totalAttention = Number(payload.meta?.total ?? 0);
+    setBadge(totalAttention);
+   }
+  } catch (_) {}
  };
 
  const openCenter = () => {
   center.classList.add('is-open');
   document.body.classList.add('crm-notification-open');
-  drawer.setAttribute('aria-hidden', 'false');
-  center.querySelector('[data-notification-close]').hidden = false;
-  loadNotifications(1);
-  loadDueFollowups();
-  setTimeout(() => drawer.querySelector('.crm-notification-close').focus(), 0);
+  const drawer = getDrawer();
+  if (drawer) drawer.setAttribute('aria-hidden', 'false');
+  const backdrop = center.querySelector('[data-notification-close]');
+  if (backdrop) backdrop.hidden = false;
+  
+  loadAttentionTasks(activeFilter);
+  setTimeout(() => {
+   const closeBtn = drawer?.querySelector('.crm-notification-close');
+   if (closeBtn) closeBtn.focus();
+  }, 0);
  };
 
  let lastActiveTrigger = null;
  const closeCenter = () => {
   center.classList.remove('is-open');
   document.body.classList.remove('crm-notification-open');
-  drawer.setAttribute('aria-hidden', 'true');
-  center.querySelector('.crm-notification-backdrop').hidden = true;
+  const drawer = getDrawer();
+  if (drawer) drawer.setAttribute('aria-hidden', 'true');
+  const backdrop = center.querySelector('.crm-notification-backdrop');
+  if (backdrop) backdrop.hidden = true;
   if (lastActiveTrigger && typeof lastActiveTrigger.focus === 'function') {
    lastActiveTrigger.focus();
   } else {
@@ -380,23 +291,18 @@
    openCenter();
   }
  });
+
  center.querySelectorAll('[data-notification-close]').forEach(node => node.addEventListener('click', closeCenter));
- center.querySelectorAll('[data-notification-filter]').forEach(button => {
+
+ center.querySelectorAll('[data-attention-filter]').forEach(button => {
   button.addEventListener('click', () => {
-   filter = button.dataset.notificationFilter;
-   center.querySelectorAll('[data-notification-filter]').forEach(candidate => {
-    const active = candidate === button;
-    candidate.classList.toggle('active', active);
-    candidate.setAttribute('aria-selected', active ? 'true' : 'false');
-   });
-   loadNotifications(1);
+   const selectedFilter = button.dataset.attentionFilter;
+   if (selectedFilter) {
+    loadAttentionTasks(selectedFilter);
+   }
   });
  });
- readAll.addEventListener('click', async () => {
-  await request(config.readAllUrl, { method: 'PATCH' });
-  await Promise.all([loadNotifications(1), refreshCount()]);
- });
- loadMore.addEventListener('click', () => loadNotifications(page + 1));
+
  document.addEventListener('keydown', event => {
   if (!center.classList.contains('is-open')) return;
   if (event.key === 'Escape') {
@@ -404,6 +310,7 @@
    return;
   }
   if (event.key !== 'Tab') return;
+  const drawer = getDrawer();
   const focusable = [...drawer.querySelectorAll('button:not([disabled]),a[href],select:not([disabled])')]
    .filter(node => !node.hidden && node.offsetParent !== null);
   if (!focusable.length) return;
@@ -417,6 +324,7 @@
    first.focus();
   }
  });
+
  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshCount(); });
 
  refreshCount();

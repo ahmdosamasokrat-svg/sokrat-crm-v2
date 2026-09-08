@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lead extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'lead_status_id',
         'name',
@@ -40,8 +42,10 @@ class Lead extends Model
         'notes',
         'custom_fields',
         'next_follow_up_at',
+        'deleted_by_user_id',
+        'deleted_from_stage_id',
+        'deleted_reason',
     ];
-
     protected function casts(): array
     {
         return [
@@ -51,6 +55,7 @@ class Lead extends Model
             'lines_count' => 'integer',
             'custom_fields' => 'array',
             'next_follow_up_at' => 'datetime',
+            'deleted_at' => 'datetime',
         ];
     }
 
@@ -144,6 +149,22 @@ class Lead extends Model
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
+    public function documents(): HasMany
+    {
+        return $this->hasMany(LeadDocument::class, 'lead_id')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+    public function deletedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by_user_id');
+    }
+
+    public function deletedFromStage(): BelongsTo
+    {
+        return $this->belongsTo(PipelineStage::class, 'deleted_from_stage_id');
+    }
+
 
     public function currentStage(): ?PipelineStage
     {

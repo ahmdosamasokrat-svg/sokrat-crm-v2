@@ -19,8 +19,8 @@
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--bg); color: var(--dark); font-family: var(--font-primary, system-ui, -apple-system, sans-serif); }
-        .crm-app { min-height: 100vh; display: flex; max-width: 100vw; overflow-x: hidden; }
-        .crm-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; text-align: start; }
+        .crm-app { min-height: 100vh; display: flex; max-width: 100vw; overflow-x: clip; }
+        .crm-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; text-align: start; }
         .top-bar, .crm-topbar, .topbar { background: #fff; border-bottom: 1px solid var(--line); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; text-align: start; min-height: 56px; }
         .top-bar-info, .crm-topbar-left, .topbar-left { display: flex; align-items: center; gap: 12px; text-align: start; min-width: 0; }
         .top-bar h1, .crm-topbar-title h1, .topbar h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; text-align: start; font-weight: 900; }
