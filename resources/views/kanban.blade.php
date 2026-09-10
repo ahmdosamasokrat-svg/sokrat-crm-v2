@@ -1652,19 +1652,12 @@ html.dark .board-top-scroll::-webkit-scrollbar-thumb:hover,
      @endif
 
      <div class="column-body">
-     @foreach (
-      [
-       'today' =>
-        __('crm.today'),
-
-       'overdue' =>
-        __('crm.overdue'),
-
-       'upcoming' =>
-        __('crm.upcoming'),
-      ]
-      as $scope => $scopeLabel
-     )
+     @php
+      $scopeEntries = $kanbanDirectStatus
+       ? ['today' => __('crm.all_leads_in_stage')]
+       : ['today' => __('crm.today'), 'overdue' => __('crm.overdue'), 'upcoming' => __('crm.upcoming')];
+     @endphp
+     @foreach ($scopeEntries as $scope => $scopeLabel)
        @php
         if ($kanbanDirectStatus) {
          if ($scope === 'today') {

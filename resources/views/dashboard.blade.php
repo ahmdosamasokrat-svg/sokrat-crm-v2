@@ -438,25 +438,31 @@ html.dark-mode .crm-dashboard-v2 {
   margin-bottom: 10px;
 }
 .crm-dashboard-v2 .dash-pipeline-strip-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 800;
   color: var(--d-text);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .crm-dashboard-v2 .dash-kanban-link {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 800;
   color: var(--d-primary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--d-radius-sm);
+  background: var(--d-surface-alt);
+  border: 1px solid var(--d-border);
   transition: all var(--d-transition);
 }
 .crm-dashboard-v2 .dash-kanban-link:hover {
   color: #b91c1c;
+  background: var(--d-surface-hover);
+  border-color: var(--d-primary);
   transform: translateY(-1px);
 }
 .crm-dashboard-v2 .dash-pipeline-strip {
@@ -483,49 +489,60 @@ html.dark-mode .crm-dashboard-v2 {
 }
 .crm-dashboard-v2 .pipeline-flow-pill {
   flex: 0 0 auto;
-  min-width: 125px;
+  min-width: 148px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--d-radius-md);
+  gap: 11px;
+  padding: 10px 14px;
+  border-radius: 11px;
   background: var(--d-surface-alt);
   border: 1px solid var(--d-border);
   text-decoration: none;
-  transition: all var(--d-transition);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   scroll-snap-align: start;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 .crm-dashboard-v2 .pipeline-flow-pill:hover {
   transform: translateY(-2px);
   border-color: var(--pill-color, var(--d-primary));
-  box-shadow: var(--d-shadow-hover);
+  background: var(--d-surface);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--pill-color, var(--d-primary)) 14%, transparent), 0 2px 5px rgba(0, 0, 0, 0.03);
 }
 .crm-dashboard-v2 .pipeline-flow-icon {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 9px;
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: 18px;
   background: var(--pill-bg, rgba(59, 130, 246, 0.1));
   color: var(--pill-color, #3b82f6);
+  transition: transform 0.2s ease;
+}
+.crm-dashboard-v2 .pipeline-flow-pill:hover .pipeline-flow-icon {
+  transform: scale(1.05);
 }
 .crm-dashboard-v2 .pipeline-flow-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .crm-dashboard-v2 .pipeline-flow-info strong {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 800;
   color: var(--d-text);
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 .crm-dashboard-v2 .pipeline-flow-info small {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 900;
-  color: var(--d-text-muted);
+  color: var(--d-text);
   font-family: Arial, sans-serif;
+  line-height: 1.15;
 }
 
 /* ==========================================================================
@@ -2970,7 +2987,6 @@ html.dark-mode .toast {
 
 <!-- Base Sidebar Navigation Script -->
 <script>
-window.__debugPoint0 = 'POINT_0';
 (()=>{
   document.querySelectorAll('.toggle').forEach(x => {
     x.onclick = () => {
@@ -2992,7 +3008,6 @@ window.__debugPoint0 = 'POINT_0';
 
 <!-- DASHBOARD THEME & CHARTS INTEGRATION -->
 <script>
-window.__debugPoint1 = 'LOADED';
 (() => {
   const isDarkModeActive = () => {
     const root = document.documentElement;
@@ -3029,41 +3044,59 @@ window.__debugPoint1 = 'LOADED';
 
   window.__chartLogs = [];
   const log = (msg) => { window.__chartLogs.push(msg); };
-  const ensureChart = async () => {
-    log('ensureChart start: typeof window.Chart = ' + typeof window.Chart);
-    if (typeof window.Chart === 'function') return true;
-    try {
-      log('fetching chart.umd.min.js');
-      const res = await fetch('{{ asset('js/chart.umd.min.js') }}?v={{ file_exists(public_path('js/chart.umd.min.js')) ? filemtime(public_path('js/chart.umd.min.js')) : '1.0' }}');
-      log('fetch status: ' + res.status);
-      if (res.ok) {
-        const code = await res.text();
-        log('code len: ' + code.length);
-        (0, eval)(code);
-        log('after eval: typeof window.Chart = ' + typeof window.Chart);
-        return typeof window.Chart === 'function';
-      }
-    } catch (e) {
-      log('fetch catch error: ' + e.message);
+  const ensureChart = () => {
+    if (typeof window.Chart === 'function') {
+      return Promise.resolve(true);
     }
-    return false;
+    if (window.__sokratChartLoadPromise) {
+      return window.__sokratChartLoadPromise;
+    }
+    window.__sokratChartLoadPromise = (async () => {
+      log('ensureChart start: typeof window.Chart = ' + typeof window.Chart);
+      if (typeof window.Chart === 'function') return true;
+      try {
+        log('fetching chart.umd.min.js');
+        const res = await fetch('{{ asset('js/chart.umd.min.js') }}?v={{ file_exists(public_path('js/chart.umd.min.js')) ? filemtime(public_path('js/chart.umd.min.js')) : '1.0' }}');
+        log('fetch status: ' + res.status);
+        if (res.ok) {
+          const code = await res.text();
+          log('code len: ' + code.length);
+          (0, eval)(code);
+          log('after eval: typeof window.Chart = ' + typeof window.Chart);
+          return typeof window.Chart === 'function';
+        }
+      } catch (e) {
+        log('fetch catch error: ' + e.message);
+      }
+      return false;
+    })().catch((err) => {
+      log('chart promise error: ' + err.message);
+      return false;
+    });
+    return window.__sokratChartLoadPromise;
   };
   let perfChart = null;
   let statusDonutChart = null;
   let conversionRingChart = null;
   let chartsInitialized = false;
+  let chartsInitializing = false;
 
   const isRTL = '{{ app()->getLocale() === 'ar' ? 'true' : 'false' }}' === 'true';
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const initDashboardCharts = async () => {
-    log('initDashboardCharts called: chartsInitialized=' + chartsInitialized);
-    if (chartsInitialized) return;
-    if (typeof window.Chart !== 'function') {
-      await ensureChart();
-    }
-    if (typeof window.Chart !== 'function') return;
-    chartsInitialized = true;
+    log('initDashboardCharts called: chartsInitialized=' + chartsInitialized + ', chartsInitializing=' + chartsInitializing);
+    if (chartsInitialized || chartsInitializing) return;
+    chartsInitializing = true;
+    try {
+      if (typeof window.Chart !== 'function') {
+        await ensureChart();
+      }
+      if (typeof window.Chart !== 'function') {
+        chartsInitializing = false;
+        return;
+      }
+      chartsInitialized = true;
     const Chart = window.Chart;
     const isDarkModeActive = () => {
       const root = document.documentElement;
@@ -3347,15 +3380,46 @@ window.__debugPoint1 = 'LOADED';
   }
   window.statusDonutChart = statusDonutChart;
   window.conversionRingChart = conversionRingChart;
-};
+    } catch (e) {
+      log('initDashboardCharts error: ' + e.message);
+    } finally {
+      chartsInitializing = false;
+    }
+  };
 
-initDashboardCharts();
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initDashboardCharts);
-}
-window.addEventListener('load', initDashboardCharts);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { initDashboardCharts(); }, { once: true });
+  } else {
+    initDashboardCharts();
+  }
+  window.addEventListener('load', () => {
+    if (!chartsInitialized) initDashboardCharts();
+  }, { once: true });
 })();
 </script>
+@can('voip.view')
+<script>
+(() => {
+  const loadVoipAsync = () => {
+    fetch('{{ route('dashboard', ['widget' => 'voip_status']) }}', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.voipStatus) {
+          window.__crmVoipStatus = data.voipStatus;
+        }
+      })
+      .catch(() => {});
+  };
+  if (window.requestIdleCallback) {
+    requestIdleCallback(loadVoipAsync, { timeout: 3000 });
+  } else {
+    setTimeout(loadVoipAsync, 500);
+  }
+})();
+</script>
+@endcan
 <!-- NUMERIC COUNTERS & MINI CALENDAR LOGIC -->
 <script>
 (() => {

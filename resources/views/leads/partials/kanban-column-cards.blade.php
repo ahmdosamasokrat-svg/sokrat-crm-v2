@@ -5,12 +5,14 @@
         'upcoming' => __('crm.upcoming'),
         default => __('crm.all_leads_in_stage'),
     };
+    $canCreateFollowup = auth()->user()?->can('leads.followups.create');
 @endphp
 @forelse ($leads as $lead)
  @include('leads.partials.kanban-card', [
      'lead' => $lead,
      'column' => $column,
      'scope' => $scope ?? 'all',
+     'canCreateFollowup' => $canCreateFollowup,
  ])
 @empty
  <div class="kanban-scope-empty">

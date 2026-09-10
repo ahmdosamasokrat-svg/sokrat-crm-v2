@@ -120,16 +120,16 @@ class DashboardController extends Controller
         $totalLeads = (clone $leadBase)
             ->count();
 
-        $statusCounts = [];
+        $rawStatusCounts = (clone $leadBase)
+            ->whereNotNull('leads.lead_status_id')
+            ->selectRaw('leads.lead_status_id, count(*) as total')
+            ->groupBy('leads.lead_status_id')
+            ->pluck('total', 'leads.lead_status_id')
+            ->all();
 
+        $statusCounts = [];
         foreach ($statuses as $status) {
-            $statusCounts[$status->code] =
-                (clone $leadBase)
-                    ->where(
-                        'lead_status_id',
-                        $status->id
-                    )
-                    ->count();
+            $statusCounts[$status->code] = (int) ($rawStatusCounts[$status->id] ?? 0);
         }
 
         $statusCards = [];
@@ -283,55 +283,20 @@ class DashboardController extends Controller
 
         $datedLeadBase = clone $leadBase;
 
+        $followupStats = (clone $datedLeadBase)
+            ->selectRaw('
+                count(case when next_follow_up_at between ? and ? then 1 end) as today_count,
+                count(case when next_follow_up_at < ? then 1 end) as overdue_count,
+                count(case when next_follow_up_at > ? then 1 end) as upcoming_count,
+                count(case when next_follow_up_at is null then 1 end) as no_date_count
+            ', [$todayStart, $todayEnd, $todayStart, $todayEnd])
+            ->first();
+
         $followupCounts = [
-            'today' => (
-                clone $datedLeadBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->whereBetween(
-                    'next_follow_up_at',
-                    [
-                        $todayStart,
-                        $todayEnd,
-                    ]
-                )
-                ->count(),
-
-            'overdue' => (
-                clone $datedLeadBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->where(
-                    'next_follow_up_at',
-                    '<',
-                    $todayStart
-                )
-                ->count(),
-
-            'upcoming' => (
-                clone $datedLeadBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->where(
-                    'next_follow_up_at',
-                    '>',
-                    $todayEnd
-                )
-                ->count(),
-
-            'no_date' => (
-                clone $datedLeadBase
-            )
-                ->whereNull(
-                    'next_follow_up_at'
-                )
-                ->count(),
+            'today' => (int) ($followupStats->today_count ?? 0),
+            'overdue' => (int) ($followupStats->overdue_count ?? 0),
+            'upcoming' => (int) ($followupStats->upcoming_count ?? 0),
+            'no_date' => (int) ($followupStats->no_date_count ?? 0),
         ];
 
         $meetingStatus = $statuses
@@ -353,47 +318,18 @@ class DashboardController extends Controller
             );
         }
 
+        $meetingStats = (clone $meetingBase)
+            ->selectRaw('
+                count(case when next_follow_up_at between ? and ? then 1 end) as today_count,
+                count(case when next_follow_up_at < ? then 1 end) as overdue_count,
+                count(case when next_follow_up_at > ? then 1 end) as upcoming_count
+            ', [$todayStart, $todayEnd, $todayStart, $todayEnd])
+            ->first();
+
         $meetingCounts = [
-            'today' => (
-                clone $meetingBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->whereBetween(
-                    'next_follow_up_at',
-                    [
-                        $todayStart,
-                        $todayEnd,
-                    ]
-                )
-                ->count(),
-
-            'overdue' => (
-                clone $meetingBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->where(
-                    'next_follow_up_at',
-                    '<',
-                    $todayStart
-                )
-                ->count(),
-
-            'upcoming' => (
-                clone $meetingBase
-            )
-                ->whereNotNull(
-                    'next_follow_up_at'
-                )
-                ->where(
-                    'next_follow_up_at',
-                    '>',
-                    $todayEnd
-                )
-                ->count(),
+            'today' => (int) ($meetingStats->today_count ?? 0),
+            'overdue' => (int) ($meetingStats->overdue_count ?? 0),
+            'upcoming' => (int) ($meetingStats->upcoming_count ?? 0),
         ];
         // Dynamic Pipeline Stage Conversion Widget (FROM -> TO)
         $fromStageId = $request->query('from_stage_id');
@@ -430,7 +366,7 @@ class DashboardController extends Controller
         $kpi1Stage = $kpi1StageId !== null
             ? ($stages->firstWhere('id', (int) $kpi1StageId) ?? $defaultKpi1Stage)
             : $defaultKpi1Stage;
-        $stageKpi1 = $this->calculateStageKpi($kpi1Stage, $leadBase, $totalLeads, $filters);
+        $stageKpi1 = $this->calculateStageKpi($kpi1Stage, $leadBase, $totalLeads, $filters, $statusCounts);
 
         $kpi2StageId = $request->query('stage_kpi_2');
         $defaultKpi2Stage = $stages->first(static fn (PipelineStage $s) => in_array($s->code, ['meeting', 'discussion', 'quotation', 'negotiation'], true))
@@ -438,7 +374,7 @@ class DashboardController extends Controller
         $kpi2Stage = $kpi2StageId !== null
             ? ($stages->firstWhere('id', (int) $kpi2StageId) ?? $defaultKpi2Stage)
             : $defaultKpi2Stage;
-        $stageKpi2 = $this->calculateStageKpi($kpi2Stage, $leadBase, $totalLeads, $filters);
+        $stageKpi2 = $this->calculateStageKpi($kpi2Stage, $leadBase, $totalLeads, $filters, $statusCounts);
 
         $activityStageId = $request->query('activity_stage_id');
         $defaultActivityStage = $stages->first(static fn (PipelineStage $s) => $s->code === 'meeting')
@@ -539,6 +475,25 @@ class DashboardController extends Controller
                     'widget' => 'stage_activity_leads',
                 ], $activityLeadsData));
             }
+            if ($widget === 'voip_status') {
+                if (! $user->hasPermission('voip.view')) {
+                    abort(403);
+                }
+                $status = ['status' => 'disconnected'];
+                try {
+                    $voip = app(VoipService::class);
+                    if ($voip->isConfigured()) {
+                        $status = $voip->health();
+                    }
+                } catch (\Throwable $e) {
+                    $status = ['status' => 'error'];
+                }
+                return response()->json([
+                    'success' => true,
+                    'widget' => 'voip_status',
+                    'voipStatus' => $status,
+                ]);
+            }
         }
 
         $latestFollowups =
@@ -583,6 +538,7 @@ class DashboardController extends Controller
                     ->whereNull('assigned_user_id')
                     ->whereNotNull('assigned_employee')
                     ->where('assigned_employee', '<>', '')
+                    ->distinct()
                     ->pluck('assigned_employee')
             )
             ->filter()
@@ -610,16 +566,6 @@ class DashboardController extends Controller
         }
 
         $voipStatus = null;
-        if ($user->hasPermission('voip.view')) {
-            try {
-                $voip = app(VoipService::class);
-                if ($voip->isConfigured()) {
-                    $voipStatus = $voip->health();
-                }
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
         $miniCalendarEvents = [];
         if ($user->hasPermission(CrmPermission::CALENDAR_VIEW) || $user->hasPermission('calendar.view')) {
             $calendarEventsQuery = CalendarEvent::query()
@@ -704,44 +650,91 @@ class DashboardController extends Controller
         }
 
         $nowDate = now();
+        $startPeriod = (clone $nowDate)->subMonths(5)->startOfMonth();
+        $endPeriod = (clone $nowDate)->endOfMonth();
+
+        $monthKeys = [];
         for ($i = 5; $i >= 0; $i--) {
             $month = (clone $nowDate)->subMonths($i);
-            $perfLabels[] = $month->translatedFormat('M Y');
-            $startOfMonth = (clone $month)->startOfMonth();
-            $endOfMonth = (clone $month)->endOfMonth();
+            $ym = $month->format('Y-m');
+            $monthKeys[$ym] = $month->translatedFormat('M Y');
+        }
+        $perfLabels = array_values($monthKeys);
 
-            $newCount = (clone $timelineLeadBase)->whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
-            $perfNew[] = $newCount;
-            $perfTotal[] = $newCount;
-            $perfFollowups[] = LeadFollowup::query()
-                ->whereBetween('followed_up_at', [$startOfMonth, $endOfMonth])
-                ->whereHas('lead', function (Builder $query) use ($user): void {
-                    $query->accessibleTo($user);
-                })
-                ->count();
-            $perfContracts[] = (clone $timelineLeadBase)
-                ->whereBetween('updated_at', [$startOfMonth, $endOfMonth])
-                ->whereHas('status', static fn ($q) => $q->where('code', 'contract_closed'))
-                ->count();
+        $monthlyNewLeads = (clone $timelineLeadBase)
+            ->whereBetween('leads.created_at', [$startPeriod, $endPeriod])
+            ->selectRaw("DATE_FORMAT(leads.created_at, '%Y-%m') as ym, count(*) as c")
+            ->groupBy('ym')
+            ->pluck('c', 'ym')
+            ->all();
 
-            foreach ($selectedChartStages as $stage) {
-                $statusIds = $stage->statuses->pluck('id')->all();
-                $stageCount = 0;
-                if (! empty($statusIds)) {
-                    $stageCount = (clone $timelineLeadBase)
-                        ->where(static function (Builder $q) use ($statusIds, $startOfMonth, $endOfMonth): void {
-                            $q->where(static function (Builder $sub) use ($statusIds, $startOfMonth, $endOfMonth): void {
-                                $sub->whereIn('lead_status_id', $statusIds)
-                                    ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
-                            })->orWhereHas('statusHistory', static function (Builder $hq) use ($statusIds, $startOfMonth, $endOfMonth): void {
-                                $hq->whereIn('to_status_id', $statusIds)
-                                    ->whereBetween('changed_at', [$startOfMonth, $endOfMonth]);
-                            });
-                        })
-                        ->distinct()
-                        ->count('leads.id');
-                }
-                $stageMonthlyData[$stage->id][] = $stageCount;
+        $perfNew = [];
+        $perfTotal = [];
+        foreach (array_keys($monthKeys) as $ym) {
+            $count = (int) ($monthlyNewLeads[$ym] ?? 0);
+            $perfNew[] = $count;
+            $perfTotal[] = $count;
+        }
+
+        $monthlyFollowups = LeadFollowup::query()
+            ->whereBetween('followed_up_at', [$startPeriod, $endPeriod])
+            ->whereHas('lead', static function (Builder $query) use ($user): void {
+                $query->accessibleTo($user);
+            })
+            ->selectRaw("DATE_FORMAT(followed_up_at, '%Y-%m') as ym, count(*) as c")
+            ->groupBy('ym')
+            ->pluck('c', 'ym')
+            ->all();
+
+        $perfFollowups = [];
+        foreach (array_keys($monthKeys) as $ym) {
+            $perfFollowups[] = (int) ($monthlyFollowups[$ym] ?? 0);
+        }
+
+        $monthlyContracts = (clone $timelineLeadBase)
+            ->whereBetween('leads.updated_at', [$startPeriod, $endPeriod])
+            ->whereHas('status', static fn ($q) => $q->where('code', 'contract_closed'))
+            ->selectRaw("DATE_FORMAT(leads.updated_at, '%Y-%m') as ym, count(*) as c")
+            ->groupBy('ym')
+            ->pluck('c', 'ym')
+            ->all();
+
+        $perfContracts = [];
+        foreach (array_keys($monthKeys) as $ym) {
+            $perfContracts[] = (int) ($monthlyContracts[$ym] ?? 0);
+        }
+
+        $selectedStageIds = $selectedChartStages->pluck('id')->all();
+
+        $q1 = (clone $timelineLeadBase)
+            ->join('lead_statuses as ls1', 'ls1.id', '=', 'leads.lead_status_id')
+            ->whereIn('ls1.pipeline_stage_id', $selectedStageIds)
+            ->whereBetween('leads.created_at', [$startPeriod, $endPeriod])
+            ->select('leads.id as lead_id', 'ls1.pipeline_stage_id as stage_id', DB::raw("DATE_FORMAT(leads.created_at, '%Y-%m') as ym"));
+
+        $q2 = (clone $timelineLeadBase)
+            ->join('lead_status_histories as lsh', 'lsh.lead_id', '=', 'leads.id')
+            ->join('lead_statuses as ls2', 'ls2.id', '=', 'lsh.to_status_id')
+            ->whereIn('ls2.pipeline_stage_id', $selectedStageIds)
+            ->whereBetween('lsh.changed_at', [$startPeriod, $endPeriod])
+            ->select('leads.id as lead_id', 'ls2.pipeline_stage_id as stage_id', DB::raw("DATE_FORMAT(lsh.changed_at, '%Y-%m') as ym"));
+
+        $stageCountsRaw = DB::query()
+            ->fromSub($q1->union($q2), 'u')
+            ->select('ym', 'stage_id', DB::raw('count(distinct lead_id) as count'))
+            ->groupBy('ym', 'stage_id')
+            ->get();
+
+        $stageCountLookup = [];
+        foreach ($stageCountsRaw as $row) {
+            $stageCountLookup[$row->stage_id][$row->ym] = (int) $row->count;
+        }
+
+        $stageMonthlyData = [];
+        foreach ($selectedChartStages as $stage) {
+            $stageMonthlyData[$stage->id] = [];
+            foreach (array_keys($monthKeys) as $ym) {
+                $stageMonthlyData[$stage->id][] = $stageCountLookup[$stage->id][$ym] ?? 0;
             }
         }
 
@@ -926,7 +919,7 @@ class DashboardController extends Controller
             ->endOfDay();
 
         $statuses = LeadStatus::query()
-            ->with('stage')
+            ->with('stage.activeFields')
             ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
             ->orderBy('position')
             ->get();
@@ -953,6 +946,17 @@ class DashboardController extends Controller
             'lead_status_id',
             'updated_at',
         ];
+        $activeUsers = User::query()->where('is_active', true)->get(['id', 'name'])->keyBy('id');
+        $attachAssignedUser = static function ($leads) use ($activeUsers): void {
+            foreach ($leads as $lead) {
+                if ($lead->assigned_user_id) {
+                    $u = $activeUsers->get($lead->assigned_user_id);
+                    if ($u) {
+                        $lead->setRelation('assignedUser', $u);
+                    }
+                }
+            }
+        };
 
         $statusIds = $statuses->pluck('id')->all();
 
@@ -1014,46 +1018,46 @@ class DashboardController extends Controller
             $todayLeads = $todayCount > 0
                 ? (clone $datedBase)
                     ->select($leadSelect)
-                    ->with('assignedUser:id,name')
                     ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
                     ->orderBy('next_follow_up_at')
                     ->orderByDesc('updated_at')
                     ->take($INITIAL_CARD_LIMIT)
                     ->get()
                 : collect();
+            $attachAssignedUser($todayLeads);
 
             $overdueLeads = $overdueCount > 0
                 ? (clone $datedBase)
                     ->select($leadSelect)
-                    ->with('assignedUser:id,name')
                     ->where('next_follow_up_at', '<', $todayStart)
                     ->orderByDesc('next_follow_up_at')
                     ->orderByDesc('updated_at')
                     ->take($INITIAL_CARD_LIMIT)
                     ->get()
                 : collect();
+            $attachAssignedUser($overdueLeads);
 
             $upcomingLeads = $upcomingCount > 0
                 ? (clone $datedBase)
                     ->select($leadSelect)
-                    ->with('assignedUser:id,name')
                     ->where('next_follow_up_at', '>', $todayEnd)
                     ->orderBy('next_follow_up_at')
                     ->orderByDesc('updated_at')
                     ->take($INITIAL_CARD_LIMIT)
                     ->get()
                 : collect();
+            $attachAssignedUser($upcomingLeads);
 
             $allLeads = $totalCount > 0
                 ? (clone $baseQuery)
                     ->select($leadSelect)
-                    ->with('assignedUser:id,name')
                     ->orderByRaw('next_follow_up_at IS NULL')
                     ->orderBy('next_follow_up_at')
                     ->orderByDesc('updated_at')
                     ->take($INITIAL_CARD_LIMIT)
                     ->get()
                 : collect();
+            $attachAssignedUser($allLeads);
 
             $scopeLeads = [
                 'today' => $todayLeads,
@@ -1454,7 +1458,7 @@ class DashboardController extends Controller
             instanceof Carbon
         ) {
             $query->where(
-                'created_at',
+                'leads.created_at',
                 '>=',
                 $filters['from_date']
             );
@@ -1465,18 +1469,25 @@ class DashboardController extends Controller
             instanceof Carbon
         ) {
             $query->where(
-                'created_at',
+                'leads.created_at',
                 '<=',
                 $filters['to_date']
             );
         }
     }
 
+    private array $stageConversionMemo = [];
+
     private function calculateStageConversion(?PipelineStage $fromStage, ?PipelineStage $toStage, Builder $leadBase, ?iterable $allStages = null): array
     {
+        $memoKey = ($fromStage?->id ?? 'null') . '_' . ($toStage?->id ?? 'null');
+        if (isset($this->stageConversionMemo[$memoKey])) {
+            return $this->stageConversionMemo[$memoKey];
+        }
+
         if ($fromStage === null || $toStage === null) {
             $targetStage = $toStage ?? $fromStage;
-            return [
+            return $this->stageConversionMemo[$memoKey] = [
                 'from_stage_id' => $fromStage?->id,
                 'from_stage_name' => $fromStage?->localizedName() ?? '—',
                 'to_stage_id' => $toStage?->id,
@@ -1514,7 +1525,7 @@ class DashboardController extends Controller
         $isSame = ($fromStage->id === $toStage->id);
 
         if ($isReverse) {
-            return [
+            return $this->stageConversionMemo[$memoKey] = [
                 'from_stage_id' => $fromStage->id,
                 'from_stage_name' => $fromStage->localizedName(),
                 'to_stage_id' => $toStage->id,
@@ -1551,7 +1562,7 @@ class DashboardController extends Controller
                 ->distinct()
                 ->count('leads.id');
 
-            return [
+            return $this->stageConversionMemo[$memoKey] = [
                 'from_stage_id' => $fromStage->id,
                 'from_stage_name' => $fromStage->localizedName(),
                 'to_stage_id' => $toStage->id,
@@ -1623,7 +1634,7 @@ class DashboardController extends Controller
         $rate = $denominator > 0 ? round(($numerator / $denominator) * 100, 1) : 0.0;
         $subtitle = __('crm.from_stage_prefix') . ' ' . $fromStage->localizedName() . ' ' . __('crm.to_stage_prefix') . ' ' . $toStage->localizedName();
 
-        return [
+        return $this->stageConversionMemo[$memoKey] = [
             'from_stage_id' => $fromStage->id,
             'from_stage_name' => $fromStage->localizedName(),
             'to_stage_id' => $toStage->id,
@@ -1643,7 +1654,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function calculateStageKpi(?PipelineStage $stage, Builder $leadBase, int $totalLeads, array $filters): array
+    private function calculateStageKpi(?PipelineStage $stage, Builder $leadBase, int $totalLeads, array $filters, array $statusCounts = []): array
     {
         if ($stage === null) {
             return [
@@ -1658,11 +1669,17 @@ class DashboardController extends Controller
             ];
         }
 
-        $statusIds = $stage->statuses->pluck('id')->all();
-        $count = ! empty($statusIds)
-            ? (clone $leadBase)->whereIn('lead_status_id', $statusIds)->count()
-            : 0;
-
+        if (! empty($statusCounts)) {
+            $count = 0;
+            foreach ($stage->statuses as $status) {
+                $count += (int) ($statusCounts[$status->code] ?? 0);
+            }
+        } else {
+            $statusIds = $stage->statuses->pluck('id')->all();
+            $count = ! empty($statusIds)
+                ? (clone $leadBase)->whereIn('lead_status_id', $statusIds)->count()
+                : 0;
+        }
         $percentage = $totalLeads > 0 ? round(($count / $totalLeads) * 100, 1) : 0.0;
         $color = $stage->color ?: '#3b82f6';
         $icon = $this->formatStageIcon($stage->icon ?: 'bi-diagram-3');

@@ -151,7 +151,20 @@
 
   const time = document.createElement('time');
   time.className = 'crm-attention-item-time';
-  time.textContent = item.due_time ? `${item.due_time}` : (item.due_date || '');
+  time.setAttribute('dir', 'ltr');
+
+  let dueDisplay = '';
+  if (item.due_date && item.due_time) {
+   dueDisplay = `${item.due_date} - ${item.due_time}`;
+  } else if (item.due_datetime) {
+   dueDisplay = item.due_datetime;
+  } else if (item.due_formatted) {
+   dueDisplay = item.due_formatted;
+  } else {
+   dueDisplay = item.due_time || item.due_date || '';
+  }
+
+  time.textContent = dueDisplay;
   bottom.append(meta, time);
 
   a.append(top, bottom);

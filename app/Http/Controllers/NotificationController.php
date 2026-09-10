@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 
 class NotificationController extends Controller
 {
@@ -112,13 +113,17 @@ class NotificationController extends Controller
         $baseQuery = Lead::query()
             ->where('assigned_user_id', $userId)
             ->accessibleTo($user)
-            ->whereNotNull('next_follow_up_at');
+            ->whereNotNull('next_follow_up_at')
+            ->where(static function (Builder $q): void {
+                $q->whereNull('lead_status_id')
+                    ->orWhereDoesntHave('status', static fn (Builder $sq): Builder => $sq->where('is_terminal', true));
+            });
 
         $overdueCount = (clone $baseQuery)
-            ->where('next_follow_up_at', '<', $todayStart)
+            ->where('next_follow_up_at', '<', $now)
             ->count();
         $todayCount = (clone $baseQuery)
-            ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
+            ->whereBetween('next_follow_up_at', [$now, $todayEnd])
             ->count();
         $tomorrowCount = (clone $baseQuery)
             ->whereBetween('next_follow_up_at', [$tomorrowStart, $tomorrowEnd])
@@ -132,10 +137,10 @@ class NotificationController extends Controller
         // Query for specific requested filter or default
         $filterQuery = clone $baseQuery;
         if ($filter === 'overdue') {
-            $filterQuery->where('next_follow_up_at', '<', $todayStart);
+            $filterQuery->where('next_follow_up_at', '<', $now);
             $totalForFilter = $overdueCount;
         } elseif ($filter === 'today') {
-            $filterQuery->whereBetween('next_follow_up_at', [$todayStart, $todayEnd]);
+            $filterQuery->whereBetween('next_follow_up_at', [$now, $todayEnd]);
             $totalForFilter = $todayCount;
         } elseif ($filter === 'tomorrow') {
             $filterQuery->whereBetween('next_follow_up_at', [$tomorrowStart, $tomorrowEnd]);
@@ -147,7 +152,6 @@ class NotificationController extends Controller
             $filterQuery->where('next_follow_up_at', '<=', $todayEnd);
             $totalForFilter = $totalAttention;
         }
-
         $dueQuery = (clone $baseQuery)->where('next_follow_up_at', '<=', $todayEnd);
         $leads = (clone $dueQuery)
             ->with([
@@ -176,7 +180,7 @@ class NotificationController extends Controller
             ->limit($limit)
             ->get();
 
-        $attentionItems = $attentionLeads->map(function (Lead $lead) use ($todayStart, $todayEnd, $tomorrowStart, $tomorrowEnd, $userId): array {
+        $attentionItems = $attentionLeads->map(function (Lead $lead) use ($now, $todayEnd, $tomorrowEnd, $userId): array {
             $next = $lead->next_follow_up_at;
             $stage = $lead->status?->stage;
             $stageId = $stage?->getKey();
@@ -188,7 +192,7 @@ class NotificationController extends Controller
             $bucket = 'later';
             $bucketLabel = __('crm.later') ?: 'قادمًا';
             $bucketClass = 'badge-later';
-            if ($next < $todayStart) {
+            if ($next < $now) {
                 $bucket = 'overdue';
                 $bucketLabel = __('crm.overdue_short') ?: 'متأخر';
                 $bucketClass = 'badge-overdue';
@@ -210,6 +214,10 @@ class NotificationController extends Controller
                 $routeParameters['stage_id'] = $stageId;
             }
 
+            $timeString = $next->format('h:i A');
+            $dateString = $next->format('d/m/Y');
+            $dueDatetimeDisplay = $dateString . ' - ' . $timeString;
+
             return [
                 'id' => $lead->getKey(),
                 'name' => $lead->name,
@@ -219,10 +227,11 @@ class NotificationController extends Controller
                 'stage_name' => $stage?->localizedName() ?? ($stage?->name_ar ?: '—'),
                 'stage_color' => $stageColor,
                 'employee_name' => $lead->assignedUser?->name ?: ($lead->assigned_employee ?: '—'),
-                'due_at' => $lead->next_follow_up_at->toIso8601String(),
-                'due_formatted' => $lead->next_follow_up_at->format('Y-m-d H:i'),
-                'due_time' => $lead->next_follow_up_at->format('h:i A'),
-                'due_date' => $lead->next_follow_up_at->format('d/m/Y'),
+                'due_at' => $next->toIso8601String(),
+                'due_formatted' => $dueDatetimeDisplay,
+                'due_time' => $timeString,
+                'due_date' => $dateString,
+                'due_datetime' => $dueDatetimeDisplay,
                 'bucket' => $bucket,
                 'bucket_label' => $bucketLabel,
                 'bucket_class' => $bucketClass,
@@ -233,7 +242,7 @@ class NotificationController extends Controller
 
         $groups = $leads
             ->groupBy(static fn (Lead $lead): string => (string) ($lead->status?->pipeline_stage_id ?? 'unassigned'))
-            ->map(function ($stageLeads) use ($todayStart, $userId): array {
+            ->map(function ($stageLeads) use ($now, $todayStart, $userId): array {
                 /** @var Lead $firstLead */
                 $firstLead = $stageLeads->first();
                 $stage = $firstLead->status?->stage;
@@ -243,8 +252,8 @@ class NotificationController extends Controller
                     $stageColor = '#64748b';
                 }
 
-                $items = $stageLeads->map(function (Lead $lead) use ($todayStart, $stageId, $userId): array {
-                    $bucket = $lead->next_follow_up_at->lt($todayStart) ? 'overdue' : 'today';
+                $items = $stageLeads->map(function (Lead $lead) use ($now, $todayStart, $stageId, $userId): array {
+                    $bucket = $lead->next_follow_up_at->lt($now) ? 'overdue' : 'today';
                     $routeParameters = [
                         'scope' => $bucket,
                         'employee_id' => $userId,

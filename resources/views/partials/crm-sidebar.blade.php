@@ -33,6 +33,11 @@
         'v2.technical-support.*'
     );
 
+    $crmSidebarEmployeeReportsActive = request()->routeIs(
+        'v2.reports.employees',
+        'v2.reports.employees.*'
+    ) || request()->is('reports/employees*');
+
     $crmSidebarLeadCount = isset($totalLeads)
         ? (int) $totalLeads
         : 0;
@@ -200,7 +205,7 @@
        class="{{ request()->routeIs('v2.leads.trash.*') ? 'active' : '' }}"
        href="{{ route('v2.leads.trash.index') }}"
       >
-       <i class="bi bi-trash3" style="font-size:12px; margin-inline-end:4px;"></i> {{ __('سلة المهملات') }}
+       {{ __('سلة المهملات') }}
       </a>
       @endcan
      </nav>
@@ -363,6 +368,15 @@
    </div>
   </div>
   @endif
+  @if(auth()->user()?->isSuperAdmin() || auth()->user()?->can('reports.employees.view') || auth()->user()?->can('reports.view'))
+  <a
+   class="crm-link link {{ $crmSidebarEmployeeReportsActive ? 'active' : '' }}"
+   href="{{ route('v2.reports.employees.index') }}"
+  >
+   <span class="crm-ico ico"><i class="bi bi-bar-chart-line"></i></span>
+   <span class="crm-label label">{{ __('crm.employee_reports') }}</span>
+  </a>
+  @endif
   @can('calendar.view')
   <a
    class="crm-link link {{ request()->routeIs('v2.calendar.*') ? 'active' : '' }}"
@@ -439,6 +453,7 @@
    </div>
   </div>
   @endif
+
 
   @can('settings.access')
   <a

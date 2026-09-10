@@ -86,24 +86,19 @@ class DailyTaskController extends Controller
         $applySharedFilters($filteredCountBase);
 
         // Calculate accurate KPI metrics for today respecting active filters
-        $overdueCount = (clone $filteredCountBase)
-            ->whereNotNull('next_follow_up_at')
-            ->where('next_follow_up_at', '<', $todayStart)
-            ->count();
+        $scopeCounts = (clone $filteredCountBase)
+            ->selectRaw('
+                count(case when next_follow_up_at is not null and next_follow_up_at < ? then 1 end) as overdue_count,
+                count(case when next_follow_up_at is not null and next_follow_up_at between ? and ? then 1 end) as today_count,
+                count(case when next_follow_up_at is not null and next_follow_up_at > ? then 1 end) as upcoming_count,
+                count(case when next_follow_up_at is null then 1 end) as no_date_count
+            ', [$todayStart, $todayStart, $todayEnd, $todayEnd])
+            ->first();
 
-        $todayCount = (clone $filteredCountBase)
-            ->whereNotNull('next_follow_up_at')
-            ->whereBetween('next_follow_up_at', [$todayStart, $todayEnd])
-            ->count();
-
-        $upcomingCount = (clone $filteredCountBase)
-            ->whereNotNull('next_follow_up_at')
-            ->where('next_follow_up_at', '>', $todayEnd)
-            ->count();
-
-        $noDateCount = (clone $filteredCountBase)
-            ->whereNull('next_follow_up_at')
-            ->count();
+        $overdueCount = (int) ($scopeCounts->overdue_count ?? 0);
+        $todayCount = (int) ($scopeCounts->today_count ?? 0);
+        $upcomingCount = (int) ($scopeCounts->upcoming_count ?? 0);
+        $noDateCount = (int) ($scopeCounts->no_date_count ?? 0);
 
         $completedTodayQuery = LeadFollowup::query()
             ->whereBetween('followed_up_at', [$todayStart, $todayEnd])

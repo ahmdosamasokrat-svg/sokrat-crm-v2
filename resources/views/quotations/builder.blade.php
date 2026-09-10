@@ -1,330 +1,387 @@
 @php
-    $crmQuotationReadOnly = isset($quotation);
-    $crmQuotationData = $crmQuotationReadOnly ? $quotation->payload : null;
+    $isSaved = isset($quotation);
+    $isLegacyRecord = $isLegacy ?? false;
 @endphp
 <!doctype html>
 <html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{{ $crmQuotationReadOnly ? 'عرض سعر محفوظ' : 'إنشاء عرض سعر' }} | CRM v2</title>
+  <title>{{ $isSaved ? ($quotation->quotation_no . ' - ' . $quotation->client_name) : __('crm.create_quotation') }} | CRM v2</title>
   <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
   <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0" />
   <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-  <link rel="stylesheet" href="{{ asset('quotation-generator/styles.css') }}?v=quotation-v36" />
-  <link rel="stylesheet" href="{{ asset('quotation-generator/crm-module.css') }}?v=crm-module-no-sidebar-v6" />
+  <link rel="stylesheet" href="{{ asset('quotation-generator/crm-module.css') }}?v=mpc-v4-c1" />
+  <link rel="stylesheet" href="{{ asset('quotation-generator/mpc-v4/styles.css') }}?v=mpc-v4-c1" />
   <style>
-    .crm-topbar-menu-btn, .menu-button { display: none; width: 44px; height: 44px; min-height: 44px; min-width: 44px; border-radius: 10px; border: 1px solid #e4e8ee; background: #fff; color: #20283a; font-size: 20px; cursor: pointer; align-items: center; justify-content: center; touch-action: manipulation; }
-
-    @media (max-width: 900px) {
+    .crm-topbar-menu-btn, .menu-button {
+      display: none;
+      width: 44px;
+      height: 44px;
+      min-height: 44px;
+      min-width: 44px;
+      border-radius: 10px;
+      border: 1px solid #e4e8ee;
+      background: #fff;
+      color: #20283a;
+      font-size: 20px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+    @media (max-width: 980px) {
       .crm-topbar-menu-btn, .menu-button { display: inline-flex; }
+      .crm-quote-shell { display: block; }
     }
     @media (max-width: 768px) {
       .builder-head { flex-direction: column; align-items: stretch; gap: 12px; }
       .head-actions { width: 100%; justify-content: flex-start; gap: 8px; }
       .head-actions .btn { min-height: 44px; flex: 1 1 auto; }
     }
+    [data-theme="dark"] .crm-topbar-menu-btn {
+      background: #1e293b;
+      border-color: #334155;
+      color: #f1f5f9;
+    }
   </style>
+</head>
+<body>
 @include('partials.page-loader')
-  <!-- CRM QUOTATION SHARED SIDEBAR V1 START -->
-  <div class="crm-quote-shell">
-   @include('partials.crm-sidebar')
-   <button class="crm-overlay" id="crmSidebarOverlay" type="button" aria-label="{{ __('crm.close_menu') }}"></button>
-   <div class="crm-quote-main">
-  <!-- CRM QUOTATION SHARED SIDEBAR V1 END -->
-  <div class="app-shell">
-    <aside class="builder no-print">
-      <div class="builder-scroll">
-      <div class="builder-head">
-        <div style="display:flex;align-items:center;gap:12px">
-          <button class="crm-topbar-menu-btn menu-button" id="menu" type="button" aria-label="{{ __('crm.open_menu') }}">
-            <i class="bi bi-list"></i>
-          </button>
-          <div>
-            <span class="eyebrow">Sokrat Pro Tech</span>
-            <h1 style="margin:2px 0 4px;font-size:22px;font-weight:900">{{ __('crm.quotation_builder') }}</h1>
-            <p style="margin:0;font-size:12px;color:var(--muted)">{{ __('crm.quotation_builder_subtitle') }}</p>
-          </div>
-        </div>
-        <div class="head-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button type="button" id="loadDemoBtn" class="btn ghost">{{ __('crm.load_demo') }}</button>
-          <button type="button" id="resetBtn" class="btn ghost danger-text">{{ __('crm.reset') }}</button>
-          <button type="button" id="resetLayoutBtn" class="btn ghost" title="{{ __('crm.reset_panel_width_title') }}">{{ __('crm.default_size') }}</button>
-          @include('partials.profile-dropdown')
-        </div>
-      </div>
 
-      <form id="quoteForm" autocomplete="off">
-        <section class="panel">
-          <h2>بيانات العميل</h2>
-          <div class="grid two">
-            <label>
-              <span>{{ __('crm.client_company_name') }}</span>
-              <input id="clientName" type="text" placeholder="{{ __('crm.client_name_example') }}" />
-            </label>
-            <label>
-              <span>{{ __('crm.location') }}</span>
-              <input id="location" type="text" placeholder="{{ __('crm.location_example') }}" />
-            </label>
-            <label>
-              <span>{{ __('crm.prepared_by') }}</span>
-              <input id="preparedBy" type="text" value="احمد حمدي" />
-            </label>
-            <label>
-              <span>{{ __('crm.quotation_number') }}</span>
-              <input id="quotationNo" type="text" placeholder="{{ __('crm.quotation_number_example') }}" />
-            </label>
-            <label>
-              <span>{{ __('crm.date') }}</span>
-              <input id="quoteDate" type="date" />
-            </label>
-            <label>
-              <span>{{ __('crm.quotation_system_title') }}</span>
-              <input id="systemTitle" type="text" value="Call Center System" dir="ltr" />
-            </label>
-          </div>
-          <label>
-            <span>{{ __('crm.quotation_description') }}</span>
-            <textarea id="proposalDescription" rows="3">اليكم المقايسة الفنية و المالية لتوريد و تشغيل برنامج أدارة الكول سنتر
-توصلنا الى ان متطلبات العمل لديكم فيما يخص الكول سنتر تتركز فى اعمال أستقبال المكالمات و الاتصال بالعملاء و التواصل معهم من داخل مقركم او من خارج مقركم
-تم اختيار استخدام اجهزة الكمبيوتر المتوفرة لديكم لاستقبال و الاتصال بالعملاء</textarea>
-          </label>
-        </section>
+<!-- CRM QUOTATION SHELL START -->
+<div class="crm-quote-shell">
+  @include('partials.crm-sidebar')
+  <button class="crm-overlay" id="crmSidebarOverlay" type="button" aria-label="{{ __('crm.close_menu') }}"></button>
 
-        <section class="panel">
-          <div class="panel-title-row">
-            <h2>{{ __('crm.products_items') }}</h2>
-            <div class="panel-action-group">
-              <button type="button" id="addAccessoryBtn" class="btn small accessory-btn">{{ __('crm.add_accessory') }}</button>
-              <button type="button" id="addItemBtn" class="btn small">{{ __('crm.add_financial_item') }}</button>
-            </div>
-          </div>
-          <p class="helper">يمكنك تحديد ظهور كل منتج في <strong>المقايسة المالية</strong> أو في <strong>الملحقات فقط</strong>. البنود غير المحددة للمقايسة المالية لا تدخل في الإجمالي العام.</p>
-          <div class="items-head desktop-only">
-            <span>{{ __('crm.item') }}</span><span>{{ __('crm.quantity') }}</span><span>{{ __('crm.unit_price') }}</span><span>{{ __('crm.unit') }}</span><span>{{ __('crm.total') }}</span><span>{{ __('crm.estimate') }}</span><span>{{ __('crm.accessories') }}</span><span></span>
-          </div>
-          <div id="itemsEditor" class="items-editor"></div>
-          <div class="grand-total-card subtotal-card">
-            <span>{{ __('crm.items_total') }}</span>
-            <strong><span id="formSubtotal">0</span> {{ __('crm.pound') }}</strong>
-          </div>
-
-          <div class="adjustments-editor-block">
-            <div class="panel-title-row adjustments-title-row">
+  <div class="crm-quote-main">
+    @if ($isLegacyRecord)
+      {{-- Graceful Historical Record Handling --}}
+      <div class="legacy-quotation-wrap">
+        <div class="legacy-quotation-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <button class="crm-topbar-menu-btn menu-button" id="menu" type="button" aria-label="{{ __('crm.open_menu') }}">
+                <i class="bi bi-list"></i>
+              </button>
               <div>
-                <h3>{{ __('crm.rows_after_total') }}</h3>
-                <p class="helper">{{ __('crm.adjustment_hint') }}</p>
-              </div>
-              <button type="button" id="addAdjustmentBtn" class="btn small">{{ __('crm.add_row') }}</button>
-            </div>
-            <div id="adjustmentsEditor" class="adjustments-editor"></div>
-          </div>
-
-          <div class="grand-total-card final-total-card">
-            <span>{{ __('crm.grand_total') }}</span>
-            <strong><span id="formGrandTotal">0</span> {{ __('crm.pound') }}</strong>
-          </div>
-          <label class="financial-note-editor">
-            <span>{{ __('crm.financial_note') }}</span>
-            <textarea id="financialNote" rows="4" placeholder="{{ __('crm.financial_note_placeholder') }}">تم الاتفاق على عمل عرض خاص لكم بإجمالي {total} جنيه مصري فقط لا غير
-ويتم العمل بهذا العرض حسب الاتفاق</textarea>
-            <small class="helper">يمكنك تعديل النص بالكامل أو تركه فارغًا. استخدم <strong>{subtotal}</strong> لإجمالي البنود، و<strong>{total}</strong> للإجمالي النهائي بعد الضريبة/الخدمات/الخصومات.</small>
-          </label>
-        </section>
-
-        <section class="panel typography-panel">
-          <div class="panel-title-row">
-            <h2>{{ __('crm.quotation_typography') }}</h2>
-            <button type="button" id="resetTypographyBtn" class="btn ghost small">{{ __('crm.restore_default') }}</button>
-          </div>
-          <p class="helper">{{ __('crm.typography_hint') }}</p>
-          <div class="grid two typography-grid">
-            <label>
-              <span>{{ __('crm.font_type') }}</span>
-              <select id="quoteFontFamily">
-                <option value="arial">Arial</option>
-                <option value="tahoma">Tahoma</option>
-                <option value="traditional">Traditional Arabic</option>
-                <option value="simplified">Simplified Arabic</option>
-                <option value="times">Times New Roman</option>
-                <option value="verdana">Verdana</option>
-                <option value="georgia">Georgia</option>
-              </select>
-            </label>
-            <label>
-              <span>حجم الخط: <strong id="quoteFontSizeValue">100%</strong></span>
-              <input id="quoteFontSize" class="font-size-range" type="range" min="85" max="130" step="5" value="100" />
-            </label>
-            <div class="color-control">
-              <span class="field-label">{{ __('crm.text_color') }}</span>
-              <div class="color-row">
-                <input id="quoteTextColor" type="color" value="#111111" disabled aria-label="{{ __('crm.text_color') }}" />
-                <label class="inline-check"><input id="enableTextColor" type="checkbox" /> <span>{{ __('crm.enable_custom_color') }}</span></label>
+                <span class="eyebrow" style="color:var(--mpc-blue);font-weight:900;font-size:12px">{{ __('crm.legacy_quotation_title') }}</span>
+                <h1 style="margin:2px 0 0;font-size:22px;font-weight:900">#{{ $quotation->quotation_no }} — {{ $quotation->client_name }}</h1>
               </div>
             </div>
-            <div class="color-control">
-              <span class="field-label">{{ __('crm.heading_color') }}</span>
-              <div class="color-row">
-                <input id="quoteAccentColor" type="color" value="#e10d0d" disabled aria-label="{{ __('crm.heading_color') }}" />
-                <label class="inline-check"><input id="enableAccentColor" type="checkbox" /> <span>{{ __('crm.enable_custom_color') }}</span></label>
-              </div>
+            @include('partials.profile-dropdown')
+          </div>
+
+          <div class="legacy-notice-box" role="alert">
+            <div class="legacy-notice-ar">{{ __('crm.legacy_quotation_notice_ar') }}</div>
+            <div class="legacy-notice-en">{{ __('crm.legacy_quotation_notice_en') }}</div>
+          </div>
+
+          <div class="legacy-meta-grid">
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.quotation_number') }}</strong>
+              <span>{{ $quotation->quotation_no ?: '—' }}</span>
+            </div>
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.client') }}</strong>
+              <span>{{ $quotation->client_name ?: '—' }}</span>
+            </div>
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.date') }}</strong>
+              <span>{{ $quotation->quote_date?->format('Y-m-d') ?: '—' }}</span>
+            </div>
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.total') }}</strong>
+              <span style="color:#0b4e92">{{ number_format($quotation->grand_total, 2) }} {{ __('crm.pound') }}</span>
+            </div>
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.prepared_by') }}</strong>
+              <span>{{ $quotation->created_by ?: ($quotation->prepared_by ?: '—') }}</span>
+            </div>
+            <div class="legacy-meta-item">
+              <strong>{{ __('crm.saved_at') }}</strong>
+              <span>{{ $quotation->created_at?->format('Y-m-d H:i') ?: '—' }}</span>
             </div>
           </div>
-        </section>
 
-        <section class="panel">
-          <h2>{{ __('crm.optional_sections') }}</h2>
-          <div class="switch-grid">
-            <label class="checkline"><input id="includeProducts" type="checkbox" checked /> <span>{{ __('crm.product_accessory_pages') }}</span></label>
-            <label class="checkline"><input id="includeTechnical" type="checkbox" checked /> <span>{{ __('crm.technical_estimate') }}</span></label>
-            <label class="checkline"><input id="includeTerms" type="checkbox" checked /> <span>{{ __('crm.terms_agreements') }}</span></label>
-            <label class="checkline"><input id="includeFeatures" type="checkbox" checked /> <span>{{ __('crm.call_center_features') }}</span></label>
+          <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
+            <a href="{{ route('v2.quotations.index') }}" class="btn secondary" style="display:inline-flex;align-items:center;gap:6px">
+              <i class="bi bi-arrow-right"></i>
+              <span>{{ __('crm.quotations') }}</span>
+            </a>
+            @can('quotations.create')
+            <a href="{{ route('v2.quotations.create') }}" class="btn primary" style="display:inline-flex;align-items:center;gap:6px">
+              <i class="bi bi-plus-lg"></i>
+              <span>{{ __('crm.create_quotation') }}</span>
+            </a>
+            @endcan
           </div>
-        </section>
-
-        <section class="panel collapsible open">
-          <button class="collapse-trigger" type="button" data-target="technicalEditor">
-            <span>{{ __('crm.technical_estimate') }}</span><span>⌄</span>
-          </button>
-          <div id="technicalEditor" class="collapse-body">
-            <textarea id="technicalScope" rows="12">1- نقوم بكافة اعمال تركيب و تشغيل نظام الكول سنتر و التاكد من عمله بمنتهى الكفاءة و تسليمة للمسؤل لديكم
-2- نقوم بتدريب الموظفين المختصين كل فى حدود صلاحياته و التدريب لدينا عدد 2 زيارة ميدانية و الدعم الفنى online عن طريق الهاتف او الواتس او الايميل
-3- الدعم الفنى online خلال مواعيد العمل الرسمية لدينا من التاسعه صباحا الى الخامسة مساء كل يوم ماعدا الجمعه و السبت و ما عدا الاجازات الرسمية
-4- الزيارات الميدانية تتم بموعد مسبق خلال 48 ساعه من الاتفاق عليها بتكلفة تحدد وقتها خلال أيام العمل
-5- الدعم الفنى online لمدة سنة من تاريخ تسليمكم الكول سنتر مجانا و حال رغبتكم التجديد يتم احتساب التجديد ب 30% من قيمة التعاقد
-6- يقوم العميل بتوفير جهاز كمبيوتر ليعمل ك سيرفر او نقوم بالتوريد و الاتفاق على السعر حسب المواصفة التى تناسب طبيعة العمل
-7- لكل خط تم توريده عدد 1 مشتركى VPN يتم عمل التجديد السنوى لل VPN اما بتجديد اشتراك الدعم الفنى 30% من قيمة التعاقد او الاشتراك على باقة من باقات VPN حسب السعر</textarea>
-          </div>
-        </section>
-
-        <section class="panel collapsible open">
-          <button class="collapse-trigger" type="button" data-target="termsEditor">
-            <span>{{ __('crm.terms_agreements') }}</span><span>⌄</span>
-          </button>
-          <div id="termsEditor" class="collapse-body">
-            <textarea id="terms" rows="5">- الاسعار لا تشمل ضريبة القيمة المضافه .
-- يتم دفع 50% عند الاتفاق و يتم توريد و تركيب النظام خلال 48 ساعه (( أيام عمل )) و يتم تحصيل المتبقى عند التسليم .</textarea>
-          </div>
-        </section>
-
-        <section class="panel collapsible">
-          <button class="collapse-trigger" type="button" data-target="featuresEditor">
-            <span>مميزات نظام الكول سنتر</span><span>⌄</span>
-          </button>
-          <div id="featuresEditor" class="collapse-body">
-            <textarea id="features" rows="12">- الرسالة المسجلة التفاعلية.
-- تسجيل ومراقبة المكالمات.
-- تقارير تفصيلية للمكالمات.
-- توزيع المكالمات بشكل اوتوماتيكي.
-- تقارير كاملة عن سجل المكالمات.
-- التحكم في المكالمات خارج مواعيد العمل.
-- تحويل المكالمات بين الفروع.
-- تطبيق موبايل لاستقبال وارسال المكالمات خارج العمل.
-- يدعم الهوت لاين.
-- التواصل مع الموظفين داخل وخارج مقر العمل.
-- توجية المكالمات للموظفين علي smartphones في اي مكان.
-- تدعيم كامل للعمل خارج نطاق الشركة.</textarea>
-          </div>
-        </section>
-      </form>
-      </div>
-
-      <div class="sticky-actions">
-        @if (!$crmQuotationReadOnly)
-         <button type="button" id="crmSaveQuotationBtn" class="btn primary">{{ __('crm.save_quotation') }}</button>
-        @endif
-        <button type="button" id="previewBtn" class="btn secondary">{{ __('crm.preview_quotation') }}</button>
-        <button type="button" id="printBtn" class="btn primary">{{ __('crm.create_print_save_pdf') }}</button>
-        <button type="button" id="wordBtn" class="btn word">{{ __('crm.export_word') }}</button>
-        <span id="crmQuotationSaveStatus" aria-live="polite"></span>
-      </div>
-    </aside>
-
-    <div id="builderResizer" class="builder-resizer no-print" role="separator" aria-orientation="vertical" aria-label="{{ __('crm.resize_input_panel') }}" title="{{ __('crm.resize_input_hint') }}">
-      <span class="resizer-grip" aria-hidden="true"></span>
-    </div>
-
-    <main class="preview-stage">
-      <div class="preview-toolbar no-print">
-        <div>
-          <strong>{{ __('crm.preview_quotation') }}</strong>
-          <span id="pageCount">{{ __('crm.page_count_zero') }}</span>
-        </div>
-        <div class="preview-toolbar-actions">
-          <button type="button" id="wordTopBtn" class="btn word small">{{ __('crm.export_word') }}</button>
-          <button type="button" id="printTopBtn" class="btn primary small">طباعة / حفظ PDF</button>
         </div>
       </div>
-      <div id="quotePreview" class="quote-preview"></div>
-    </main>
+    @else
+      {{-- Official MPC Quotation Generator v4 --}}
+      <div class="app-shell">
+        <aside class="builder no-print">
+          <div class="builder-scroll">
+            <div class="builder-head">
+              <div style="display:flex;align-items:center;gap:12px">
+                <button class="crm-topbar-menu-btn menu-button" id="menu" type="button" aria-label="{{ __('crm.open_menu') }}">
+                  <i class="bi bi-list"></i>
+                </button>
+                <div>
+                  <span class="eyebrow">{{ __('crm.mpc_eyebrow') }}</span>
+                  <h1>{{ __('crm.mpc_offer_generator') }}</h1>
+                </div>
+              </div>
+              <div class="head-actions">
+                <button type="button" id="loadDemoBtn" class="btn ghost">{{ __('crm.load_demo') }}</button>
+                <button type="button" id="resetBtn" class="btn ghost danger-text">{{ __('crm.reset') }}</button>
+                <button type="button" id="resetLayoutBtn" class="btn ghost" title="{{ __('crm.reset_panel_width_title') }}">{{ __('crm.default_size') }}</button>
+                @include('partials.profile-dropdown')
+              </div>
+            </div>
+
+            <form id="quoteForm" autocomplete="off">
+              <section class="panel">
+                <h2>{{ __('crm.offer_type_and_basics') }}</h2>
+                <div class="grid two">
+                  <label class="span-two">
+                    <span>{{ __('crm.offer_type') }}</span>
+                    <select id="offerType">
+                      <option value="other">{{ __('crm.offer_type_other') }}</option>
+                      <option value="iso">{{ __('crm.offer_type_iso') }}</option>
+                      <option value="inspection">{{ __('crm.offer_type_inspection') }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{{ __('crm.client_or_entity_name') }}</span>
+                    <input id="clientName" type="text" placeholder="{{ __('crm.client_name_placeholder_mpc') }}" />
+                  </label>
+                  <label>
+                    <span>{{ __('crm.quotation_number') }}</span>
+                    <input id="quotationNo" type="text" placeholder="{{ __('crm.quotation_no_placeholder_mpc') }}" />
+                  </label>
+                  <label>
+                    <span>{{ __('crm.date') }}</span>
+                    <input id="quoteDate" type="date" />
+                  </label>
+                  <label>
+                    <span>{{ __('crm.vat_percent') }}</span>
+                    <input id="vatRate" type="number" min="0" step="0.01" value="0" />
+                  </label>
+                </div>
+                <label>
+                  <span>{{ __('crm.offer_title') }}</span>
+                  <input id="offerTitle" type="text" dir="ltr" />
+                </label>
+                <label>
+                  <span>{{ __('crm.offer_intro') }}</span>
+                  <textarea id="introText" rows="4" dir="ltr"></textarea>
+                </label>
+                <label>
+                  <span>{{ __('crm.lead_in_text') }}</span>
+                  <input id="leadText" type="text" dir="ltr" />
+                </label>
+              </section>
+
+              <section class="panel">
+                <div class="panel-title-row">
+                  <div>
+                    <h2>{{ __('crm.financial_table_title') }}</h2>
+                    <p class="helper" id="tableHelp">{{ __('crm.financial_table_help') }}</p>
+                  </div>
+                  <button type="button" id="addRowBtn" class="btn small">{{ __('crm.add_row') }}</button>
+                </div>
+                <div id="tableEditor" class="table-editor"></div>
+                <div class="switch-row">
+                  <label class="checkline"><input id="showVatRow" type="checkbox" checked /><span>{{ __('crm.show_vat_row') }}</span></label>
+                  <label class="checkline"><input id="formatNumbers" type="checkbox" checked /><span>{{ __('crm.format_numbers') }}</span></label>
+                </div>
+                <div class="grand-total-card">
+                  <span>{{ __('crm.aggregate_grand_total') }}</span>
+                  <strong id="aggregateTotal">0</strong>
+                </div>
+              </section>
+
+              <section id="haccpPanel" class="panel" hidden>
+                <div class="panel-title-row">
+                  <div>
+                    <h2>{{ __('crm.haccp_table_title') }}</h2>
+                    <p class="helper">{{ __('crm.haccp_table_help') }}</p>
+                  </div>
+                </div>
+                <div id="haccpEditor" class="haccp-editor"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-title-row">
+                  <div>
+                    <h2>{{ __('crm.payment_method_title') }}</h2>
+                    <p class="helper">{{ __('crm.payment_method_help') }}</p>
+                  </div>
+                  <button type="button" id="addPaymentBtn" class="btn small">{{ __('crm.add_payment_row') }}</button>
+                </div>
+                <div class="grid two">
+                  <label>
+                    <span>{{ __('crm.payment_times_label') }}</span>
+                    <input id="paymentTimes" type="text" value="02" dir="ltr" />
+                  </label>
+                  <label id="paymentYearWrap">
+                    <span>{{ __('crm.payment_year_label') }}</span>
+                    <input id="paymentYear" type="text" placeholder="{{ __('crm.payment_year_placeholder') }}" dir="ltr" />
+                  </label>
+                </div>
+                <label class="checkline compact-check">
+                  <input id="autoPaymentAmounts" type="checkbox" />
+                  <span>{{ __('crm.auto_payment_amounts') }}</span>
+                </label>
+                <div id="paymentEditor" class="payment-editor"></div>
+              </section>
+
+              <section class="panel">
+                <h2>{{ __('crm.closing_texts_title') }}</h2>
+                <label>
+                  <span>{{ __('crm.transport_note_label') }}</span>
+                  <textarea id="transportNote" rows="2" dir="ltr">Transportation is not included in the offer, and accommodation is not included if required.</textarea>
+                </label>
+                <label>
+                  <span>{{ __('crm.closing_text_label') }}</span>
+                  <input id="closingText" type="text" dir="ltr" value="Thanks, and regards" />
+                </label>
+                <div class="switch-row">
+                  <label class="checkline"><input id="showTransportNote" type="checkbox" checked /><span>{{ __('crm.show_transport_note') }}</span></label>
+                  <label class="checkline"><input id="showClosing" type="checkbox" checked /><span>{{ __('crm.show_closing_text') }}</span></label>
+                </div>
+              </section>
+
+              <section class="panel typography-panel">
+                <div class="panel-title-row">
+                  <h2>{{ __('crm.quote_typography_title') }}</h2>
+                  <button type="button" id="resetTypographyBtn" class="btn ghost small">{{ __('crm.restore_docx_design') }}</button>
+                </div>
+                <p class="helper">{{ __('crm.typography_docx_help') }}</p>
+                <div class="grid two typography-grid">
+                  <label>
+                    <span>{{ __('crm.font_type') }}</span>
+                    <select id="quoteFontFamily">
+                      <option value="times">Times New Roman</option>
+                      <option value="arial">Arial</option>
+                      <option value="tahoma">Tahoma</option>
+                      <option value="georgia">Georgia</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{{ __('crm.font_size') }}: <strong id="quoteFontSizeValue">100%</strong></span>
+                    <input id="quoteFontSize" class="font-size-range" type="range" min="85" max="115" step="5" value="100" />
+                  </label>
+                  <div class="color-control">
+                    <span class="field-label">{{ __('crm.blue_headings_color') }}</span>
+                    <div class="color-row">
+                      <input id="quoteAccentColor" type="color" value="#4472c4" aria-label="{{ __('crm.blue_headings_color') }}" />
+                      <label class="inline-check"><input id="enableAccentColor" type="checkbox" /> <span>{{ __('crm.customize_color') }}</span></label>
+                    </div>
+                  </div>
+                  <div class="color-control">
+                    <span class="field-label">{{ __('crm.body_text_color') }}</span>
+                    <div class="color-row">
+                      <input id="quoteTextColor" type="color" value="#000000" aria-label="{{ __('crm.body_text_color') }}" />
+                      <label class="inline-check"><input id="enableTextColor" type="checkbox" /> <span>{{ __('crm.customize_color') }}</span></label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </form>
+          </div>
+
+          <div class="sticky-actions">
+            <button type="button" id="crmSaveQuotationBtn" class="btn primary">{{ $isSaved ? __('crm.update_quotation') : __('crm.save_quotation') }}</button>
+            <button type="button" id="previewBtn" class="btn secondary">{{ __('crm.preview_quotation') }}</button>
+            <button type="button" id="wordBtn" class="btn word">{{ __('crm.export_word') }}</button>
+            <button type="button" id="printBtn" class="btn primary">{{ __('crm.create_print_save_pdf') }}</button>
+            <span id="crmQuotationSaveStatus" aria-live="polite"></span>
+          </div>
+        </aside>
+
+        <div id="builderResizer" class="builder-resizer no-print" role="separator" aria-orientation="vertical" aria-label="{{ __('crm.resize_input_panel') }}" title="{{ __('crm.resize_input_hint') }}">
+          <span class="resizer-grip" aria-hidden="true"></span>
+        </div>
+
+        <main class="preview-stage">
+          <div class="preview-toolbar no-print">
+            <div>
+              <strong>{{ __('crm.a4_preview_title') }}</strong>
+              <span id="pageCount">{{ __('crm.page_count_label', ['count' => 1]) }}</span>
+            </div>
+            <div class="preview-toolbar-actions">
+              <button type="button" id="wordTopBtn" class="btn word small">{{ __('crm.export_word') }}</button>
+              <button type="button" id="printTopBtn" class="btn primary small">{{ __('crm.create_print_save_pdf') }}</button>
+            </div>
+          </div>
+          <div id="quotePreview" class="quote-preview"></div>
+        </main>
+      </div>
+
+      <template id="serviceRowTemplate">
+        <div class="service-row-editor">
+          <div class="service-row-fields"></div>
+          <button type="button" class="remove-service-row" title="{{ __('crm.delete_service_row') }}">×</button>
+        </div>
+      </template>
+
+      <template id="paymentRowTemplate">
+        <div class="payment-row-editor">
+          <label><span>{{ __('crm.payment_percent_label') }}</span><input class="payment-percent" type="number" min="0" step="0.01" /></label>
+          <label><span>{{ __('crm.payment_amount_label') }}</span><input class="payment-amount" type="text" inputmode="decimal" dir="ltr" /></label>
+          <label class="payment-due-wrap"><span>{{ __('crm.payment_due_label') }}</span><input class="payment-due" type="text" dir="ltr" /></label>
+          <button type="button" class="remove-payment-row" title="{{ __('crm.delete_payment_row') }}">×</button>
+        </div>
+      </template>
+
+      <script>
+        window.MPC_ASSET_BASE = @json(asset('quotation-generator/mpc-v4/assets'));
+        window.CRM_QUOTATION_ID = @json(isset($quotation) ? $quotation->id : null);
+        window.CRM_QUOTATION_DATA = @json(isset($quotation) ? $quotation->payload : null);
+        window.CRM_QUOTATION_PREFILL = @json($prefill ?? null);
+        window.CRM_QUOTATION_STORE_URL = @json(route('v2.quotations.store'));
+        window.CRM_QUOTATION_UPDATE_URL = @json(isset($quotation) ? route('v2.quotations.update', $quotation) : null);
+        window.CRM_I18N = {
+          services: @json(app()->getLocale() === 'ar' ? 'الخدمة' : 'Services'),
+          required_1: 'Required 1',
+          required_2: 'Required 2',
+          required_3: 'Required 3',
+          remarks: @json(app()->getLocale() === 'ar' ? 'ملاحظات' : 'Remarks'),
+          standard_item: 'International Standard / Item',
+          certification: 'Certification',
+          surveillance_1: 'Surveillance 1',
+          surveillance_2: 'Surveillance 2',
+          recertification: 'Recertification',
+          inspection_service: 'Inspection service',
+          initial: 'Initial',
+          routen: 'Routen',
+          year_1: '1st year',
+          year_2: '2nd year',
+          year_3: '3rd year',
+          delete_service_row: @json(__('crm.delete_service_row')),
+          delete_payment_row: @json(__('crm.delete_payment_row')),
+          payment_percent_label: @json(__('crm.payment_percent_label')),
+          payment_amount_label: @json(__('crm.payment_amount_label')),
+          payment_due_label: @json(__('crm.payment_due_label')),
+          page_count: @json(__('crm.page_count_label', ['count' => 1])),
+          saving: @json(__('crm.saving')),
+          save_quotation: @json(__('crm.save_quotation')),
+          update_quotation: @json(__('crm.update_quotation')),
+          client_name_required: @json(app()->getLocale() === 'ar' ? 'يرجى إدخال اسم العميل / الجهة قبل الحفظ.' : 'Please enter client/entity name before saving.'),
+          quotation_no_required: @json(app()->getLocale() === 'ar' ? 'يرجى إدخال رقم عرض السعر قبل الحفظ.' : 'Please enter quotation number before saving.')
+        };
+      </script>
+      <script src="{{ asset('quotation-generator/mpc-v4/assets-data.js') }}?v=mpc-v4-c3"></script>
+      <script src="{{ asset('quotation-generator/mpc-v4/script.js') }}?v=mpc-v4-c3"></script>
+    @endif
+    <script src="{{ asset('quotation-generator/crm-sidebar.js') }}"></script>
   </div>
-
-  <template id="itemRowTemplate">
-    <div class="item-row">
-      <div class="item-main">
-        <label class="mobile-label">{{ __('crm.item') }}</label>
-        <select class="item-product"></select>
-        <input class="item-custom-name" type="text" placeholder="{{ __('crm.custom_item_name') }}" hidden />
-        <input class="item-description" type="text" placeholder="{{ __('crm.short_description_optional') }}" />
-        <label class="image-upload-label">
-          <span>{{ __('crm.custom_image') }}</span>
-          <input class="item-image" type="file" accept="image/*" />
-        </label>
-      </div>
-      <div><label class="mobile-label">{{ __('crm.quantity') }}</label><input class="item-qty" type="number" min="0" step="1" value="1" /></div>
-      <div><label class="mobile-label">{{ __('crm.unit_price') }}</label><input class="item-price" type="number" min="0" step="0.01" value="0" /></div>
-      <div><label class="mobile-label">{{ __('crm.unit') }}</label><input class="item-unit" type="text" value="قطعه" /></div>
-      <div class="item-total-cell"><label class="mobile-label">{{ __('crm.total') }}</label><strong class="item-total">0</strong></div>
-      <div class="financial-inclusion-cell"><label class="mobile-label">{{ __('crm.in_financial_estimate') }}</label><input class="item-in-financial" type="checkbox" checked title="{{ __('crm.include_in_estimate_title') }}" /></div>
-      <div class="product-page-cell"><label class="mobile-label">{{ __('crm.in_accessories') }}</label><input class="item-show-product" type="checkbox" title="{{ __('crm.show_accessory_title') }}" /></div>
-      <div><button type="button" class="remove-item" title="{{ __('crm.delete_item') }}">×</button></div>
-    </div>
-  </template>
-
-  <template id="adjustmentRowTemplate">
-    <div class="adjustment-editor-row">
-      <div class="adjustment-main">
-        <label class="mobile-label">{{ __('crm.row_name') }}</label>
-        <input class="adjustment-label" type="text" placeholder="{{ __('crm.adjustment_example') }}" />
-      </div>
-      <div>
-        <label class="mobile-label">{{ __('crm.operation') }}</label>
-        <select class="adjustment-operation">
-          <option value="add">{{ __('crm.add_operation') }}</option>
-          <option value="subtract">{{ __('crm.subtract_operation') }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="mobile-label">{{ __('crm.value_type') }}</label>
-        <select class="adjustment-mode">
-          <option value="amount">{{ __('crm.amount') }}</option>
-          <option value="percent">{{ __('crm.percentage') }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="mobile-label">{{ __('crm.value') }}</label>
-        <input class="adjustment-value" type="number" min="0" step="0.01" value="0" />
-      </div>
-      <div class="adjustment-calculated-cell">
-        <label class="mobile-label">{{ __('crm.calculated_value') }}</label>
-        <strong class="adjustment-calculated">0</strong>
-      </div>
-      <button type="button" class="remove-adjustment" title="{{ __('crm.delete_row') }}">×</button>
-    </div>
-  </template>
-
-  <script>
-   window.SOKRAT_QUOTE_ASSET_BASE = @json(asset('quotation-generator/assets'));
-   window.CRM_QUOTATION_READ_ONLY = @json($crmQuotationReadOnly);
-   window.CRM_QUOTATION_DATA = @json($crmQuotationData);
-   window.CRM_QUOTATION_STORE_URL = @json(route('v2.quotations.store'));
-  </script>
-  <script src="{{ asset('quotation-generator/script.js') }}?v=quotation-v36"></script>
-  <script src="{{ asset('quotation-generator/crm-sidebar.js') }}"></script>
-  <script src="{{ asset('quotation-generator/crm-integration.js') }}"></script>
-   </div>
-  </div>
+</div>
+<!-- CRM QUOTATION SHELL END -->
 </body>
 </html>

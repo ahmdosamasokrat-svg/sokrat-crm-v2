@@ -31,6 +31,7 @@ enum CrmPermission: string
     case CAMPAIGNS_CREATE = 'campaigns.create';
     case CAMPAIGNS_REPORTS = 'campaigns.reports';
     case REPORTS_VIEW = 'reports.view';
+    case REPORTS_EMPLOYEES_VIEW = 'reports.employees.view';
 
     case USERS_VIEW = 'users.view';
     case USERS_CREATE = 'users.create';
@@ -91,6 +92,7 @@ enum CrmPermission: string
             self::CAMPAIGNS_CREATE => 'إنشاء الحملات',
             self::CAMPAIGNS_REPORTS => 'عرض تقارير الحملات',
             self::REPORTS_VIEW => 'عرض التقارير',
+            self::REPORTS_EMPLOYEES_VIEW => 'عرض تقارير الموظفين',
             self::USERS_VIEW => 'عرض المستخدمين',
             self::USERS_CREATE => 'إضافة المستخدمين',
             self::USERS_UPDATE => 'تعديل المستخدمين ومجموعاتهم',

@@ -8,6 +8,7 @@ use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CampaignReportController;
 use App\Http\Controllers\DailyTaskController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeReportController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadFollowupController;
 use App\Http\Controllers\LeadTransferController;
@@ -425,11 +426,19 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             '/reports/tasks',
             static fn () => view('placeholder', ['title' => 'تقرير المهام']),
         )->name('v2.reports.tasks');
-        Route::get(
-            '/reports/employees',
-            static fn () => view('placeholder', ['title' => 'أداء الموظفين']),
-        )->name('v2.reports.employees');
     });
+
+    Route::prefix('reports/employees')->group(function (): void {
+        Route::get('/', [EmployeeReportController::class, 'index'])
+            ->name('v2.reports.employees.index');
+        Route::get('/export', [EmployeeReportController::class, 'export'])
+            ->name('v2.reports.employees.export');
+        Route::get('/{user}', [EmployeeReportController::class, 'show'])
+            ->whereNumber('user')
+            ->name('v2.reports.employees.show');
+    });
+    Route::get('/reports/employees-alias', static fn () => redirect()->route('v2.reports.employees.index'))
+        ->name('v2.reports.employees');
 
     Route::get('/campaigns', [CampaignController::class, 'index'])
         ->middleware('can:campaigns.view')
@@ -481,6 +490,11 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             ->name('v2.quotations.create');
         Route::post('/quotations', [QuotationController::class, 'store'])
             ->name('v2.quotations.store');
+        Route::put(
+            '/quotations/{quotation}',
+            [QuotationController::class, 'update'],
+        )->whereNumber('quotation')
+            ->name('v2.quotations.update');
     });
 
     Route::prefix('settings')

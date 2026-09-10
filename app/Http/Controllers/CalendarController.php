@@ -6,10 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Models\CalendarEvent;
 use App\Models\Lead;
+use App\Models\PipelineStage;
 use App\Models\User;
 use App\Repositories\CalendarEventRepository;
 use App\Security\CrmPermission;
 use App\Support\CrmDatabaseGuard;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,9 +55,83 @@ class CalendarController extends Controller
             $assignableUsers = collect([$user]);
         }
 
+        // Active Pipeline Stages
+        $pipelineStages = PipelineStage::query()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->with(['statuses:id,name_ar,pipeline_stage_id,color'])
+            ->get();
+
+        // Dynamic Follow-up leads grouped by stage
+        $now = now();
+        $todayStart = $now->copy()->startOfDay();
+        $todayEnd = $now->copy()->endOfDay();
+
+        $followupLeads = Lead::query()
+            ->accessibleTo($user)
+            ->whereNotNull('next_follow_up_at')
+            ->with([
+                'status:id,name_ar,pipeline_stage_id,color',
+                'status.stage:id,name_ar,color,icon',
+                'assignedUser:id,name',
+            ])
+            ->select(['id', 'name', 'company_name', 'phone', 'lead_status_id', 'assigned_user_id', 'assigned_employee', 'next_follow_up_at'])
+            ->orderBy('next_follow_up_at', 'asc')
+            ->get();
+
+        $stageFollowups = [];
+        foreach ($pipelineStages as $stg) {
+            $stageFollowups[$stg->id] = [];
+        }
+
+        foreach ($followupLeads as $lead) {
+            $stageId = $lead->status?->pipeline_stage_id ?? ($lead->status?->stage?->id ?? 0);
+            $followupAt = $lead->next_follow_up_at;
+
+            $timing = 'upcoming';
+            $timingLabel = __('crm.upcoming');
+            if ($followupAt < $todayStart) {
+                $timing = 'overdue';
+                $timingLabel = __('crm.overdue');
+            } elseif ($followupAt <= $todayEnd) {
+                $timing = 'today';
+                $timingLabel = __('crm.today');
+            }
+
+            $item = [
+                'id' => $lead->id,
+                'name' => $lead->name,
+                'company_name' => $lead->company_name,
+                'phone' => $lead->phone,
+                'stage_id' => $stageId,
+                'stage_name' => $lead->status?->stage?->localizedName() ?? ($lead->status?->stage?->name_ar ?? '—'),
+                'stage_color' => $lead->status?->stage?->color ?: '#3b82f6',
+                'stage_icon' => $lead->status?->stage?->icon ?: 'bi-diagram-3',
+                'status_name' => $lead->status?->name_ar ?? '—',
+                'status_color' => $lead->status?->color ?: '#3b82f6',
+                'assigned_user_id' => $lead->assigned_user_id,
+                'assigned_name' => $lead->assignedUser?->name ?? ($lead->assigned_employee ?: '—'),
+                'next_follow_up_at' => $followupAt->format('Y-m-d H:i'),
+                'date_str' => $followupAt->format('Y-m-d'),
+                'time_str' => $followupAt->format('h:i A'),
+                'timing' => $timing,
+                'timing_label' => $timingLabel,
+                'url' => route('v2.leads.show', $lead->id),
+            ];
+
+            if (isset($stageFollowups[$stageId])) {
+                $stageFollowups[$stageId][] = $item;
+            } else {
+                $stageFollowups[$stageId] = [$item];
+            }
+        }
+
         return view('calendar.index', [
             'leads' => $leads,
             'assignableUsers' => $assignableUsers,
+            'pipelineStages' => $pipelineStages,
+            'stageFollowups' => $stageFollowups,
+            'totalFollowupsCount' => $followupLeads->count(),
         ]);
     }
 
@@ -114,10 +190,64 @@ class CalendarController extends Controller
                 'allDay' => false,
             ];
         });
+        $leadFollowups = collect();
+        if ($start && $end) {
+            try {
+                $leadFollowupQuery = Lead::query()
+                    ->accessibleTo($user)
+                    ->whereNotNull('next_follow_up_at')
+                    ->whereBetween('next_follow_up_at', [
+                        Carbon::parse($start)->startOfDay(),
+                        Carbon::parse($end)->endOfDay(),
+                    ])
+                    ->with(['status.stage', 'assignedUser:id,name']);
+
+                if (! empty($filters['user_id'])) {
+                    $leadFollowupQuery->where('assigned_user_id', (int) $filters['user_id']);
+                }
+                if (! empty($filters['lead_id'])) {
+                    $leadFollowupQuery->where('id', (int) $filters['lead_id']);
+                }
+
+                $leadFollowups = $leadFollowupQuery->limit(500)->get();
+            } catch (\Throwable) {
+                $leadFollowups = collect();
+            }
+        }
+
+        $followupEventItems = $leadFollowups->map(function (Lead $lead): array {
+            $stageName = $lead->status?->stage?->localizedName() ?? ($lead->status?->stage?->name_ar ?? '');
+            $stageColor = $lead->status?->stage?->color ?: '#3b82f6';
+            $isOverdue = $lead->next_follow_up_at < now();
+
+            return [
+                'id' => 'lead_followup_' . $lead->id,
+                'lead_id' => $lead->id,
+                'title' => ($stageName ? '[' . $stageName . '] ' : '') . $lead->name,
+                'description' => 'متابعة مجدولة' . ($lead->company_name ? ' - ' . $lead->company_name : '') . ($lead->phone ? ' - ' . $lead->phone : ''),
+                'start' => $lead->next_follow_up_at->toIso8601String(),
+                'end' => $lead->next_follow_up_at->copy()->addMinutes(30)->toIso8601String(),
+                'type' => 'call',
+                'status' => $isOverdue ? 'scheduled' : 'scheduled',
+                'user_id' => $lead->assigned_user_id,
+                'user_name' => $lead->assignedUser?->name ?? ($lead->assigned_employee ?: '—'),
+                'lead_name' => $lead->name,
+                'lead_company' => $lead->company_name,
+                'lead_phone' => $lead->phone,
+                'stage_name' => $stageName,
+                'stage_color' => $stageColor,
+                'color' => $stageColor,
+                'allDay' => false,
+                'is_lead_followup' => true,
+                'lead_url' => route('v2.leads.show', $lead->id),
+            ];
+        });
+
+        $allEvents = $formattedEvents->concat($followupEventItems)->values();
 
         return response()->json([
             'success' => true,
-            'data' => $formattedEvents,
+            'data' => $allEvents,
         ]);
     }
 
