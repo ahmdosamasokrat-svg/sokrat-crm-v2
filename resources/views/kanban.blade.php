@@ -1325,6 +1325,344 @@ html.dark .board-top-scroll::-webkit-scrollbar-thumb:hover,
  background:#64748b
 }
 
+/* Dark mode surface and content overrides */
+html.dark-mode .kanban-page,
+html.dark .kanban-page,
+[data-theme="dark"] .kanban-page{
+ --dark:#f1f5f9;
+ --muted:#94a3b8;
+ --line:#334155;
+ --bg:#0f172a;
+ --card:#1e293b;
+ --shadow:0 12px 35px rgba(0,0,0,.3)
+}
+
+html.dark-mode body,
+html.dark body,
+[data-theme="dark"] body{
+ background:#0f172a;
+ color:#f1f5f9
+}
+
+html.dark-mode .topbar,
+html.dark .topbar,
+[data-theme="dark"] .topbar{
+ border-color:rgba(255,255,255,.08);
+ background:rgba(15,23,42,.9);
+ box-shadow:0 8px 30px rgba(0,0,0,.25)
+}
+
+html.dark-mode .btn.light,
+html.dark .btn.light,
+[data-theme="dark"] .btn.light{
+ border-color:rgba(255,255,255,.12);
+ background:#1e293b;
+ color:#cbd5e1
+}
+
+html.dark-mode .board-shell,
+html.dark .board-shell,
+[data-theme="dark"] .board-shell{
+ border-color:#334155;
+ background:#0b1220
+}
+
+html.dark-mode .board,
+html.dark .board,
+[data-theme="dark"] .board{
+ background:#0b1220
+}
+
+html.dark-mode .board-top-scroll,
+html.dark .board-top-scroll,
+[data-theme="dark"] .board-top-scroll{
+ scrollbar-color:#475569 transparent
+}
+
+html.dark-mode .board-top-scroll::-webkit-scrollbar-track,
+html.dark .board-top-scroll::-webkit-scrollbar-track,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-track{
+ background:rgba(255,255,255,.03)
+}
+
+html.dark-mode .board-top-scroll::-webkit-scrollbar-thumb,
+html.dark .board-top-scroll::-webkit-scrollbar-thumb,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-thumb{
+ background:#475569
+}
+
+html.dark-mode .board-top-scroll::-webkit-scrollbar-thumb:hover,
+html.dark .board-top-scroll::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .board-top-scroll::-webkit-scrollbar-thumb:hover{
+ background:#64748b
+}
+
+html.dark-mode .kanban-column,
+html.dark .kanban-column,
+[data-theme="dark"] .kanban-column{
+ border-color:#334155;
+ background:#111827
+}
+
+html.dark-mode .column-head,
+html.dark .column-head,
+[data-theme="dark"] .column-head{
+ border-color:#334155
+}
+
+html.dark-mode .column-icon,
+html.dark .column-icon,
+[data-theme="dark"] .column-icon{
+ background:color-mix(in srgb,var(--column-color) 14%,#1e293b)
+}
+
+html.dark-mode .kanban-card,
+html.dark .kanban-card,
+[data-theme="dark"] .kanban-card{
+ background:
+  linear-gradient(
+   180deg,
+   color-mix(in srgb,var(--card-stage-color) 14%,#1e293b),
+   #1e293b 72px
+  );
+ box-shadow:0 8px 20px rgba(0,0,0,.24)
+}
+
+html.dark-mode .kanban-card-name,
+html.dark .kanban-card-name,
+[data-theme="dark"] .kanban-card-name{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-card-stage,
+html.dark .kanban-card-stage,
+[data-theme="dark"] .kanban-card-stage{
+ background:color-mix(in srgb,var(--card-stage-color) 16%,#1e293b)
+}
+
+html.dark-mode .kanban-card-row,
+html.dark .kanban-card-row,
+[data-theme="dark"] .kanban-card-row{
+ border-color:rgba(255,255,255,.08);
+ background:#172033
+}
+
+html.dark-mode .kanban-card-row span,
+html.dark .kanban-card-row span,
+[data-theme="dark"] .kanban-card-row span{
+ color:#94a3b8
+}
+
+html.dark-mode .kanban-card-row span i,
+html.dark .kanban-card-row span i,
+[data-theme="dark"] .kanban-card-row span i{
+ color:#aeb8c8
+}
+
+html.dark-mode .kanban-card-row strong,
+html.dark .kanban-card-row strong,
+[data-theme="dark"] .kanban-card-row strong{
+ color:#cbd5e1
+}
+
+html.dark-mode .kanban-phone,
+html.dark .kanban-phone,
+[data-theme="dark"] .kanban-phone{
+ color:#8ab4f8
+}
+
+html.dark-mode .kanban-followup-toolbar,
+html.dark .kanban-followup-toolbar,
+[data-theme="dark"] .kanban-followup-toolbar{
+ border-color:#334155;
+ background:#111827
+}
+
+html.dark-mode .kanban-scope-btn,
+html.dark .kanban-scope-btn,
+[data-theme="dark"] .kanban-scope-btn{
+ border-color:#334155;
+ background:#172033;
+ color:#aeb8c8
+}
+
+html.dark-mode .kanban-scope-btn.active,
+html.dark .kanban-scope-btn.active,
+[data-theme="dark"] .kanban-scope-btn.active{
+ background:color-mix(in srgb,var(--followup-scope-color,var(--column-color)) 18%,#1e293b)!important
+}
+
+html.dark-mode .kanban-followup-current,
+html.dark .kanban-followup-current,
+[data-theme="dark"] .kanban-followup-current{
+ color:#94a3b8
+}
+
+html.dark-mode .kanban-followup-current strong,
+html.dark .kanban-followup-current strong,
+[data-theme="dark"] .kanban-followup-current strong{
+ color:#cbd5e1
+}
+
+html.dark-mode .kanban-scope-empty i,
+html.dark .kanban-scope-empty i,
+[data-theme="dark"] .kanban-scope-empty i{
+ background:#172033
+}
+
+html.dark-mode .kanban-scope-empty strong,
+html.dark .kanban-scope-empty strong,
+[data-theme="dark"] .kanban-scope-empty strong{
+ color:#cbd5e1
+}
+
+html.dark-mode .kanban-drag-hint,
+html.dark .kanban-drag-hint,
+[data-theme="dark"] .kanban-drag-hint{
+ border-color:#334155;
+ background:#172033;
+ color:#aeb8c8
+}
+
+html.dark-mode .kanban-drag-hint strong,
+html.dark .kanban-drag-hint strong,
+[data-theme="dark"] .kanban-drag-hint strong{
+ color:#e2e8f0
+}
+
+html.dark-mode .kanban-column.is-drop-target,
+html.dark .kanban-column.is-drop-target,
+[data-theme="dark"] .kanban-column.is-drop-target{
+ background:color-mix(in srgb,var(--column-color) 8%,#111827)
+}
+
+html.dark-mode .kanban-column.is-drop-target .column-head,
+html.dark .kanban-column.is-drop-target .column-head,
+[data-theme="dark"] .kanban-column.is-drop-target .column-head{
+ background:color-mix(in srgb,var(--column-color) 18%,#111827)!important
+}
+
+html.dark-mode .kanban-filter-control,
+html.dark .kanban-filter-control,
+[data-theme="dark"] .kanban-filter-control{
+ border-color:#334155;
+ background:#1e293b;
+ box-shadow:0 1px 3px rgba(0,0,0,.2)
+}
+
+html.dark-mode .kanban-filter-control .filter-icon,
+html.dark-mode .kanban-filter-control .filter-label,
+html.dark .kanban-filter-control .filter-icon,
+html.dark .kanban-filter-control .filter-label,
+[data-theme="dark"] .kanban-filter-control .filter-icon,
+[data-theme="dark"] .kanban-filter-control .filter-label{
+ color:#94a3b8
+}
+
+html.dark-mode .kanban-filter-control select,
+html.dark .kanban-filter-control select,
+[data-theme="dark"] .kanban-filter-control select{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-filter-control select option,
+html.dark .kanban-filter-control select option,
+[data-theme="dark"] .kanban-filter-control select option{
+ background:#1e293b;
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-column-pagination,
+html.dark .kanban-column-pagination,
+[data-theme="dark"] .kanban-column-pagination{
+ border-color:#334155;
+ background:#172033;
+ box-shadow:0 2px 6px rgba(0,0,0,.2)
+}
+
+html.dark-mode .kanban-page-info,
+html.dark .kanban-page-info,
+[data-theme="dark"] .kanban-page-info{
+ color:#94a3b8
+}
+
+html.dark-mode .kanban-page-range,
+html.dark .kanban-page-range,
+[data-theme="dark"] .kanban-page-range{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-page-btn,
+html.dark .kanban-page-btn,
+[data-theme="dark"] .kanban-page-btn{
+ border-color:#334155;
+ background:#1e293b;
+ color:#e2e8f0
+}
+
+html.dark-mode .kanban-page-btn:disabled,
+html.dark .kanban-page-btn:disabled,
+[data-theme="dark"] .kanban-page-btn:disabled{
+ border-color:rgba(255,255,255,.08);
+ background:#172033;
+ color:#64748b
+}
+
+html.dark-mode .kanban-empty i,
+html.dark .kanban-empty i,
+[data-theme="dark"] .kanban-empty i{
+ border-color:#475569;
+ background:#172033
+}
+
+html.dark-mode .kanban-empty strong,
+html.dark .kanban-empty strong,
+[data-theme="dark"] .kanban-empty strong{
+ color:#cbd5e1
+}
+
+html.dark-mode .notice,
+html.dark .notice,
+[data-theme="dark"] .notice{
+ border-color:#6b531e;
+ background:#2b2414;
+ color:#f5c96a
+}
+
+html.dark-mode .kanban-followup-dialog,
+html.dark .kanban-followup-dialog,
+[data-theme="dark"] .kanban-followup-dialog{
+ border-color:#334155;
+ background:#1e293b
+}
+
+html.dark-mode .kanban-followup-modal-head,
+html.dark .kanban-followup-modal-head,
+[data-theme="dark"] .kanban-followup-modal-head{
+ border-color:#334155;
+ background:#172033
+}
+
+html.dark-mode .kanban-followup-modal-title h3,
+html.dark .kanban-followup-modal-title h3,
+[data-theme="dark"] .kanban-followup-modal-title h3{
+ color:#f1f5f9
+}
+
+html.dark-mode .kanban-followup-close,
+html.dark .kanban-followup-close,
+[data-theme="dark"] .kanban-followup-close{
+ border-color:#334155;
+ background:#1e293b;
+ color:#cbd5e1
+}
+
+html.dark-mode .kanban-followup-frame,
+html.dark .kanban-followup-frame,
+[data-theme="dark"] .kanban-followup-frame{
+ background:#0f172a
+}
+
 @media(max-width:768px){
  .page-tools{
   flex-direction:column;
