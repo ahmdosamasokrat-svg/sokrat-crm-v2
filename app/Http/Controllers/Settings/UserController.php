@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\StoreUserRequest;
 use App\Http\Requests\Settings\UpdateUserRequest;
 use App\Models\Group;
+use App\Models\PipelineStage;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -54,6 +55,7 @@ class UserController extends Controller
 
         return view('settings.users.create', [
             'groups' => $this->availableGroups($request->user()),
+            'pipelineStages' => $this->availablePipelineStages(),
             'voipExtensions' => $this->getVoipExtensions(),
             'isVoipConnected' => $isVoipConnected,
         ]);
@@ -77,9 +79,15 @@ class UserController extends Controller
                 'voip_extension' => $voipExt,
                 'password' => $validated['password'],
                 'is_active' => true,
+                'pipeline_stage_access_mode' => $validated['pipeline_stage_access_mode'],
             ]);
 
             $user->groups()->sync($validated['group_ids']);
+            $user->pipelineStages()->sync(
+                $validated['pipeline_stage_access_mode'] === 'selected'
+                    ? $validated['pipeline_stage_ids']
+                    : [],
+            );
 
             return $user;
         });
@@ -92,7 +100,7 @@ class UserController extends Controller
     public function edit(Request $request, User $user): View
     {
         $this->ensureCanManageUser($request->user(), $user);
-        $user->load('groups:id,name,code');
+        $user->load(['groups:id,name,code', 'pipelineStages:id']);
 
         $voipFilters = $request->validate([
             'from_date' => ['nullable', 'date_format:Y-m-d'],
@@ -123,6 +131,7 @@ class UserController extends Controller
         return view('settings.users.edit', [
             'managedUser' => $user,
             'groups' => $this->availableGroups($request->user()),
+            'pipelineStages' => $this->availablePipelineStages(),
             'voipExtensions' => $this->getVoipExtensions(),
             'voipStats' => $voipStats,
             'voipFilters' => $voipFilters,
@@ -154,12 +163,27 @@ class UserController extends Controller
                 'username' => trim($validated['username']),
                 'email' => $email !== '' ? $email : null,
                 'voip_extension' => $voipExt,
+                'pipeline_stage_access_mode' => $validated['pipeline_stage_access_mode'],
             ]);
             $user->groups()->sync($groupIds);
+            $user->pipelineStages()->sync(
+                $validated['pipeline_stage_access_mode'] === 'selected'
+                    ? $validated['pipeline_stage_ids']
+                    : [],
+            );
             $user->unsetRelation('groups');
         });
 
         return back()->with('success', 'تم تحديث المستخدم بنجاح.');
+    }
+
+    private function availablePipelineStages(): \Illuminate\Database\Eloquent\Collection
+    {
+        return PipelineStage::query()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get(['id', 'name_ar', 'color']);
     }
 
     public function updateStatus(

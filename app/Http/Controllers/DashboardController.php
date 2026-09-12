@@ -99,11 +99,13 @@ class DashboardController extends Controller
         );
 
         $statuses = LeadStatus::query()
+            ->visibleTo($user)
             ->with('stage')
             ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
             ->orderBy('position')
             ->get();
         $stages = PipelineStage::query()
+            ->visibleTo($user)
             ->with('statuses')
             ->where('is_active', true)
             ->orderBy('position')
@@ -919,6 +921,7 @@ class DashboardController extends Controller
             ->endOfDay();
 
         $statuses = LeadStatus::query()
+            ->visibleTo($user)
             ->with('stage.activeFields')
             ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
             ->orderBy('position')
@@ -1117,6 +1120,7 @@ class DashboardController extends Controller
         );
 
         $status = LeadStatus::query()
+            ->visibleTo($user)
             ->with('stage')
             ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
             ->find((int) $statusId);

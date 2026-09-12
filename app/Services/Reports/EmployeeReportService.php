@@ -162,9 +162,13 @@ final class EmployeeReportService
      *
      * @return Collection<int, PipelineStage>
      */
-    public function getActivePipelineStages(): Collection
+    public function getActivePipelineStages(?User $viewer = null): Collection
     {
         return PipelineStage::query()
+            ->when(
+                $viewer !== null,
+                static fn (Builder $query): Builder => $query->visibleTo($viewer),
+            )
             ->where('is_active', true)
             ->with(['statuses' => static fn ($q) => $q->orderBy('position')])
             ->orderBy('position')
@@ -984,7 +988,7 @@ final class EmployeeReportService
         $diffDays = $from->diffInDays($to);
 
         if ($stages === null) {
-            $stages = $this->getActivePipelineStages();
+            $stages = $this->getActivePipelineStages($viewer);
         }
 
         $leadQuery = $this->buildScopedLeadQuery($viewer, $filters, $from, $to);

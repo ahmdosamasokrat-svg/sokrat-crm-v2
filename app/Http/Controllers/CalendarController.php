@@ -57,6 +57,7 @@ class CalendarController extends Controller
 
         // Active Pipeline Stages
         $pipelineStages = PipelineStage::query()
+            ->visibleTo($user)
             ->where('is_active', true)
             ->orderBy('position')
             ->with(['statuses:id,name_ar,pipeline_stage_id,color'])

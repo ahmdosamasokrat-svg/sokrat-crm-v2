@@ -37,7 +37,7 @@ class EmployeeReportController extends Controller
 
         $filters = $this->extractFilters($request);
         $dateRange = $this->reportService->resolveDateRange($filters);
-        $stages = $this->reportService->getActivePipelineStages();
+        $stages = $this->reportService->getActivePipelineStages($viewer);
         $conversionTargets = $this->reportService->resolveConversionTargets($stages);
 
         $authorizedEmployees = $this->reportService->getAuthorizedEmployees($viewer);
@@ -156,7 +156,7 @@ class EmployeeReportController extends Controller
 
         $filters = $this->extractFilters($request);
         $dateRange = $this->reportService->resolveDateRange($filters);
-        $stages = $this->reportService->getActivePipelineStages();
+        $stages = $this->reportService->getActivePipelineStages($viewer);
         $conversionTargets = $this->reportService->resolveConversionTargets($stages);
 
         $drilldown = $this->reportService->getEmployeeDrilldown(
@@ -202,7 +202,7 @@ class EmployeeReportController extends Controller
 
         $filters = $this->extractFilters($request);
         $dateRange = $this->reportService->resolveDateRange($filters);
-        $stages = $this->reportService->getActivePipelineStages();
+        $stages = $this->reportService->getActivePipelineStages($viewer);
         $conversionTargets = $this->reportService->resolveConversionTargets($stages);
 
         // Fetch all matching rows up to 1000 for export

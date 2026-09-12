@@ -86,6 +86,7 @@ class TaskStatusController extends Controller
 
         $statusRecord =
             LeadStatus::query()
+                ->visibleTo($user)
                 ->with('stage')
                 ->where(
                     'code',

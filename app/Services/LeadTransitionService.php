@@ -55,6 +55,12 @@ class LeadTransitionService
             // 1. Destination stage resolution
             $toStage = $toStatus->stage ?? PipelineStage::query()->find($toStatus->pipeline_stage_id);
 
+            if ($toStage === null || ! $actor->canAccessPipelineStage($toStage)) {
+                throw ValidationException::withMessages([
+                    'lead_status_id' => 'ليس لديك صلاحية نقل العميل إلى هذه المرحلة.',
+                ]);
+            }
+
             // 2. Validate stage field schema and extract normalized stage values
             $normalizedStageValues = [];
             if ($toStage !== null) {

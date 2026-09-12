@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +35,14 @@ class LeadStatus extends Model
         return $this->belongsTo(
             PipelineStage::class,
             'pipeline_stage_id'
+        );
+    }
+
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $query->whereHas(
+            'stage',
+            static fn (Builder $stages): Builder => $stages->visibleTo($user),
         );
     }
 

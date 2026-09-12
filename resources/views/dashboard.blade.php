@@ -473,8 +473,20 @@ html.dark-mode .crm-dashboard-v2 {
   min-width: 0;
   max-width: 100%;
   scrollbar-width: thin;
+  scrollbar-color: var(--d-border-strong) var(--d-surface-alt);
+  scroll-snap-type: inline proximity;
+  overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  cursor: grab;
   padding: 4px 2px 8px;
+}
+.crm-dashboard-v2 .dash-pipeline-strip:active {
+  cursor: grabbing;
+}
+.crm-dashboard-v2 .dash-pipeline-strip:hover,
+.crm-dashboard-v2 .dash-pipeline-strip:focus-within {
+  scrollbar-color: var(--d-primary) var(--d-surface-alt);
 }
 .crm-dashboard-v2 .dash-pipeline-strip::-webkit-scrollbar {
   height: 5px;
@@ -486,6 +498,10 @@ html.dark-mode .crm-dashboard-v2 {
 .crm-dashboard-v2 .dash-pipeline-strip::-webkit-scrollbar-thumb {
   background: var(--d-border-strong);
   border-radius: 99px;
+}
+.crm-dashboard-v2 .dash-pipeline-strip:hover::-webkit-scrollbar-thumb,
+.crm-dashboard-v2 .dash-pipeline-strip:focus-within::-webkit-scrollbar-thumb {
+  background: var(--d-primary);
 }
 .crm-dashboard-v2 .pipeline-flow-pill {
   flex: 0 0 auto;
@@ -4342,6 +4358,36 @@ html.dark-mode .toast {
     if (stageModalBackdrop && !stageModalBackdrop.hidden && e.key === 'Escape') {
       closeStageModal();
     }
+  });
+})();
+</script>
+<script>
+(() => {
+  document.querySelectorAll('.dash-pipeline-strip, .hero-pipeline').forEach((strip) => {
+    strip.addEventListener('wheel', (event) => {
+      if (
+        event.defaultPrevented
+        || event.shiftKey
+        || Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+        || strip.scrollWidth <= strip.clientWidth
+      ) {
+        return;
+      }
+
+      const beforeScrollLeft = strip.scrollLeft;
+      const direction = getComputedStyle(strip).direction === 'rtl' ? -1 : 1;
+
+      strip.scrollBy({
+        left: event.deltaY * direction,
+        behavior: 'auto',
+      });
+
+      if (strip.scrollLeft === beforeScrollLeft) {
+        return;
+      }
+
+      event.preventDefault();
+    }, { passive: false });
   });
 })();
 </script>

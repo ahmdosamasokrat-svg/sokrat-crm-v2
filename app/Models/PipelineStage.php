@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Lang;
 
 class PipelineStage extends Model
@@ -98,7 +100,7 @@ class PipelineStage extends Model
             ->get();
     }
 
-    public static function getActiveStagesForSidebar(): Collection
+    public static function getActiveStagesForSidebar(?User $user = null): Collection
     {
         $cached = Cache::remember(
             self::SIDEBAR_CACHE_KEY,
@@ -111,7 +113,29 @@ class PipelineStage extends Model
                 ->toArray()
         );
 
-        return self::hydrate(is_array($cached) ? $cached : []);
+        $stages = self::hydrate(is_array($cached) ? $cached : []);
+
+        if ($user === null || ! $user->hasRestrictedPipelineStageAccess()) {
+            return $stages;
+        }
+
+        $allowedIds = $user->pipelineStages()->pluck('pipeline_stages.id');
+
+        return $stages
+            ->whereIn('id', $allowedIds)
+            ->values();
+    }
+
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if (! $user->hasRestrictedPipelineStageAccess()) {
+            return $query;
+        }
+
+        return $query->whereHas(
+            'permittedUsers',
+            static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+        );
     }
 
     public static function clearSidebarCache(): void
@@ -223,6 +247,11 @@ class PipelineStage extends Model
     {
         return $this->hasMany(LeadStatus::class, 'pipeline_stage_id')
             ->orderBy('position');
+    }
+
+    public function permittedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class);
     }
 
     public function leads(): HasManyThrough

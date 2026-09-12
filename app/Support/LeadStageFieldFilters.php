@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\PipelineStageField;
+use App\Models\User;
 use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -21,6 +22,7 @@ final class LeadStageFieldFilters
     public static function resolve(
         mixed $requestedFieldIds,
         mixed $requestedValues,
+        User $user,
     ): array {
         $availableFields = PipelineStageField::query()
             ->select('pipeline_stage_fields.*')
@@ -35,6 +37,16 @@ final class LeadStageFieldFilters
             ->where('pipeline_stage_fields.show_on_stage_view', true)
             ->whereNull('pipeline_stage_fields.deleted_at')
             ->where('pipeline_stages.is_active', true)
+            ->when(
+                $user->hasRestrictedPipelineStageAccess(),
+                static fn (Builder $query): Builder => $query->whereExists(
+                    static fn ($accessQuery) => $accessQuery
+                        ->selectRaw('1')
+                        ->from('pipeline_stage_user')
+                        ->whereColumn('pipeline_stage_user.pipeline_stage_id', 'pipeline_stages.id')
+                        ->where('pipeline_stage_user.user_id', $user->getKey()),
+                ),
+            )
             ->orderBy('pipeline_stages.position')
             ->orderBy('pipeline_stages.id')
             ->orderBy('pipeline_stage_fields.position')

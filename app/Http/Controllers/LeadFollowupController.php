@@ -43,6 +43,7 @@ class LeadFollowupController extends Controller
         Gate::authorize('viewFollowups', $leadRecord);
 
         $statuses = LeadStatus::query()
+            ->visibleTo($request->user())
             ->with('stage')
             ->orderBy('position')
             ->orderBy('id')
@@ -192,6 +193,7 @@ class LeadFollowupController extends Controller
         );
 
         $activeStages = PipelineStage::query()
+            ->visibleTo($request->user())
             ->where('is_active', true)
             ->with(['activeFields', 'statuses'])
             ->orderBy('position')
@@ -311,6 +313,12 @@ class LeadFollowupController extends Controller
                         'lead_status_id'
                     ]
             );
+
+        if ($targetUser !== null && ! $targetUser->canAccessPipelineStage((int) $status->pipeline_stage_id)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'assigned_user_id' => 'الموظف المختار لا يملك صلاحية الوصول إلى هذه المرحلة.',
+            ]);
+        }
 
         $stageFields = $status->stage ? StageFieldSchema::getFieldsForStage($status->stage, true) : collect();
         $stageFieldKeys = $stageFields->pluck('key')->all();

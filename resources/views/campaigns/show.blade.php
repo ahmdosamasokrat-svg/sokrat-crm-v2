@@ -179,7 +179,10 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		flex-wrap: nowrap;
 		overflow-x: auto;
+		min-width: 0;
+		max-width: 100%;
 		padding: 12px 16px;
 		background: var(--card);
 		border: 1px solid var(--line);
@@ -187,6 +190,34 @@
 		margin-bottom: 20px;
 		box-shadow: var(--shadow);
 		scrollbar-width: thin;
+		scrollbar-color: var(--muted) var(--bg);
+		scroll-snap-type: inline proximity;
+		overscroll-behavior-inline: contain;
+		-webkit-overflow-scrolling: touch;
+		touch-action: pan-x;
+		cursor: grab;
+	}
+	.hero-pipeline:active {
+		cursor: grabbing;
+	}
+	.hero-pipeline:hover,
+	.hero-pipeline:focus-within {
+		scrollbar-color: var(--red) var(--bg);
+	}
+	.hero-pipeline::-webkit-scrollbar {
+		height: 5px;
+	}
+	.hero-pipeline::-webkit-scrollbar-track {
+		background: var(--bg);
+		border-radius: 99px;
+	}
+	.hero-pipeline::-webkit-scrollbar-thumb {
+		background: var(--muted);
+		border-radius: 99px;
+	}
+	.hero-pipeline:hover::-webkit-scrollbar-thumb,
+	.hero-pipeline:focus-within::-webkit-scrollbar-thumb {
+		background: var(--red);
 	}
 	.hero-stage {
 		display: inline-flex;
@@ -202,6 +233,8 @@
 		font-size: 13px;
 		white-space: nowrap;
 		transition: all 0.15s ease;
+		flex: 0 0 auto;
+		scroll-snap-align: start;
 	}
 	.hero-stage:hover {
 		border-color: var(--stage-color, var(--red));
@@ -1053,5 +1086,35 @@
 			});
 		});
 	})();
+</script>
+<script>
+(() => {
+  document.querySelectorAll('.dash-pipeline-strip, .hero-pipeline').forEach((strip) => {
+    strip.addEventListener('wheel', (event) => {
+      if (
+        event.defaultPrevented
+        || event.shiftKey
+        || Math.abs(event.deltaY) <= Math.abs(event.deltaX)
+        || strip.scrollWidth <= strip.clientWidth
+      ) {
+        return;
+      }
+
+      const beforeScrollLeft = strip.scrollLeft;
+      const direction = getComputedStyle(strip).direction === 'rtl' ? -1 : 1;
+
+      strip.scrollBy({
+        left: event.deltaY * direction,
+        behavior: 'auto',
+      });
+
+      if (strip.scrollLeft === beforeScrollLeft) {
+        return;
+      }
+
+      event.preventDefault();
+    }, { passive: false });
+  });
+})();
 </script>
 @endpush

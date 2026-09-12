@@ -42,6 +42,7 @@ class LeadTrashController extends Controller
 
         // Stages for restore dropdown and filter
         $activeStages = PipelineStage::query()
+            ->visibleTo($actor)
             ->whereNull('deleted_at')
             ->where('is_active', true)
             ->orderBy('position')
@@ -49,6 +50,7 @@ class LeadTrashController extends Controller
 
         // All stages including deleted for filtering by source stage
         $allStages = PipelineStage::withTrashed()
+            ->visibleTo($actor)
             ->orderBy('name_ar')
             ->get();
 
@@ -90,6 +92,12 @@ class LeadTrashController extends Controller
         $destinationStageId = $request->filled('destination_stage_id')
             ? (int) $request->input('destination_stage_id')
             : null;
+
+        abort_if(
+            $destinationStageId !== null && ! $actor->canAccessPipelineStage($destinationStageId),
+            403,
+            'ليس لديك صلاحية استعادة العميل إلى هذه المرحلة.',
+        );
 
         $destinationStatusId = $request->filled('destination_status_id')
             ? (int) $request->input('destination_status_id')
@@ -165,6 +173,12 @@ class LeadTrashController extends Controller
         ]);
 
         $destinationStageId = ! empty($validated['destination_stage_id']) ? (int) $validated['destination_stage_id'] : null;
+
+        abort_if(
+            $destinationStageId !== null && ! $actor->canAccessPipelineStage($destinationStageId),
+            403,
+            'ليس لديك صلاحية استعادة العملاء إلى هذه المرحلة.',
+        );
 
         $leads = Lead::onlyTrashed()
             ->whereIn('id', $validated['lead_ids'])

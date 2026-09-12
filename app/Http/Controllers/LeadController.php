@@ -32,6 +32,7 @@ class LeadController extends Controller
         $user = $request->user();
 
         $pipelineStages = PipelineStage::query()
+            ->visibleTo($user)
             ->with(['statuses' => static fn ($q) => $q->orderBy('position')])
             ->where('is_active', true)
             ->orderBy('position')
@@ -54,6 +55,7 @@ class LeadController extends Controller
         }
 
         $statuses = LeadStatus::query()
+            ->visibleTo($user)
             ->with(['stage:id,name_ar'])
             ->whereHas('stage', static fn ($q) => $q->where('is_active', true))
             ->orderBy('position')
@@ -98,6 +100,7 @@ class LeadController extends Controller
         ] = LeadStageFieldFilters::resolve(
             $request->query('field_ids', []),
             $request->query('field_filters', []),
+            $user,
         );
         $selectedStageFieldIds = $selectedStageFields
             ->pluck('id')
@@ -394,12 +397,14 @@ class LeadController extends Controller
         $campaign = $this->campaignForManualLead($request);
 
         $activeStages = PipelineStage::query()
+            ->visibleTo($actor)
             ->where('is_active', true)
             ->with(['activeFields', 'statuses'])
             ->orderBy('position')
             ->get();
 
         $statuses = LeadStatus::query()
+            ->visibleTo($actor)
             ->with('stage')
             ->orderBy('position')
             ->get([
@@ -476,6 +481,8 @@ class LeadController extends Controller
         $status = LeadStatus::query()->findOrFail(
             (int) $statusInput['lead_status_id']
         );
+
+        abort_unless($actor->canAccessPipelineStage((int) $status->pipeline_stage_id), 403);
 
         $quotationStageCodes = [
             'quotation',
@@ -710,6 +717,12 @@ class LeadController extends Controller
                 'لا تملك صلاحية إسناد العميل إلى هذا الموظف.'
             );
         }
+
+        abort_unless(
+            $assignee->canAccessPipelineStage((int) $status->pipeline_stage_id),
+            403,
+            'The selected user cannot access this pipeline stage.',
+        );
 
         $assignedEmployee = trim((string) $assignee->name);
 
@@ -1363,6 +1376,7 @@ class LeadController extends Controller
         }
 
         $statuses = LeadStatus::query()
+            ->visibleTo($actor)
             ->with('stage')
             ->orderBy('position')
             ->orderBy('id')
@@ -2143,6 +2157,11 @@ class LeadController extends Controller
                     && LeadAssignment::canAssignTo($actor, $assignee),
                     403,
                     'You cannot reassign this lead to the selected user.'
+                );
+                abort_unless(
+                    $assignee->canAccessPipelineStage((int) $status->pipeline_stage_id),
+                    403,
+                    'The selected user cannot access this pipeline stage.',
                 );
             }
         }

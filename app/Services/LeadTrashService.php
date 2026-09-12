@@ -107,6 +107,15 @@ class LeadTrashService
                 $statusChanged = true;
             }
 
+            if (
+                $resolvedStatus === null
+                || ! $actor->canAccessPipelineStage((int) $resolvedStatus->pipeline_stage_id)
+            ) {
+                throw ValidationException::withMessages([
+                    'destination_stage_id' => 'ليس لديك صلاحية استعادة العميل إلى هذه المرحلة.',
+                ]);
+            }
+
             $actorName = trim((string) $actor->name) ?: 'System';
             $now = now();
 

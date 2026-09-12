@@ -44,6 +44,7 @@ class CampaignController extends Controller
             ->withCount([
                 'leads as user_leads_count' => static function (Builder $leadQuery) use ($user): void {
                     $leadQuery->where('leads.assigned_user_id', $user->id)
+                        ->accessibleTo($user)
                         ->select(DB::raw('count(distinct leads.id)'));
                 },
                 'leads as total_leads_count' => static function (Builder $leadQuery) use ($user): void {
@@ -285,9 +286,26 @@ class CampaignController extends Controller
         ]);
 
         $canManage = $this->canManageCampaign($user, $campaign);
-        $totalCampaignLeads = $campaign->leads()->distinct()->count('leads.id');
+        $allowedStatusIds = LeadStatus::query()
+            ->visibleTo($user)
+            ->select('lead_statuses.id');
+        $restrictStages = static function ($query) use ($user, $allowedStatusIds): void {
+            if ($user->hasRestrictedPipelineStageAccess()) {
+                $query->whereIn('leads.lead_status_id', clone $allowedStatusIds);
+            }
+        };
 
-        $pipelineStages = PipelineStage::activeOrdered()->load('statuses:id,pipeline_stage_id,name_ar,code');
+        $totalCampaignLeadsQuery = $campaign->leads()->distinct();
+        $restrictStages($totalCampaignLeadsQuery);
+        $totalCampaignLeads = $totalCampaignLeadsQuery->count('leads.id');
+
+        $pipelineStages = PipelineStage::query()
+            ->visibleTo($user)
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get()
+            ->load('statuses:id,pipeline_stage_id,name_ar,code');
 
         $statusParam = trim((string) $request->query('status', ''));
         $stageParam = trim((string) $request->query('stage', ''));
@@ -306,7 +324,9 @@ class CampaignController extends Controller
         $overallAssignmentCounts = DB::table('campaign_lead')
             ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
             ->where('campaign_lead.campaign_id', $campaign->id)
-            ->whereNull('leads.deleted_at')
+            ->whereNull('leads.deleted_at');
+        $restrictStages($overallAssignmentCounts);
+        $overallAssignmentCounts = $overallAssignmentCounts
             ->selectRaw('leads.assigned_user_id, COUNT(DISTINCT leads.id) as lead_count')
             ->groupBy('leads.assigned_user_id')
             ->get()
@@ -321,6 +341,7 @@ class CampaignController extends Controller
             ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
             ->where('campaign_lead.campaign_id', $campaign->id)
             ->whereNull('leads.deleted_at');
+        $restrictStages($contextQuery);
 
         if ($selectedStage !== null) {
             $stageStatusIds = $selectedStage->statuses->pluck('id')->all();
@@ -400,6 +421,7 @@ class CampaignController extends Controller
             ->join('leads', 'leads.id', '=', 'campaign_lead.lead_id')
             ->where('campaign_lead.campaign_id', $campaign->id)
             ->whereNull('leads.deleted_at');
+        $restrictStages($baseCampaignLeadsQuery);
 
         if ($showUnassigned) {
             $baseCampaignLeadsQuery->where(function ($q) {
@@ -438,6 +460,7 @@ class CampaignController extends Controller
             : (int) (clone $baseCampaignLeadsQuery)->distinct()->count('leads.id');
 
         $statuses = LeadStatus::query()
+            ->visibleTo($user)
             ->withCount([
                 'leads as campaign_leads_count' => static function (
                     $query,
@@ -472,6 +495,7 @@ class CampaignController extends Controller
                 'assignedUser:id,name',
             ])
             ->orderByDesc('leads.id');
+        $restrictStages($leadsQuery);
 
         if ($showUnassigned) {
             $leadsQuery->where(function ($q) {
@@ -580,14 +604,44 @@ class CampaignController extends Controller
 
         $leadIds = array_map('intval', $validated['lead_ids']);
 
+        $assignableLeadIds = Lead::query()
+            ->whereIn('id', $leadIds)
+            ->whereHas(
+                'campaigns',
+                static fn ($query) => $query->whereKey($campaign->id),
+            )
+            ->when(
+                $actor->hasRestrictedPipelineStageAccess(),
+                static fn (Builder $query): Builder => $query->whereHas(
+                    'status',
+                    static fn (Builder $statuses): Builder => $statuses->visibleTo($actor),
+                ),
+            )
+            ->when(
+                $target->hasRestrictedPipelineStageAccess(),
+                static fn (Builder $query): Builder => $query->whereHas(
+                    'status',
+                    static fn (Builder $statuses): Builder => $statuses->visibleTo($target),
+                ),
+            )
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+
+        if (count($assignableLeadIds) !== count($leadIds)) {
+            throw ValidationException::withMessages([
+                'lead_ids' => 'بعض العملاء في مراحل غير مسموحة لك أو للمستخدم المختار.',
+            ]);
+        }
+
         $updated = DB::transaction(function () use (
             $campaign,
-            $leadIds,
+            $assignableLeadIds,
             $target,
         ): int {
             $campaign->users()->syncWithoutDetaching([$target->id]);
             return Lead::query()
-                ->whereIn('id', $leadIds)
+                ->whereIn('id', $assignableLeadIds)
                 ->whereHas(
                     'campaigns',
                     static fn ($query) => $query->whereKey($campaign->id),

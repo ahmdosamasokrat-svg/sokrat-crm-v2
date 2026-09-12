@@ -116,28 +116,38 @@ class CalendarEvent extends Model
 
     public function scopeAccessibleTo(Builder $query, User $user): Builder
     {
-        if ($user->isSuperAdmin() || $user->hasPermission(CrmPermission::LEADS_SCOPE_ALL)) {
-            return $query;
-        }
-
-        $groupIds = [];
-        if ($user->hasPermission(CrmPermission::LEADS_SCOPE_GROUP)) {
-            $user->loadMissing('groups');
-            $groupIds = $user->groups->modelKeys();
-        }
-
-        return $query->where(function (Builder $accessQuery) use ($user, $groupIds): void {
-            $accessQuery->where('user_id', $user->getKey())
-                ->orWhereHas('lead', function (Builder $leadQuery) use ($user, $groupIds): void {
-                    $leadQuery->accessibleTo($user);
-                });
-
-            if ($groupIds !== []) {
-                $accessQuery->orWhereHas('user.groups', function (Builder $groupQuery) use ($groupIds): void {
-                    $groupQuery->whereKey($groupIds);
-                });
+        if (! $user->isSuperAdmin() && ! $user->hasPermission(CrmPermission::LEADS_SCOPE_ALL)) {
+            $groupIds = [];
+            if ($user->hasPermission(CrmPermission::LEADS_SCOPE_GROUP)) {
+                $user->loadMissing('groups');
+                $groupIds = $user->groups->modelKeys();
             }
-        });
+
+            $query->where(function (Builder $accessQuery) use ($user, $groupIds): void {
+                $accessQuery->where('user_id', $user->getKey())
+                    ->orWhereHas('lead', function (Builder $leadQuery) use ($user): void {
+                        $leadQuery->accessibleTo($user);
+                    });
+
+                if ($groupIds !== []) {
+                    $accessQuery->orWhereHas('user.groups', function (Builder $groupQuery) use ($groupIds): void {
+                        $groupQuery->whereKey($groupIds);
+                    });
+                }
+            });
+        }
+
+        if ($user->hasRestrictedPipelineStageAccess()) {
+            $query->where(function (Builder $stageQuery) use ($user): void {
+                $stageQuery->whereNull('lead_id')
+                    ->orWhereHas(
+                        'lead.status.stage.permittedUsers',
+                        static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+                    );
+            });
+        }
+
+        return $query;
     }
 
     public function isAccessibleTo(User $user): bool

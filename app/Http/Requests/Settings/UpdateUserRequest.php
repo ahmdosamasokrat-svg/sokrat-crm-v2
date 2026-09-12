@@ -39,10 +39,22 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('users', 'email')->ignore($managedUser),
             ],
             'voip_extension' => ['nullable', 'string', 'max:50'],
+            'group_ids' => ['required', 'array', 'min:1'],
             'group_ids.*' => [
                 'integer',
                 'distinct',
                 'exists:groups,id',
+            ],
+            'pipeline_stage_access_mode' => ['required', Rule::in(['all', 'selected'])],
+            'pipeline_stage_ids' => ['required_if:pipeline_stage_access_mode,selected', 'array', 'min:1'],
+            'pipeline_stage_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('pipeline_stages', 'id')->where(
+                    static fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at'),
+                ),
             ],
         ];
     }

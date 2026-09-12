@@ -44,10 +44,9 @@ class LeadTransferController extends Controller
             $request->query('campaign')
         );
 
-        $stages = $this->stages();
-        $statuses = $this->statuses($stages);
-
         $actor = $request->user() ?? auth()->user();
+        $stages = $this->stages($actor);
+        $statuses = $this->statuses($stages);
         $assignableUsers = LeadDistributionService::getAssignableUsers($actor, $campaign);
         $activeLeadCounts = LeadDistributionService::getActiveLeadCounts($assignableUsers);
         $distributionStrategies = LeadDistributionService::strategies();
@@ -217,7 +216,8 @@ class LeadTransferController extends Controller
                 $this->buildImportPreview(
                     $rows,
                     $campaign?->id,
-                    $distributionConfig
+                    $distributionConfig,
+                    $request->user(),
                 );
         } catch (\Throwable $exception) {
             return $this->importPageRedirect($request)
@@ -228,7 +228,7 @@ class LeadTransferController extends Controller
                 );
         }
 
-        $stages = $this->stages();
+        $stages = $this->stages($request->user());
         $statuses = $this->statuses($stages);
 
         return view(
@@ -366,7 +366,7 @@ class LeadTransferController extends Controller
             'distribution_config' => $distributionConfig,
         ];
 
-        $stages = $this->stages();
+        $stages = $this->stages($request->user());
         $statuses = $this->statuses($stages);
 
         return view(
@@ -570,15 +570,13 @@ class LeadTransferController extends Controller
                 $campaign
             ): array {
                 $statusIds = LeadStatus::query()
+                    ->visibleTo($actor)
                     ->whereHas(
                         'stage',
                         static fn ($query) => $query->where('is_active', true)
                     )
-                    ->pluck('id')
-                    ->map(
-                        static fn ($id): int => (int) $id
-                    )
-                    ->flip();
+                    ->pluck('pipeline_stage_id', 'id')
+                    ->map(static fn ($stageId): int => (int) $stageId);
 
                 $existingPhones = [];
 
@@ -637,7 +635,7 @@ class LeadTransferController extends Controller
                         $data['assigned_user_id'] ?? 0
                     );
                     $assignee = User::query()
-                        ->with('groups:id')
+                        ->with(['groups:id', 'pipelineStages:id'])
                         ->find($assigneeId);
 
                     if (
@@ -646,6 +644,11 @@ class LeadTransferController extends Controller
                     ) {
                         throw new \RuntimeException(
                             'لم تعد تملك صلاحية إسناد أحد العملاء إلى الموظف المحدد.'
+                        );
+                    }
+                    if (! $assignee->canAccessPipelineStage($statusIds->get($statusId))) {
+                        throw new \RuntimeException(
+                            'أحد الموظفين المحددين لا يملك صلاحية الوصول إلى مرحلة العميل.'
                         );
                     }
 
@@ -780,7 +783,7 @@ class LeadTransferController extends Controller
             ->sort()
             ->values();
 
-        $stages = $this->stages();
+        $stages = $this->stages($user);
 
         return view(
             'leads.export',
@@ -1100,9 +1103,13 @@ class LeadTransferController extends Controller
         );
     }
 
-    private function stages()
+    private function stages(?User $user = null)
     {
         return PipelineStage::query()
+            ->when(
+                $user !== null,
+                static fn ($query) => $query->visibleTo($user),
+            )
             ->where('is_active', true)
             ->with([
                 'statuses' => static fn ($query) => $query
@@ -1401,7 +1408,8 @@ class LeadTransferController extends Controller
     private function buildImportPreview(
         array $rows,
         ?int $campaignId = null,
-        array $distributionConfig = []
+        array $distributionConfig = [],
+        ?User $actor = null,
     ): array {
         if ($rows === []) {
             throw new \RuntimeException(
@@ -1523,7 +1531,7 @@ class LeadTransferController extends Controller
             );
         }
 
-        $stages = $this->stages();
+        $stages = $this->stages($actor);
         $statuses = $this->statuses($stages);
 
         if ($statuses->isEmpty()) {

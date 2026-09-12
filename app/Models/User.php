@@ -24,6 +24,7 @@ use Illuminate\Notifications\Notifiable;
     'whatsapp_opt_in_at',
     'password',
     'is_active',
+    'pipeline_stage_access_mode',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -50,6 +51,34 @@ class User extends Authenticatable
     public function campaigns(): BelongsToMany
     {
         return $this->belongsToMany(Campaign::class)->withTimestamps();
+    }
+
+    public function pipelineStages(): BelongsToMany
+    {
+        return $this->belongsToMany(PipelineStage::class);
+    }
+
+    public function hasRestrictedPipelineStageAccess(): bool
+    {
+        return ! $this->isSuperAdmin()
+            && $this->pipeline_stage_access_mode === 'selected';
+    }
+
+    public function canAccessPipelineStage(PipelineStage|int $stage): bool
+    {
+        if (! $this->hasRestrictedPipelineStageAccess()) {
+            return true;
+        }
+
+        $stageId = $stage instanceof PipelineStage
+            ? $stage->getKey()
+            : $stage;
+
+        if ($this->relationLoaded('pipelineStages')) {
+            return $this->pipelineStages->contains('id', (int) $stageId);
+        }
+
+        return $this->pipelineStages()->whereKey($stageId)->exists();
     }
 
     public function assignedLeads(): HasMany

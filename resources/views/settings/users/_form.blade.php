@@ -4,6 +4,14 @@
         'group_ids',
         $isEdit ? $managedUser->groups->pluck('id')->all() : [],
     ))->map(static fn ($id) => (int) $id);
+    $stageAccessMode = old(
+        'pipeline_stage_access_mode',
+        $isEdit ? $managedUser->pipeline_stage_access_mode : 'all',
+    );
+    $selectedPipelineStageIds = collect(old(
+        'pipeline_stage_ids',
+        $isEdit ? $managedUser->pipelineStages->pluck('id')->all() : [],
+    ))->map(static fn ($id) => (int) $id);
 @endphp
 
 <div class="form-grid">
@@ -88,7 +96,66 @@
             @endforeach
         </div>
     </div>
+
+    <div class="field full">
+        <label>{{ __('crm.allowed_pipeline_stages') }}</label>
+        <div class="checkbox-grid" style="margin-bottom:12px">
+            <label class="check-card">
+                <input type="radio" name="pipeline_stage_access_mode" value="all" @checked($stageAccessMode === 'all')>
+                <span>
+                    <strong>{{ __('crm.all_pipeline_stages') }}</strong>
+                    <small>{{ __('crm.all_pipeline_stages_hint') }}</small>
+                </span>
+            </label>
+            <label class="check-card">
+                <input type="radio" name="pipeline_stage_access_mode" value="selected" @checked($stageAccessMode === 'selected')>
+                <span>
+                    <strong>{{ __('crm.selected_pipeline_stages') }}</strong>
+                    <small>{{ __('crm.selected_pipeline_stages_hint') }}</small>
+                </span>
+            </label>
+        </div>
+        <div id="pipeline-stage-options" class="checkbox-grid">
+            @foreach ($pipelineStages as $stage)
+                <label class="check-card">
+                    <input
+                        type="checkbox"
+                        name="pipeline_stage_ids[]"
+                        value="{{ $stage->id }}"
+                        @checked($selectedPipelineStageIds->contains((int) $stage->id))
+                    >
+                    <span>
+                        <strong>{{ $stage->name_ar }}</strong>
+                        <small>{{ __('crm.active_pipeline_stage') }}</small>
+                    </span>
+                </label>
+            @endforeach
+        </div>
+        @if ($pipelineStages->isEmpty())
+            <div class="hint">{{ __('crm.no_active_pipeline_stages') }}</div>
+        @else
+            <div class="hint">{{ __('crm.dynamic_pipeline_stages_hint') }}</div>
+        @endif
+    </div>
 </div>
+
+<script>
+    (() => {
+        const modes = document.querySelectorAll('input[name="pipeline_stage_access_mode"]');
+        const options = document.getElementById('pipeline-stage-options');
+        if (!options) return;
+
+        const syncStageOptions = () => {
+            const selectedMode = document.querySelector('input[name="pipeline_stage_access_mode"]:checked')?.value;
+            const disabled = selectedMode !== 'selected';
+            options.style.opacity = disabled ? '0.55' : '1';
+            options.querySelectorAll('input').forEach((input) => input.disabled = disabled);
+        };
+
+        modes.forEach((mode) => mode.addEventListener('change', syncStageOptions));
+        syncStageOptions();
+    })();
+</script>
 
 <div class="actions" style="margin-top:20px">
     <button type="submit" class="btn primary">{{ $isEdit ? 'حفظ التعديلات' : 'إنشاء المستخدم' }}</button>

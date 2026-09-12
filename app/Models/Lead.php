@@ -61,35 +61,42 @@ class Lead extends Model
 
     public function scopeAccessibleTo(Builder $query, User $user): Builder
     {
-        if ($user->hasPermission(CrmPermission::LEADS_SCOPE_ALL)) {
-            return $query;
+        if (! $user->hasPermission(CrmPermission::LEADS_SCOPE_ALL)) {
+            $groupIds = [];
+
+            if ($user->hasPermission(CrmPermission::LEADS_SCOPE_GROUP)) {
+                $user->loadMissing('groups');
+                $groupIds = $user->groups->modelKeys();
+            }
+
+            $query->where(
+                static function (Builder $accessQuery) use (
+                    $user,
+                    $groupIds,
+                ): void {
+                    $accessQuery
+                        ->where('assigned_user_id', $user->getKey())
+                        ->orWhere('created_by_user_id', $user->getKey());
+
+                    if ($groupIds !== []) {
+                        $accessQuery->orWhereHas(
+                            'assignedUser.groups',
+                            static fn (Builder $groupQuery): Builder => $groupQuery
+                                ->whereKey($groupIds),
+                        );
+                    }
+                },
+            );
         }
 
-        $groupIds = [];
-
-        if ($user->hasPermission(CrmPermission::LEADS_SCOPE_GROUP)) {
-            $user->loadMissing('groups');
-            $groupIds = $user->groups->modelKeys();
+        if ($user->hasRestrictedPipelineStageAccess()) {
+            $query->whereHas(
+                'status.stage.permittedUsers',
+                static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+            );
         }
 
-        return $query->where(
-            static function (Builder $accessQuery) use (
-                $user,
-                $groupIds,
-            ): void {
-                $accessQuery
-                    ->where('assigned_user_id', $user->getKey())
-                    ->orWhere('created_by_user_id', $user->getKey());
-
-                if ($groupIds !== []) {
-                    $accessQuery->orWhereHas(
-                        'assignedUser.groups',
-                        static fn (Builder $groupQuery): Builder => $groupQuery
-                            ->whereKey($groupIds),
-                    );
-                }
-            },
-        );
+        return $query;
     }
 
     public function isAccessibleTo(User $user): bool

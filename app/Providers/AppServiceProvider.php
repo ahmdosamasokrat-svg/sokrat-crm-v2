@@ -66,7 +66,7 @@ class AppServiceProvider extends ServiceProvider
                         ? Lead::query()->accessibleTo($user)->whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now()->endOfDay())->count()
                         : 0;
 
-                $sidebarPipelineStages = PipelineStage::getActiveStagesForSidebar();
+                $sidebarPipelineStages = PipelineStage::getActiveStagesForSidebar($user);
                 $crmSidebarHasSupportTasks = $user !== null
                     && Schema::hasTable('technical_support_tasks')
                     && TechnicalSupportTask::query()->accessibleTo($user)->exists();

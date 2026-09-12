@@ -247,11 +247,13 @@ class DailyTaskController extends Controller
 
         // Data for filters and modals
         $statuses = LeadStatus::query()
+            ->visibleTo($user)
             ->with('stage')
             ->orderBy('position')
             ->get();
 
         $stages = PipelineStage::query()
+            ->visibleTo($user)
             ->where('is_active', true)
             ->orderBy('position')
             ->get();

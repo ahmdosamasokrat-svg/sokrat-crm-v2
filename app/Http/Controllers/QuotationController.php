@@ -45,14 +45,9 @@ class QuotationController extends Controller
 
         $leadId = $request->query('lead_id') ?? $request->query('lead');
         if ($leadId) {
-            $leadQuery = Lead::query();
-            if (! $request->user()->isSuperAdmin()) {
-                $leadQuery->where(function ($q) use ($request): void {
-                    $q->where('assigned_user_id', $request->user()->id)
-                        ->orWhere('created_by_user_id', $request->user()->id);
-                });
-            }
-            $lead = $leadQuery->find($leadId);
+            $lead = Lead::query()
+                ->accessibleTo($request->user())
+                ->find($leadId);
             if ($lead) {
                 $prefill['clientName'] = $lead->company_name ?: ($lead->name ?: '');
             }

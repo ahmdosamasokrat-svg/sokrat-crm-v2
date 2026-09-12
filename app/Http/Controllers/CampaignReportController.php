@@ -118,6 +118,7 @@ class CampaignReportController extends Controller
         $totalLeads = (clone $leadQuery)->count();
 
         $allStages = PipelineStage::query()
+            ->visibleTo($user)
             ->orderBy('position')
             ->orderBy('id')
             ->get();
