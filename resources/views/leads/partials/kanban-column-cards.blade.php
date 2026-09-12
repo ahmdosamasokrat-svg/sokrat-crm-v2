@@ -3,6 +3,7 @@
         'today' => __('crm.today'),
         'overdue' => __('crm.overdue'),
         'upcoming' => __('crm.upcoming'),
+        'no_date' => __('crm.no_date'),
         default => __('crm.all_leads_in_stage'),
     };
     $canCreateFollowup = auth()->user()?->can('leads.followups.create');

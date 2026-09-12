@@ -552,13 +552,6 @@ a{color:inherit}
  font-size:9px
 }
 
-.kanban-no-date{
- padding:4px 7px;
- border-radius:999px;
- background:#f1f3f6;
- color:#8a93a2;
- white-space:nowrap
-}
 
 .kanban-scope-panel[hidden]{
  display:none!important
@@ -732,47 +725,11 @@ a{color:inherit}
 
 
 
-/* CRM KANBAN NO DATE EMPHASIS START */
-
-/*
- * "Without appointment" is intentionally
- * purple so it is distinct from:
- * overdue red, today orange and upcoming green.
- */
-
 .kanban-followup-current{
  gap:8px!important;
  flex-wrap:wrap
 }
 
-.kanban-no-date{
- min-height:34px!important;
- display:inline-flex!important;
- align-items:center!important;
- justify-content:center!important;
- gap:6px!important;
- padding:7px 11px!important;
- border:1px solid #7b61df!important;
- border-radius:10px!important;
- background:#7b61df!important;
- color:#fff!important;
- font-size:10px!important;
- font-weight:900!important;
- line-height:1.2!important;
- white-space:nowrap!important;
- box-shadow:
-  0 7px 18px #7b61df35!important
-}
-
-.kanban-no-date::before{
- content:"⚠";
- display:inline-block;
- color:#fff;
- font-size:12px;
- line-height:1
-}
-
-/* CRM KANBAN NO DATE EMPHASIS END */
 
 /* CRM KANBAN DRAG DROP START */
 
@@ -967,68 +924,6 @@ body.kanban-modal-open{
 
 /* CRM KANBAN UTILITY POPUPS START */
 
-.kanban-no-date-slot{
- display:flex;
- align-items:center;
- justify-content:flex-end;
- min-height:28px;
- margin-top:6px
-}
-
-.kanban-no-date{
- min-width:0!important;
- min-height:24px!important;
- display:inline-flex!important;
- flex-direction:row!important;
- align-items:center!important;
- justify-content:center!important;
- gap:5px!important;
- margin:0!important;
- padding:3px 7px!important;
- border:1px solid #d9cffb!important;
- border-radius:7px!important;
- background:#f7f4ff!important;
- color:#6b50c9!important;
- font-family:inherit!important;
- font-size:8px!important;
- font-weight:900!important;
- line-height:1.1!important;
- white-space:nowrap!important;
- box-shadow:none!important;
- cursor:pointer!important;
- transition:
-  background .12s ease,
-  border-color .12s ease,
-  transform .12s ease!important
-}
-
-.kanban-no-date::before{
- content:""!important;
- display:none!important
-}
-
-.kanban-no-date span{
- font-size:8px!important;
- font-weight:900!important
-}
-
-.kanban-no-date b{
- min-width:17px;
- height:17px;
- display:inline-grid;
- place-items:center;
- padding:0 4px;
- border-radius:999px;
- background:#7157cf;
- color:#fff;
- font:900 9px var(--font-primary)
-}
-
-.kanban-no-date:hover{
- border-color:#7157cf!important;
- background:#efeaff!important;
- transform:translateY(-1px)
-}
 
 .kanban-utility-dialog{
  width:min(1180px,96vw)!important;
@@ -1926,51 +1821,30 @@ html.dark .kanban-followup-frame,
          }}
         </b>
        </button>
-      </div>
-
-      <div class="kanban-no-date-slot">
-       @if (
-        (
-         $column[
-          'no_date_count'
-         ]
-         ?? 0
-        ) > 0
-       )
-        <button
-         class="kanban-no-date"
-         type="button"
-         data-kanban-no-date-popup
-         data-status-name="{{ $column['name'] }}"
-         data-count="{{ $column['no_date_count'] }}"
-         data-popup-url="{{
-          route(
-           'v2.leads',
-           [
-            'status' =>
-             $column['code'],
-
-            'follow_up' =>
-             'none',
-           ]
+       <button
+        class="kanban-scope-btn"
+        type="button"
+        data-kanban-scope="no_date"
+        data-count="{{
+         $column['scope_counts']['no_date']
+        }}"
+        data-label="{{ __('crm.no_date') }}"
+        aria-pressed="false"
+        title="{{ __('crm.no_date') }}"
+       >
+        <span><i class="bi bi-calendar-minus" style="margin-inline-end:3px"></i> {{ __('crm.no_date') }}</span>
+        <b>
+         {{
+          number_format(
+           $column[
+            'scope_counts'
+           ]['no_date']
           )
-         }}"
-         title="{{ __('crm.no_date') }}"
-        >
-         <span><i class="bi bi-calendar-minus" style="margin-inline-end:3px"></i> {{ __('crm.no_date') }}</span>
-
-         <b>
-          {{
-           number_format(
-            $column[
-             'no_date_count'
-            ]
-           )
-          }}
-         </b>
-        </button>
-       @endif
+         }}
+        </b>
+       </button>
       </div>
+
 
       <div class="kanban-followup-current">
        <strong data-kanban-scope-label>
@@ -1991,9 +1865,14 @@ html.dark .kanban-followup-frame,
 
      <div class="column-body">
      @php
-      $scopeEntries = $kanbanDirectStatus
-       ? ['today' => __('crm.all_leads_in_stage')]
-       : ['today' => __('crm.today'), 'overdue' => __('crm.overdue'), 'upcoming' => __('crm.upcoming')];
+     $scopeEntries = $kanbanDirectStatus
+      ? ['today' => __('crm.all_leads_in_stage')]
+      : [
+       'today' => __('crm.today'),
+       'overdue' => __('crm.overdue'),
+       'upcoming' => __('crm.upcoming'),
+       'no_date' => __('crm.no_date'),
+      ];
      @endphp
      @foreach ($scopeEntries as $scope => $scopeLabel)
        @php
@@ -3626,29 +3505,8 @@ document.addEventListener(
   );
  };
 
+
  document.addEventListener('click', (event) => {
-  const noDateBtn = event.target.closest('[data-kanban-no-date-popup]');
-  if (noDateBtn) {
-   event.preventDefault();
-   event.stopPropagation();
-
-   const url = noDateBtn.dataset.popupUrl;
-   if (!url) {
-    return;
-   }
-
-   const statusName = noDateBtn.dataset.statusName || 'المرحلة';
-   const count = noDateBtn.dataset.count || '0';
-
-   openPopup(
-    url,
-    'عملاء بدون موعد - ' + statusName,
-    'عدد العملاء بدون موعد: ' + count,
-    'no_date'
-   );
-   return;
-  }
-
   const createBtn = event.target.closest('[data-kanban-create-popup]');
   if (createBtn) {
    event.preventDefault();
@@ -3672,7 +3530,7 @@ document.addEventListener(
  });
 
  document.addEventListener('dragstart', (event) => {
-  const btn = event.target.closest('[data-kanban-no-date-popup], [data-kanban-create-popup]');
+  const btn = event.target.closest('[data-kanban-create-popup]');
   if (btn) {
    event.preventDefault();
    event.stopPropagation();

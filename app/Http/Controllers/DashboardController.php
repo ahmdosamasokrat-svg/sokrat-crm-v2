@@ -1005,6 +1005,7 @@ class DashboardController extends Controller
                 'today' => $todayCount,
                 'overdue' => $overdueCount,
                 'upcoming' => $upcomingCount,
+                'no_date' => $noDateCount,
             ];
 
             $baseQuery = Lead::query()
@@ -1050,6 +1051,15 @@ class DashboardController extends Controller
                     ->get()
                 : collect();
             $attachAssignedUser($upcomingLeads);
+            $noDateLeads = $noDateCount > 0
+                ? (clone $baseQuery)
+                    ->select($leadSelect)
+                    ->whereNull('next_follow_up_at')
+                    ->orderByDesc('updated_at')
+                    ->take($INITIAL_CARD_LIMIT)
+                    ->get()
+                : collect();
+            $attachAssignedUser($noDateLeads);
 
             $allLeads = $totalCount > 0
                 ? (clone $baseQuery)
@@ -1066,6 +1076,7 @@ class DashboardController extends Controller
                 'today' => $todayLeads,
                 'overdue' => $overdueLeads,
                 'upcoming' => $upcomingLeads,
+                'no_date' => $noDateLeads,
                 'all' => $allLeads,
             ];
 
@@ -1129,7 +1140,7 @@ class DashboardController extends Controller
 
         $scope = (string) ($request->query('scope') ?: 'all');
         abort_unless(
-            in_array($scope, ['today', 'overdue', 'upcoming', 'all'], true),
+            in_array($scope, ['today', 'overdue', 'upcoming', 'no_date', 'all'], true),
             400,
         );
 
@@ -1188,6 +1199,9 @@ class DashboardController extends Controller
             'upcoming' => (clone $datedBase)
                 ->where('next_follow_up_at', '>', $todayEnd)
                 ->orderBy('next_follow_up_at')
+                ->orderByDesc('updated_at'),
+            'no_date' => (clone $baseQuery)
+                ->whereNull('next_follow_up_at')
                 ->orderByDesc('updated_at'),
             default => (clone $baseQuery)
                 ->orderByRaw('next_follow_up_at IS NULL')
