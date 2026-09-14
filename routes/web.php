@@ -22,6 +22,7 @@ use App\Http\Controllers\Settings\GroupController;
 use App\Http\Controllers\Settings\NotificationRuleController;
 use App\Http\Controllers\Settings\PermissionController;
 use App\Http\Controllers\Settings\PipelineStageController;
+use App\Http\Controllers\Settings\PipelineStageCategoryController;
 use App\Http\Controllers\Settings\SettingsController;
 use App\Http\Controllers\Settings\StageFieldController;
 use App\Http\Controllers\Settings\UserController;
@@ -167,6 +168,26 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/technical-support/devices/{deviceKey}/toggle-status', [TechnicalSupportController::class, 'toggleDeviceStatus'])
         ->middleware(['can:technical_support.manage', 'throttle:30,1'])
         ->name('v2.technical-support.devices.toggle-status');
+
+    Route::post('/voip/softphone/session', [VoipController::class, 'softphoneSession'])
+        ->middleware('throttle:60,1')
+        ->name('v2.voip.softphone.session');
+
+    Route::get('/voip/softphone', [VoipController::class, 'softphoneEmbed'])
+        ->middleware('throttle:60,1')
+        ->name('v2.voip.softphone');
+
+    Route::get('/api/leads/by-phone', [VoipController::class, 'leadsByPhone'])
+        ->middleware(['can:leads.view', 'throttle:120,1'])
+        ->name('api.leads.by-phone');
+
+    Route::get('/v2/api/telephony/lookup', [VoipController::class, 'telephonyLookup'])
+        ->middleware(['can:leads.view', 'throttle:120,1'])
+        ->name('v2.api.telephony.lookup');
+
+    Route::post('/v2/api/telephony/missed-call', [VoipController::class, 'missedCall'])
+        ->middleware('throttle:60,1')
+        ->name('v2.api.telephony.missed-call');
 
     Route::get('/voip/live', [VoipController::class, 'livePanel'])
         ->middleware('can:voip.live_panel')
@@ -504,6 +525,15 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             Route::get('/', [SettingsController::class, 'index'])
                 ->name('');
 
+            
+            Route::get('/stage-categories', [PipelineStageCategoryController::class, 'index'])
+                ->name('.stage_categories.index');
+            Route::post('/stage-categories', [PipelineStageCategoryController::class, 'store'])
+                ->name('.stage_categories.store');
+            Route::put('/stage-categories/{category}', [PipelineStageCategoryController::class, 'update'])
+                ->name('.stage_categories.update');
+            Route::delete('/stage-categories/{category}', [PipelineStageCategoryController::class, 'destroy'])
+                ->name('.stage_categories.destroy');
             Route::get('/stages', [PipelineStageController::class, 'index'])
                 ->name('.stages.index');
             Route::post('/stages', [PipelineStageController::class, 'store'])

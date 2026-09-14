@@ -12,11 +12,11 @@
    </tr>
   </thead>
   <tbody>
-   @foreach ($leads as $lead)
-    @php
-        $statusColor = $lead->status?->color ?? '#64748b';
-        $lastFollowup = $lead->followups->first();
-        $rawPhone = preg_replace('/[^0-9+]/', '', (string) $lead->phone);
+    @foreach ($leads as $lead)
+     @php
+         $statusColor = $lead->status?->color ?? '#64748b';
+         $lastFollowup = $lead->latestFollowup ?? $lead->followups->first();
+         $rawPhone = preg_replace('/[^0-9+]/', '', (string) $lead->phone);
         $waPhone = preg_replace('/[^0-9]/', '', (string) $lead->phone);
 
         $tableTimeClass = 'no-date';

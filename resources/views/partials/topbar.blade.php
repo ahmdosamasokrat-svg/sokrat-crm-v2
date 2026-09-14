@@ -486,3 +486,6 @@ html.dark-mode .crm-topbar-actions .btn-ghost:hover {
 })();
 </script>
 @endonce
+
+@include('partials.call-router')
+@include('partials.voice-dock')

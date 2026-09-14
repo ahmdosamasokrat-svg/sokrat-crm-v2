@@ -19,6 +19,7 @@ use App\Policies\QuotationPolicy;
 use App\Policies\UserPolicy;
 use App\Security\CrmPermission;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
@@ -56,24 +57,54 @@ class AppServiceProvider extends ServiceProvider
             'partials.crm-sidebar',
             static function ($view): void {
                 $user = auth()->user();
-                $totalLeads = $user !== null
-                    && Gate::allows(CrmPermission::LEADS_VIEW->value)
-                        ? Lead::query()->accessibleTo($user)->count()
-                        : 0;
+                if ($user === null) {
+                    $view->with([
+                        'totalLeads' => 0,
+                        'totalTasks' => 0,
+                        'sidebarPipelineStages' => collect(),
+                        'crmSidebarHasSupportTasks' => false,
+                    ]);
+                    return;
+                }
 
-                $totalTasks = $user !== null
-                    && Gate::allows(CrmPermission::TASKS_VIEW->value)
-                        ? Lead::query()->accessibleTo($user)->whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now()->endOfDay())->count()
-                        : 0;
+                // Debounce / cache counts per user for 60 seconds to eliminate full-table queries on every page hit
+                $counts = Cache::remember(
+                    "crm.sidebar.counts.user_{$user->id}",
+                    now()->addSeconds(60),
+                    static function () use ($user): array {
+                        $totalLeads = Gate::allows(CrmPermission::LEADS_VIEW->value)
+                            ? Lead::query()->accessibleTo($user)->count()
+                            : 0;
+
+                        $totalTasks = Gate::allows(CrmPermission::TASKS_VIEW->value)
+                            ? Lead::query()->accessibleTo($user)
+                                ->whereNotNull('next_follow_up_at')
+                                ->where('next_follow_up_at', '<=', now()->endOfDay())
+                                ->count()
+                            : 0;
+
+                        return [
+                            'totalLeads' => $totalLeads,
+                            'totalTasks' => $totalTasks,
+                        ];
+                    }
+                );
 
                 $sidebarPipelineStages = PipelineStage::getActiveStagesForSidebar($user);
-                $crmSidebarHasSupportTasks = $user !== null
-                    && Schema::hasTable('technical_support_tasks')
-                    && TechnicalSupportTask::query()->accessibleTo($user)->exists();
+
+                // Only query technical support tasks if the user might need the fallback flag
+                $crmSidebarHasSupportTasks = false;
+                if (! Gate::allows('technical_support.view') && ! Gate::allows('technical_support.reports')) {
+                    $crmSidebarHasSupportTasks = Cache::remember(
+                        "crm.sidebar.has_support_tasks.user_{$user->id}",
+                        now()->addMinutes(5),
+                        static fn () => TechnicalSupportTask::query()->accessibleTo($user)->exists()
+                    );
+                }
 
                 $view->with([
-                    'totalLeads' => $totalLeads,
-                    'totalTasks' => $totalTasks,
+                    'totalLeads' => $counts['totalLeads'],
+                    'totalTasks' => $counts['totalTasks'],
                     'sidebarPipelineStages' => $sidebarPipelineStages,
                     'crmSidebarHasSupportTasks' => $crmSidebarHasSupportTasks,
                 ]);

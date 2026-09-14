@@ -230,6 +230,8 @@ class EmployeeReportController extends Controller
             // Write UTF-8 BOM for Arabic support in Excel
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
+            $isVoipEnabled = app(\App\Services\VoipService::class)->isConfigured();
+
             // Dynamic header columns
             $csvHeaders = [
                 __('crm.employee'),
@@ -242,6 +244,13 @@ class EmployeeReportController extends Controller
                 __('crm.kpi_without_followup'),
                 __('crm.kpi_conversion_rate') . ' (%)',
             ];
+
+            if ($isVoipEnabled) {
+                $csvHeaders[] = __('crm.voip_extension_short');
+                $csvHeaders[] = __('crm.voip_total_calls');
+                $csvHeaders[] = __('crm.voip_answered');
+                $csvHeaders[] = __('crm.voip_talk_time');
+            }
 
             foreach ($stages as $stage) {
                 $csvHeaders[] = $stage->localizedName();
@@ -261,6 +270,13 @@ class EmployeeReportController extends Controller
                     $row['without_followup'],
                     $row['conversion_rate'] . '%',
                 ];
+
+                if ($isVoipEnabled) {
+                    $csvRow[] = $row['voip_extension'] ?: '—';
+                    $csvRow[] = $row['voip_total_calls'] ?? 0;
+                    $csvRow[] = $row['voip_answered_calls'] ?? 0;
+                    $csvRow[] = $row['voip_talk_time_formatted'] ?? '—';
+                }
 
                 foreach ($stages as $stage) {
                     $csvRow[] = $row['stage_counts'][$stage->id] ?? 0;

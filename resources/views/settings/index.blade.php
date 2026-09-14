@@ -39,6 +39,10 @@
             <span><i class="bi bi-diagram-3" style="color:#dc2637"></i> {{ __('crm.stages_and_statuses') }}</span>
             <b style="font-size:17px;margin-top:8px">{{ __('crm.stages_settings_heading') }}</b>
         </a>
+        <a class="stat-card action-card" href="{{ route('v2.settings.stage_categories.index') }}">
+            <span><i class="bi bi-collection" style="color:#0284c7"></i> {{ __('crm.stage_categories') }}</span>
+            <b style="font-size:17px;margin-top:8px">{{ __('crm.stage_categories_heading') }}</b>
+        </a>
         @can('users.view')
             <a class="stat-card action-card" href="{{ route('v2.settings.users.index') }}">
                 <span><i class="bi bi-people" style="color:#2563eb"></i> {{ __('crm.users') }}</span>

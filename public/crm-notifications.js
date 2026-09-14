@@ -32,10 +32,11 @@
  const locale = config.locale === 'en' ? 'en' : 'ar';
  const pollMs = Math.max(15, Number(config.pollSeconds || 60)) * 1000;
 
- let activeFilter = 'today';
- let unreadCount = null;
- let tasksLoading = false;
- let toastTimer = null;
+  let activeFilter = 'today';
+  let unreadCount = null;
+  let tasksLoading = false;
+  let toastTimer = null;
+  let visibleTasksLimit = 10;
 
  const request = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -171,81 +172,107 @@
   return a;
  };
 
- const loadAttentionTasks = async (filterToLoad = activeFilter) => {
-  const taskList = getTaskList();
-  if (!config.dueFollowupsUrl || !taskList || tasksLoading) return;
-  tasksLoading = true;
-  activeFilter = filterToLoad;
-
-  // Update active pill UI
-  center.querySelectorAll('[data-attention-filter]').forEach(button => {
-   const isActive = button.dataset.attentionFilter === activeFilter;
-   button.classList.toggle('active', isActive);
-   button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-  });
-
-  taskList.replaceChildren(stateNode('bi-arrow-repeat', config.labelTasksLoading || (locale === 'ar' ? 'جاري التحميل...' : 'Loading...')));
-
-  try {
-   const payload = await request(`${config.dueFollowupsUrl}?filter=${encodeURIComponent(activeFilter)}&limit=5`);
-   const meta = payload.meta || {};
-
-   const countOverdue = getCountOverdue();
-   const countToday = getCountToday();
-   const countTomorrow = getCountTomorrow();
-   const countLater = getCountLater();
-   const totalBadge = getTotalBadge();
-   const attentionSummary = getAttentionSummary();
-   const attentionViewAll = getAttentionViewAll();
-
-   // Update pill counts
-   if (countOverdue) countOverdue.textContent = String(meta.overdue ?? 0);
-   if (countToday) countToday.textContent = String(meta.today ?? 0);
-   if (countTomorrow) countTomorrow.textContent = String(meta.tomorrow ?? 0);
-   if (countLater) countLater.textContent = String(meta.later ?? 0);
-
-   // Update top total attention count (overdue + today)
-   const totalAttention = Number(meta.total ?? 0);
-   if (totalBadge) {
-    totalBadge.textContent = totalAttention > 99 ? '99+' : String(totalAttention);
-    totalBadge.hidden = totalAttention === 0;
+  const loadAttentionTasks = async (filterToLoad = activeFilter, resetLimit = true) => {
+   const taskList = getTaskList();
+   if (!config.dueFollowupsUrl || !taskList || tasksLoading) return;
+   tasksLoading = true;
+   activeFilter = filterToLoad;
+   if (resetLimit) {
+    visibleTasksLimit = 10;
    }
-   setBadge(totalAttention);
 
-   const items = payload.items || [];
-   const totalForFilter = Number(meta.total_for_filter ?? items.length);
+   // Update active pill UI
+   center.querySelectorAll('[data-attention-filter]').forEach(button => {
+    const isActive = button.dataset.attentionFilter === activeFilter;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+   });
 
-   if (!items.length) {
-    taskList.replaceChildren(stateNode('bi-check2-circle', config.labelTasksEmpty || (locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period')));
-    if (attentionSummary) {
-     attentionSummary.textContent = locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period';
+   if (resetLimit) {
+    taskList.replaceChildren(stateNode('bi-arrow-repeat', config.labelTasksLoading || (locale === 'ar' ? 'جاري التحميل...' : 'Loading...')));
+   }
+
+   try {
+    const payload = await request(`${config.dueFollowupsUrl}?filter=${encodeURIComponent(activeFilter)}&limit=100`);
+    const meta = payload.meta || {};
+
+    const countOverdue = getCountOverdue();
+    const countToday = getCountToday();
+    const countTomorrow = getCountTomorrow();
+    const countLater = getCountLater();
+    const totalBadge = getTotalBadge();
+    const attentionSummary = getAttentionSummary();
+    const attentionViewAll = getAttentionViewAll();
+
+    // Update pill counts
+    if (countOverdue) countOverdue.textContent = String(meta.overdue ?? 0);
+    if (countToday) countToday.textContent = String(meta.today ?? 0);
+    if (countTomorrow) countTomorrow.textContent = String(meta.tomorrow ?? 0);
+    if (countLater) countLater.textContent = String(meta.later ?? 0);
+
+    // Update top total attention count (overdue + today)
+    const totalAttention = Number(meta.total ?? 0);
+    if (totalBadge) {
+     totalBadge.textContent = totalAttention > 99 ? '99+' : String(totalAttention);
+     totalBadge.hidden = totalAttention === 0;
     }
+    setBadge(totalAttention);
+
+    const items = payload.items || [];
+    const totalForFilter = Number(meta.total_for_filter ?? items.length);
+
+    if (!items.length) {
+     taskList.replaceChildren(stateNode('bi-check2-circle', config.labelTasksEmpty || (locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period')));
+     if (attentionSummary) {
+      attentionSummary.textContent = locale === 'ar' ? 'لا توجد مهام في هذه الفترة' : 'No tasks in this period';
+     }
+     if (attentionViewAll) {
+      attentionViewAll.href = meta.view_all_url || (config.dailyTasksUrl ? `${config.dailyTasksUrl}?scope=${activeFilter}` : '#');
+     }
+     return;
+    }
+
+    const visibleItems = items.slice(0, visibleTasksLimit);
+    const fragment = document.createDocumentFragment();
+    visibleItems.forEach(item => fragment.append(createAttentionItem(item)));
+
+    if (items.length > visibleTasksLimit) {
+     const moreWrap = document.createElement('div');
+     moreWrap.className = 'crm-attention-more-wrap';
+     const moreBtn = document.createElement('button');
+     moreBtn.type = 'button';
+     moreBtn.className = 'crm-attention-more-btn';
+     const remainingCount = items.length - visibleTasksLimit;
+     const moreText = locale === 'ar'
+      ? `المزيد (${remainingCount})`
+      : `Show More (${remainingCount})`;
+     moreBtn.innerHTML = `<i class="bi bi-chevron-down" aria-hidden="true"></i> <span>${moreText}</span>`;
+     moreBtn.addEventListener('click', () => {
+      visibleTasksLimit += 10;
+      loadAttentionTasks(activeFilter, false);
+     });
+     moreWrap.appendChild(moreBtn);
+     fragment.append(moreWrap);
+    }
+
+    taskList.replaceChildren(fragment);
+
+    // Update footer summary and View All link
+    if (attentionSummary) {
+     attentionSummary.textContent = locale === 'ar'
+      ? `عرض ${visibleItems.length} من أصل ${totalForFilter}`
+      : `Showing ${visibleItems.length} of ${totalForFilter}`;
+    }
+
     if (attentionViewAll) {
      attentionViewAll.href = meta.view_all_url || (config.dailyTasksUrl ? `${config.dailyTasksUrl}?scope=${activeFilter}` : '#');
     }
-    return;
+   } catch (error) {
+    taskList.replaceChildren(stateNode('bi-exclamation-circle', config.labelError || 'Error', error.message));
+   } finally {
+    tasksLoading = false;
    }
-
-   const fragment = document.createDocumentFragment();
-   items.slice(0, 5).forEach(item => fragment.append(createAttentionItem(item)));
-   taskList.replaceChildren(fragment);
-
-   // Update footer summary and View All link
-   if (attentionSummary) {
-    attentionSummary.textContent = locale === 'ar'
-     ? `عرض ${Math.min(5, items.length)} من أصل ${totalForFilter}`
-     : `Showing ${Math.min(5, items.length)} of ${totalForFilter}`;
-   }
-
-   if (attentionViewAll) {
-    attentionViewAll.href = meta.view_all_url || (config.dailyTasksUrl ? `${config.dailyTasksUrl}?scope=${activeFilter}` : '#');
-   }
-  } catch (error) {
-   taskList.replaceChildren(stateNode('bi-exclamation-circle', config.labelError || 'Error', error.message));
-  } finally {
-   tasksLoading = false;
-  }
- };
+  };
 
  const refreshCount = async () => {
   if (document.hidden) return;

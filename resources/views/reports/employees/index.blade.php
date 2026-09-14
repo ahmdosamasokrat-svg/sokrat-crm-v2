@@ -436,7 +436,7 @@ a { color: inherit; text-decoration: none; }
    ========================================================================== */
 .exec-kpi-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 16px;
   margin-bottom: 22px;
 }
@@ -1017,7 +1017,7 @@ html[dir="ltr"] .crm-drawer.active { transform: translateX(0) !important; }
                 </a>
                 <button type="button" class="btn-exec btn-exec-soft" onclick="resetFilters()">
                     <i class="bi bi-arrow-clockwise"></i>
-                    <span>{{ __('crm.refresh') ?? 'تحديث البيانات' }}</span>
+                    <span>{{ __('crm.refresh_data') }}</span>
                 </button>
             </div>
         </section>
@@ -1523,6 +1523,20 @@ html[dir="ltr"] .crm-drawer.active { transform: translateX(0) !important; }
                             <th class="sortable" onclick="sortTable('conversion_rate')">
                                 {{ __('معدل التحويل') }}
                             </th>
+                            @if (!empty($kpis['voip_enabled']))
+                                <th class="sortable" onclick="sortTable('voip_total_calls')">
+                                    <span style="display:inline-flex;align-items:center;gap:4px;" title="{{ __('crm.manual_vs_pbx') }}">
+                                        <i class="bi bi-telephone" style="color:#0284c7;"></i>
+                                        {{ __('crm.voip_total_calls') }}
+                                    </span>
+                                </th>
+                                <th class="sortable" onclick="sortTable('voip_talk_seconds')">
+                                    <span style="display:inline-flex;align-items:center;gap:4px;">
+                                        <i class="bi bi-clock-history" style="color:#0284c7;"></i>
+                                        {{ __('crm.voip_talk_time') }}
+                                    </span>
+                                </th>
+                            @endif
                             <!-- Dynamic Stages -->
                             @foreach ($stages as $stage)
                                 <th>
@@ -1589,6 +1603,29 @@ html[dir="ltr"] .crm-drawer.active { transform: translateX(0) !important; }
                                 <td>
                                     <strong style="color:#10b981;font-family:Arial,sans-serif;">{{ $empRow['conversion_rate'] }}%</strong>
                                 </td>
+                                @if (!empty($kpis['voip_enabled']))
+                                    <td style="font-family:Arial,sans-serif;">
+                                        @if (!empty($empRow['voip_extension']))
+                                            <div style="display:inline-flex;align-items:center;gap:5px;">
+                                                <span class="badge active" style="font-size:10.5px;padding:2px 6px;font-family:monospace;display:inline-flex;align-items:center;gap:3px;" title="{{ __('crm.on_extension') }} {{ $empRow['voip_extension'] }}">
+                                                    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z"/></svg>
+                                                    {{ $empRow['voip_extension'] }}
+                                                </span>
+                                                <strong>{{ number_format($empRow['voip_total_calls']) }}</strong>
+                                                <span style="font-size:11px;color:var(--muted);" title="{{ __('crm.voip_answered') }}">({{ number_format($empRow['voip_answered_calls']) }})</span>
+                                            </div>
+                                        @else
+                                            <span style="color:var(--muted);font-size:11px;">—</span>
+                                        @endif
+                                    </td>
+                                    <td style="font-family:Arial,sans-serif;">
+                                        @if (!empty($empRow['voip_extension']) && $empRow['voip_talk_seconds'] > 0)
+                                            <span style="color:#0284c7;font-weight:700;">{{ $empRow['voip_talk_time_formatted'] }}</span>
+                                        @else
+                                            <span style="color:var(--muted);font-size:11px;">—</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 @foreach ($stages as $stage)
                                     <td style="font-family:Arial,sans-serif;">
                                         {{ number_format($empRow['stage_counts'][$stage->id] ?? 0) }}
@@ -1607,7 +1644,7 @@ html[dir="ltr"] .crm-drawer.active { transform: translateX(0) !important; }
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ 10 + count($stages) }}" style="text-align:center;padding:48px 20px;color:var(--muted);">
+                                <td colspan="{{ 10 + count($stages) + (!empty($kpis['voip_enabled']) ? 2 : 0) }}" style="text-align:center;padding:48px 20px;color:var(--muted);">
                                     <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:8px;"></i>
                                     {{ __('crm.no_employee_reports_data') }}
                                 </td>
@@ -2052,6 +2089,32 @@ async function openDrilldown(userId) {
                 </div>
             </div>
 
+            ${(d.voip && d.voip.available) ? `
+                <div style="margin-bottom:20px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--bg);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <h4 style="font-size:13px;font-weight:800;color:var(--dark);margin:0;display:flex;align-items:center;gap:6px;">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="#0284c7" aria-hidden="true"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z"/></svg>
+                            ${@json(__('crm.voip_pbx_activity'))}
+                        </h4>
+                        <span class="badge active" style="font-size:11px;font-family:monospace;">${@json(__('crm.on_extension'))} ${d.voip.extension}</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+                        <div style="padding:10px;background:var(--card);border:1px solid var(--line);border-radius:6px;">
+                            <span style="font-size:11px;color:var(--muted);display:block;">${@json(__('crm.voip_total_calls'))}</span>
+                            <strong style="font-size:16px;color:#0284c7;font-family:Arial,sans-serif;">${d.voip.total_calls}</strong>
+                        </div>
+                        <div style="padding:10px;background:var(--card);border:1px solid var(--line);border-radius:6px;">
+                            <span style="font-size:11px;color:var(--muted);display:block;">${@json(__('crm.voip_answered'))}</span>
+                            <strong style="font-size:16px;color:#10b981;font-family:Arial,sans-serif;">${d.voip.answered_calls}</strong>
+                        </div>
+                        <div style="padding:10px;background:var(--card);border:1px solid var(--line);border-radius:6px;">
+                            <span style="font-size:11px;color:var(--muted);display:block;">${@json(__('crm.voip_talk_time'))}</span>
+                            <strong style="font-size:16px;color:var(--dark);font-family:Arial,sans-serif;">${d.voip.talk_time_formatted}</strong>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
             <div style="margin-bottom:24px;">
                 <h4 style="font-size:13px;font-weight:800;color:var(--dark);margin:0 0 10px;">${@json(__('crm.current_pipeline_distribution'))}</h4>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -2132,6 +2195,10 @@ function closeDrilldown() {
     document.getElementById('employeeDrawer').classList.remove('active');
     document.getElementById('drawerBackdrop').classList.remove('active');
     document.body.style.overflow = '';
+}
+
+function resetFilters() {
+    window.location.href = "{{ route('v2.reports.employees.index') }}";
 }
 
 document.addEventListener('keydown', (e) => {

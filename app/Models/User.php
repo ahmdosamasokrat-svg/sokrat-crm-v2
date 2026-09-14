@@ -58,6 +58,11 @@ class User extends Authenticatable
         return $this->belongsToMany(PipelineStage::class);
     }
 
+    public function pipelineStageCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(PipelineStageCategory::class);
+    }
+
     public function hasRestrictedPipelineStageAccess(): bool
     {
         return ! $this->isSuperAdmin()
@@ -75,10 +80,26 @@ class User extends Authenticatable
             : $stage;
 
         if ($this->relationLoaded('pipelineStages')) {
-            return $this->pipelineStages->contains('id', (int) $stageId);
+            if ($this->pipelineStages->contains('id', (int) $stageId)) {
+                return true;
+            }
+        } elseif ($this->pipelineStages()->whereKey($stageId)->exists()) {
+            return true;
         }
 
-        return $this->pipelineStages()->whereKey($stageId)->exists();
+        $stageObj = $stage instanceof PipelineStage
+            ? $stage
+            : PipelineStage::query()->find($stageId);
+
+        if ($stageObj && $stageObj->pipeline_stage_category_id) {
+            if ($this->relationLoaded('pipelineStageCategories')) {
+                return $this->pipelineStageCategories->contains('id', (int) $stageObj->pipeline_stage_category_id);
+            }
+
+            return $this->pipelineStageCategories()->whereKey($stageObj->pipeline_stage_category_id)->exists();
+        }
+
+        return false;
     }
 
     public function assignedLeads(): HasMany

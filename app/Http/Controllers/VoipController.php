@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Services\VoipService;
 use App\Support\CrmDatabaseGuard;
+use App\Support\PhoneMask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,9 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 use Throwable;
 
@@ -377,6 +380,285 @@ class VoipController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+
+    public function softphoneSession(Request $request, VoipService $voip): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user || empty($user->voip_extension)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No VoIP extension assigned',
+            ], 403, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            ]);
+        }
+
+        // Extension is derived exclusively from $request->user()->voip_extension
+        $extension = (string) $user->voip_extension;
+
+        // Resolve base URL and configured origin
+        $configuredApiUrl = rtrim((string) (config('voip.softphone_url') ?: config('voip.api_url', 'http://192.168.100.128:8090')), '/');
+        if (str_ends_with($configuredApiUrl, '/api/integrations/crm/v1')) {
+            $voipBase = substr($configuredApiUrl, 0, -strlen('/api/integrations/crm/v1'));
+        } else {
+            $voipBase = $configuredApiUrl;
+        }
+        if (str_contains($voipBase, ':8080')) {
+            $voipBase = str_replace(':8080', ':8090', $voipBase);
+        }
+
+        $parsedVoip = parse_url($voipBase);
+        $voipScheme = $parsedVoip['scheme'] ?? 'http';
+        $voipHost = $parsedVoip['host'] ?? '127.0.0.1';
+        $voipPort = isset($parsedVoip['port']) ? ':' . $parsedVoip['port'] : '';
+        $configuredOrigin = "{$voipScheme}://{$voipHost}{$voipPort}";
+
+        $apiKey = (string) (config('voip.api_key') ?: config('voip.client_secret') ?: env('VOIP_API_KEY', 'sokrat-crm-secret-key-2026'));
+        $timeout = (int) config('voip.timeout', 10);
+
+        try {
+            $endpoint = "{$voipBase}/api/v1/softphone-sessions";
+            $response = Http::withHeaders([
+                'X-VoIP-API-Key' => $apiKey,
+                'Accept' => 'application/json',
+            ])->timeout($timeout)->post($endpoint, [
+                'extension' => $extension,
+            ]);
+
+            if ($response->failed()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Failed to initialize softphone session upstream',
+                ], 502, [
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate',
+                ]);
+            }
+
+            $data = $response->json();
+            if (!is_array($data) || empty($data['success']) || empty($data['sessionUrl'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Invalid response from telephony server',
+                ], 502, [
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate',
+                ]);
+            }
+
+            $rawSessionUrl = (string) $data['sessionUrl'];
+            $parsedUrl = parse_url($rawSessionUrl);
+            if ($parsedUrl === false) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Malformed session URL from telephony server',
+                ], 502, [
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate',
+                ]);
+            }
+
+            if (!empty($parsedUrl['host'])) {
+                $sessionScheme = $parsedUrl['scheme'] ?? 'http';
+                $sessionHost = $parsedUrl['host'];
+                $sessionPort = isset($parsedUrl['port']) ? ':' . $parsedUrl['port'] : '';
+                $sessionOrigin = "{$sessionScheme}://{$sessionHost}{$sessionPort}";
+
+                if ($sessionOrigin !== $configuredOrigin) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Untrusted session URL origin',
+                    ], 502, [
+                        'Cache-Control' => 'no-store, no-cache, must-revalidate',
+                    ]);
+                }
+
+                $validatedSessionUrl = $rawSessionUrl;
+            } else {
+                $validatedSessionUrl = $configuredOrigin . '/' . ltrim($rawSessionUrl, '/');
+            }
+
+            // Return ONLY { success:true, sessionUrl:<validated VoIP-origin URL>, extension:<assigned extension> }
+            return response()->json([
+                'success' => true,
+                'sessionUrl' => $validatedSessionUrl,
+                'extension' => $extension,
+            ], 200, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            ]);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Telephony server communication error',
+            ], 502, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            ]);
+        }
+    }
+
+    public function softphoneEmbed(Request $request, VoipService $voip): View|Response|RedirectResponse
+    {
+        $user = $request->user();
+        if (!$user || empty($user->voip_extension)) {
+            return response()->view('voip.no-extension', [], 403);
+        }
+
+        $sessionResponse = $this->softphoneSession($request, $voip);
+        if ($sessionResponse->getStatusCode() !== 200) {
+            $data = $sessionResponse->getData(true);
+            return response()->view('voip.softphone-embed', [
+                'embedUrl' => null,
+                'error' => $data['error'] ?? 'تعذر إنشاء جلسة الهاتف',
+            ], 502);
+        }
+
+        $data = $sessionResponse->getData(true);
+        $sessionUrl = $data['sessionUrl'] ?? '';
+        $maskPhone = $user->hasPermission('leads.phone.view') ? '0' : '1';
+        $lang = app()->getLocale() === 'ar' ? 'ar' : 'en';
+
+        $separator = str_contains($sessionUrl, '?') ? '&' : '?';
+        $embedUrl = "{$sessionUrl}{$separator}embedded=1&mask_phone={$maskPhone}&lang={$lang}";
+
+        return view('voip.softphone-embed', [
+            'embedUrl' => $embedUrl,
+        ]);
+    }
+
+    public function leadsByPhone(Request $request): JsonResponse
+    {
+        $this->assertCrmDatabase();
+        $rawPhone = $request->query('phone', '');
+        $digits = preg_replace('/\D+/', '', trim($rawPhone));
+        if (strlen($digits) < 2 || strlen($digits) > 20) {
+            return response()->json(['leads' => []]);
+        }
+
+        $countryCode = preg_replace('/\D+/', '', (string) config('voip.default_country_code')) ?? '';
+        $international = str_starts_with($digits, '00') ? substr($digits, 2) : $digits;
+        $phoneCandidates = [$digits, $international];
+
+        if ($countryCode !== '' && str_starts_with($international, $countryCode)) {
+            $nationalNumber = substr($international, strlen($countryCode));
+            if ($nationalNumber !== '') {
+                $phoneCandidates[] = $nationalNumber;
+                $phoneCandidates[] = '0' . $nationalNumber;
+                $phoneCandidates[] = '00' . $international;
+            }
+        } elseif ($countryCode !== '' && str_starts_with($digits, '0')) {
+            $nationalNumber = substr($digits, 1);
+            $phoneCandidates[] = $nationalNumber;
+            $phoneCandidates[] = $countryCode . $nationalNumber;
+            $phoneCandidates[] = '00' . $countryCode . $nationalNumber;
+        } elseif ($countryCode !== '') {
+            $phoneCandidates[] = '0' . $digits;
+            $phoneCandidates[] = $countryCode . $digits;
+            $phoneCandidates[] = '00' . $countryCode . $digits;
+        }
+
+        $phoneCandidates = array_values(array_unique(array_filter(
+            $phoneCandidates,
+            static fn(string $phone): bool => strlen($phone) >= 2 && strlen($phone) <= 20,
+        )));
+
+        $normalizedPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', ''), '/', '')";
+
+        $leads = Lead::query()
+            ->accessibleTo($request->user())
+            ->whereIn(DB::raw($normalizedPhone), $phoneCandidates)
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        if ($leads->isEmpty() && strlen($digits) >= 7) {
+            $lastDigits = substr($digits, -8);
+            $leads = Lead::query()
+                ->accessibleTo($request->user())
+                ->where(DB::raw($normalizedPhone), 'LIKE', '%' . $lastDigits)
+                ->latest('id')
+                ->limit(5)
+                ->get();
+        }
+
+        $user = $request->user();
+        $maskPhones = !$user->hasPermission('leads.phone.view');
+
+        return response()->json([
+            'leads' => $leads->map(fn(Lead $lead) => [
+                'id' => $lead->id,
+                'name' => $lead->name,
+                'phone' => $maskPhones ? PhoneMask::mask($lead->phone) : $lead->phone,
+                'url' => route('v2.leads.show', $lead),
+                'company' => $lead->company ?? null,
+                'stage_name' => $lead->status?->stage?->name ?? null,
+                'assigned_employee' => $lead->assignedUser?->name ?? null,
+                'branch_name' => null,
+                'is_other_branch' => false,
+            ]),
+        ]);
+    }
+
+    public function telephonyLookup(Request $request): JsonResponse
+    {
+        $response = $this->leadsByPhone($request);
+        $data = $response->getData(true);
+        $leads = $data['leads'] ?? [];
+
+        return response()->json([
+            'success' => true,
+            'leads' => $leads,
+            'match_count' => count($leads),
+        ]);
+    }
+
+    public function missedCall(Request $request): JsonResponse
+    {
+        $this->assertCrmDatabase();
+
+        $validated = $request->validate([
+            'extension' => ['required', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:50'],
+            'time' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $extension = trim($validated['extension']);
+        $phone = trim($validated['phone']);
+
+        $user = User::where('voip_extension', $extension)->first() ?? $request->user();
+
+        if ($user) {
+            $maskPhones = ! $user->hasPermission('leads.phone.view');
+            $lead = Lead::accessibleTo($user)
+                ->where('phone', 'LIKE', '%' . substr(preg_replace('/\D+/', '', $phone), -8))
+                ->latest('id')
+                ->first();
+
+            $displayPhone = $maskPhones ? PhoneMask::mask($phone) : $phone;
+            $leadName = $lead ? " ({$lead->name})" : '';
+
+            $actionUrl = $lead
+                ? (Route::has('v2.leads.show') ? route('v2.leads.show', $lead) : url('/leads/'.$lead->id))
+                : (Route::has('v2.leads.index') ? route('v2.leads.index', ['q' => $phone]) : (Route::has('v2.leads') ? route('v2.leads', ['q' => $phone]) : url('/leads?q='.urlencode($phone))));
+
+            $user->notifications()->create([
+                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'type' => 'App\\Notifications\\MissedCallNotification',
+                'data' => [
+                    'title' => 'مكالمة فائتة',
+                    'body' => "مكالمة فائتة من {$displayPhone}{$leadName}",
+                    'priority' => 'high',
+                    'event_key' => 'telephony.missed_call',
+                    'source_name' => 'Sokrat VoIP',
+                    'action_url' => $actionUrl,
+                    'phone' => $phone,
+                    'extension' => $extension,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Missed call recorded successfully',
+        ], 201);
     }
 
     private function assertCrmDatabase(): void

@@ -1,6 +1,6 @@
 @php
     $statusColor = $lead->status?->color ?? '#64748b';
-    $lastFollowup = $lead->followups->first();
+    $lastFollowup = $lead->latestFollowup ?? $lead->followups->first();
     $rawPhone = preg_replace('/[^0-9+]/', '', (string) $lead->phone);
     $waPhone = preg_replace('/[^0-9]/', '', (string) $lead->phone);
 

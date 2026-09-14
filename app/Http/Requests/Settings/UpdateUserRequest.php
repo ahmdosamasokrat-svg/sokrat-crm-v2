@@ -46,7 +46,21 @@ class UpdateUserRequest extends FormRequest
                 'exists:groups,id',
             ],
             'pipeline_stage_access_mode' => ['required', Rule::in(['all', 'selected'])],
-            'pipeline_stage_ids' => ['required_if:pipeline_stage_access_mode,selected', 'array', 'min:1'],
+            'pipeline_stage_category_ids' => ['nullable', 'array'],
+            'pipeline_stage_category_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('pipeline_stage_categories', 'id')->where(
+                    static fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at'),
+                ),
+            ],
+            'pipeline_stage_ids' => [
+                Rule::requiredIf(fn () => $this->input('pipeline_stage_access_mode') === 'selected' && empty($this->input('pipeline_stage_category_ids'))),
+                'nullable',
+                'array',
+            ],
             'pipeline_stage_ids.*' => [
                 'integer',
                 'distinct',

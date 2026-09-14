@@ -151,6 +151,56 @@
     animation-delay:.28s
 }
 
+.crm-loader-logo-dark{
+    display:none
+}
+
+html.dark-mode #crm-page-loader{
+    background:
+        radial-gradient(circle at 50% 38%,#1f2937 0,#111827 52%,#09090b 100%)
+}
+
+html.dark-mode .crm-loader-logo-light{
+    display:none
+}
+
+html.dark-mode .crm-loader-logo-dark{
+    display:block
+}
+
+html.dark-mode .crm-loader-logo-wrap{
+    border-color:#334155;
+    background:#111827;
+    box-shadow:
+        0 26px 70px #00000066,
+        0 5px 18px #0000004d
+}
+
+html.dark-mode .crm-loader-logo-wrap::before{
+    border-color:#ef444466
+}
+
+html.dark-mode .crm-loader-logo-wrap::after{
+    background:
+        linear-gradient(
+            115deg,
+            transparent 20%,
+            #ffffff00 36%,
+            #ffffff33 49%,
+            #ffffff00 62%,
+            transparent 80%
+        )
+}
+
+html.dark-mode .crm-loader-subtitle{
+    color:#a1a1aa
+}
+
+html.dark-mode .crm-loader-line{
+    background:#334155
+}
+
+
 @keyframes crmLogoEntrance{
     from{
         opacity:0;
@@ -275,9 +325,14 @@
     <div class="crm-loader-content">
         <div class="crm-loader-logo-wrap">
             <img
-                class="crm-loader-logo"
+                class="crm-loader-logo crm-loader-logo-light"
                 src="{{ asset('images/sokrat-pro-tech.png') }}"
                 alt="Sokrat PRO"
+            >
+            <img
+                class="crm-loader-logo crm-loader-logo-dark"
+                src="{{ asset('images/sokrat-pro-tech-dark.png') }}"
+                alt="Sokrat PRO Tech"
             >
         </div>
 
@@ -309,6 +364,21 @@
     if (!loader) {
         return;
     }
+
+    const storedTheme = (() => {
+        try {
+            const value = localStorage.getItem('sokrat.crm.theme');
+            return ['light', 'dark', 'system'].includes(value)
+                ? value
+                : 'light';
+        } catch (error) {
+            return 'light';
+        }
+    })();
+    const isDarkTheme = storedTheme === 'dark';
+
+    document.documentElement.classList.toggle('dark-mode', isDarkTheme);
+    document.documentElement.dataset.theme = storedTheme;
 
     document.documentElement.classList.add('crm-loading');
 

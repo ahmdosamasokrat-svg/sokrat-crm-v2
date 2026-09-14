@@ -142,10 +142,7 @@ class DailyTaskController extends Controller
                 'status.stage',
                 'assignedUser:id,name',
                 'creator:id,name',
-                'followups' => static fn ($q) => $q->with(['user:id,name', 'fromStatus', 'toStatus'])
-                    ->orderByDesc('followed_up_at')
-                    ->orderByDesc('id')
-                    ->limit(1),
+                'latestFollowup' => static fn ($q) => $q->with(['user:id,name', 'fromStatus', 'toStatus']),
             ]);
 
         $applySharedFilters($leadsBase);
@@ -375,6 +372,45 @@ class DailyTaskController extends Controller
         $toStatusId = !empty($validated['lead_status_id']) ? (int) $validated['lead_status_id'] : $fromStatusId;
         $nextFollowUpAt = !empty($validated['next_follow_up_at']) ? Carbon::parse($validated['next_follow_up_at']) : null;
         $toStatus = LeadStatus::query()->findOrFail($toStatusId);
+
+        // Check if destination stage has applicable required questions
+        if ($toStatusId !== $fromStatusId && $toStatus->pipeline_stage_id) {
+            $destStage = $toStatus->stage;
+            if ($destStage !== null) {
+                $rawStageInputs = \App\Support\StageFieldSchema::extractStageInputs($request);
+                $activeFields = \App\Support\StageFieldSchema::getFieldsForStage($destStage, true);
+                $hasRequiredUnanswered = false;
+
+                foreach ($activeFields as $f) {
+                    if ($f->is_required && \App\Support\StageFieldSchema::evaluateFieldApplicability($f, $rawStageInputs, $activeFields)) {
+                        $submittedVal = $rawStageInputs[$f->key] ?? null;
+                        if ($submittedVal === null || $submittedVal === '' || $submittedVal === []) {
+                            $hasRequiredUnanswered = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($hasRequiredUnanswered) {
+                    $redirectUrl = route('v2.leads.followups.index', [
+                        'lead' => $lead->id,
+                        'target_status_id' => $toStatusId,
+                    ]);
+
+                    if ($request->wantsJson() || $request->ajax()) {
+                        return response()->json([
+                            'success' => false,
+                            'requires_stage_questions' => true,
+                            'redirect_url' => $redirectUrl,
+                            'message' => __('crm.stage_questions_required_notice') ?: 'المرحلة المختارة تحتوي على أسئلة ومحددات إجبارية. يرجى استكمالها من شاشة المتابعة.',
+                        ], 422);
+                    }
+
+                    return redirect($redirectUrl)->with('warning', __('crm.stage_questions_required_notice') ?: 'المرحلة المختارة تحتوي على أسئلة ومحددات إجبارية. يرجى استكمالها من شاشة المتابعة.');
+                }
+            }
+        }
+
         $transitionService = app(\App\Services\LeadTransitionService::class);
         $transitionService->transition(
             $lead,
@@ -385,7 +421,7 @@ class DailyTaskController extends Controller
                 'communication_type' => $validated['communication_type'],
                 'outcome' => $validated['outcome'],
                 'next_follow_up_at' => $nextFollowUpAt,
-                'stage_fields' => $request->input('stage_fields', []),
+                'stage_fields' => \App\Support\StageFieldSchema::extractStageInputs($request),
             ]
         );
 

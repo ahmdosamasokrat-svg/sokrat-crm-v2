@@ -366,6 +366,36 @@ html.dark-mode .crm-dashboard-v2 {
                     <div class="kpi-card-sub" style="color:#10b981;"><i class="bi bi-award"></i> {{ __('crm.kpi_conversion_rate') }}</div>
                 </div>
             </div>
+
+            @if (!empty($drilldown['voip']['available']))
+                <div class="kpi-card-modern" style="--card-accent: #0284c7; --icon-bg: rgba(2, 132, 199, 0.1);">
+                    <div class="kpi-card-head">
+                        <span class="kpi-card-label">{{ __('crm.voip_total_calls') }}</span>
+                        <div class="kpi-card-icon" style="color:#0284c7;">
+                            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z"/></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-card-value" style="color:#0284c7;">{{ number_format($drilldown['voip']['total_calls']) }}</div>
+                        <div class="kpi-card-sub" style="color:#10b981;">
+                            <i class="bi bi-telephone-inbound"></i> {{ number_format($drilldown['voip']['answered_calls']) }} {{ __('crm.voip_answered') }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-card-modern" style="--card-accent: #0284c7; --icon-bg: rgba(2, 132, 199, 0.1);">
+                    <div class="kpi-card-head">
+                        <span class="kpi-card-label">{{ __('crm.voip_talk_time') }}</span>
+                        <div class="kpi-card-icon" style="color:#0284c7;"><i class="bi bi-clock-history"></i></div>
+                    </div>
+                    <div>
+                        <div class="kpi-card-value" style="color:#0284c7;">{{ $drilldown['voip']['talk_time_formatted'] }}</div>
+                        <div class="kpi-card-sub" style="color:var(--d-text-muted);">
+                            <span class="badge active" style="font-size:11px;font-family:monospace;">{{ __('crm.on_extension') }} {{ $drilldown['voip']['extension'] }}</span>
+                        </div>
+                    </div>
+                </div>
+            @endif
         </section>
 
         <!-- Current Pipeline Distribution -->
@@ -483,6 +513,80 @@ html.dark-mode .crm-dashboard-v2 {
                 </table>
             </div>
         </section>
+
+        @if (!empty($drilldown['voip']['available']))
+            <!-- PBX Telephony Activity (Asterisk CDR) -->
+            <section class="dash-chart-card">
+                <div class="dash-chart-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                    <h3>
+                        <svg width="18" height="18" viewBox="0 0 16 16" fill="#0284c7" aria-hidden="true" style="vertical-align:-2px;margin-inline-end:6px;"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.6 17.6 0 0 0 4.168 6.608 17.6 17.6 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.68.68 0 0 0-.58-.122l-2.19.547a1.75 1.75 0 0 1-1.657-.459L5.482 8.062a1.75 1.75 0 0 1-.46-1.657l.548-2.19a.68.68 0 0 0-.122-.58z"/></svg>
+                        {{ __('crm.voip_pbx_activity') }}
+                    </h3>
+                    <span class="badge active" style="font-family:monospace;font-size:12px;">{{ __('crm.on_extension') }} {{ $drilldown['voip']['extension'] }}</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="dash-activity-table">
+                        <thead>
+                            <tr>
+                                <th>{{ __('crm.datetime') }}</th>
+                                <th>{{ __('crm.direction') }}</th>
+                                <th>{{ __('crm.other_party') }}</th>
+                                <th>{{ __('crm.duration') }}</th>
+                                <th>{{ __('crm.status') }}</th>
+                                <th>{{ __('crm.recording') ?? 'التسجيل' }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $recentPbxCalls = $drilldown['voip']['raw_stats']['recent_calls'] ?? [];
+                            @endphp
+                            @forelse ($recentPbxCalls as $call)
+                                <tr>
+                                    <td>{{ !empty($call['started_at']) ? \Carbon\Carbon::parse($call['started_at'])->format('Y-m-d H:i:s') : '—' }}</td>
+                                    <td>
+                                        @if (($call['direction'] ?? '') === 'outbound')
+                                            <span style="color:#0284c7;font-weight:700;display:inline-flex;align-items:center;gap:3px;">
+                                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M14 2.5a.5.5 0 0 0-.5-.5h-6a.5.5 0 0 0 0 1h4.793L2.146 13.146a.5.5 0 0 0 .708.708L13 3.707V8.5a.5.5 0 0 0 1 0v-6z"/></svg>
+                                                {{ __('crm.outgoing') }}
+                                            </span>
+                                        @elseif (($call['direction'] ?? '') === 'inbound')
+                                            <span style="color:#10b981;font-weight:700;display:inline-flex;align-items:center;gap:3px;">
+                                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 13.5a.5.5 0 0 0 .5.5h6a.5.5 0 0 0 0-1H3.707L13.854 2.854a.5.5 0 1 0-.708-.708L3 12.293V7.5a.5.5 0 0 0-1 0v6z"/></svg>
+                                                {{ __('crm.incoming') }}
+                                            </span>
+                                        @else
+                                            <span style="color:var(--d-text-muted);font-weight:700;">{{ __('crm.internal') }}</span>
+                                        @endif
+                                    </td>
+                                    <td><strong>{{ $call['customer_number'] ?? '—' }}</strong></td>
+                                    <td>{{ $call['duration_seconds'] ?? 0 }} {{ __('crm.seconds') }}</td>
+                                    <td>
+                                        <span class="badge {{ ($call['disposition'] ?? '') === 'ANSWERED' ? 'active' : 'inactive' }}">
+                                            {{ $call['disposition'] ?? '—' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (!empty($call['recording']['available']) && !empty($call['recording']['media_id']))
+                                            @can('voip.recordings')
+                                                <audio controls preload="none" style="height:28px;width:180px;">
+                                                    <source src="{{ route('v2.voip.recordings.stream', $call['recording']['media_id']) }}" type="audio/wav">
+                                                </audio>
+                                            @else
+                                                <span class="badge active" style="font-size:11px;">{{ __('crm.available') ?? 'متاح' }}</span>
+                                            @endcan
+                                        @else
+                                            <span style="color:var(--d-text-muted);font-size:11px;">—</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" style="text-align:center;color:var(--d-text-muted);padding:24px;">{{ __('crm.no_calls_match_filters') }}</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
     </main>
 </div>
 </body>

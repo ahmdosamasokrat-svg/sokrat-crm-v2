@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lead extends Model
@@ -91,8 +92,8 @@ class Lead extends Model
 
         if ($user->hasRestrictedPipelineStageAccess()) {
             $query->whereHas(
-                'status.stage.permittedUsers',
-                static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+                'status.stage',
+                static fn (Builder $stages): Builder => $stages->visibleTo($user),
             );
         }
 
@@ -148,6 +149,13 @@ class Lead extends Model
         return $this->hasMany(
             LeadFollowup::class
         )->orderByDesc('followed_up_at');
+    }
+
+    public function latestFollowup(): HasOne
+    {
+        return $this->hasOne(
+            LeadFollowup::class
+        )->latestOfMany('followed_up_at');
     }
 
     public function stageValues(): HasMany

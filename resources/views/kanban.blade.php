@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-dropdown.css') }}?v=1.0.1">
 <style>
 :root{
  --red:#dc2637;
@@ -951,6 +952,8 @@ body.kanban-modal-open{
  border-radius:11px;
  background:#ffffff;
  box-shadow:0 1px 3px rgba(0,0,0,0.03);
+ cursor:pointer;
+ user-select:none;
  transition:border-color 0.15s,box-shadow 0.15s,background-color 0.15s
 }
 
@@ -981,7 +984,8 @@ body.kanban-modal-open{
  white-space:nowrap;
  margin-inline-end:6px;
  user-select:none;
- cursor:pointer
+ cursor:pointer;
+ pointer-events:none
 }
 
 .kanban-filter-control select{
@@ -997,7 +1001,8 @@ body.kanban-modal-open{
  font-size:13px;
  font-weight:700;
  color:var(--dark,#182033);
- cursor:pointer
+ cursor:pointer;
+ flex:1 1 auto
 }
 
 .kanban-filter-control select option{
@@ -1610,34 +1615,42 @@ html.dark .kanban-followup-frame,
 
   <section class="kanban-toolbar">
    <div class="page-tools">
-    <form class="kanban-filters-form" id="kanbanFiltersForm" method="get" action="{{ route('v2.leads.kanban') }}">
-     @if ($canFilterByEmployee)
-      <div class="kanban-filter-control employee-filter-control">
-       <span class="filter-icon"><i class="bi bi-person-badge"></i></span>
-       <select id="kanbanEmployee" name="employee_id" aria-label="{{ __('crm.responsible_employee') }}" onchange="this.form.submit()">
-        <option value="">{{ __('crm.all_employees') }}</option>
-        @foreach ($employees as $employee)
-         <option value="{{ $employee->id }}" @selected($selectedEmployeeId === $employee->id)>
-          {{ $employee->name }}
+     <form class="kanban-filters-form" id="kanbanFiltersForm" method="get" action="{{ route('v2.leads.kanban') }}">
+      @if ($canFilterByEmployee)
+       <div style="min-width:200px;">
+        <select id="kanbanEmployee" class="crm-custom-select" name="employee_id" aria-label="{{ __('crm.responsible_employee') }}" onchange="this.form.submit()" data-crm-dropdown data-icon='<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.5 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1zM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/><path d="M4.5 0A2.5 2.5 0 0 0 2 2.5V14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2.5A2.5 2.5 0 0 0 11.5 0zM3 2.5A1.5 1.5 0 0 1 4.5 1h7A1.5 1.5 0 0 1 13 2.5V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M10.02 12c.005-.184.02-.375.034-.555.056-.704.14-1.282.266-1.745A4.9 4.9 0 0 0 8 9c-1.378 0-2.496.53-2.92 1.077-.184.238-.309.522-.387.828a.5.5 0 0 0 .97.234c.05-.195.13-.38.252-.538C6.27 10.158 7.08 9.8 8 9.8c.92 0 1.73.358 2.085.801.074.092.127.202.164.321.037.119.06.252.073.403.014.16.023.325.027.475H3.5a.5.5 0 0 0 0 1h9a.5.5 0 0 0 .5-.5c0-.368-.008-.687-.02-1z"/></svg>'>
+         <option value="">{{ __('crm.all_employees') }}</option>
+         @foreach ($employees as $employee)
+          <option value="{{ $employee->id }}" @selected($selectedEmployeeId === $employee->id)>
+           {{ $employee->name }}
+          </option>
+         @endforeach
+        </select>
+       </div>
+      @endif
+
+      <div style="min-width:180px;">
+       <select id="kanbanPerPage" class="crm-custom-select" name="per_page" aria-label="{{ __('crm.cards_per_column') }}" onchange="this.form.submit()" data-crm-dropdown data-icon='<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2v2H2V2zm1 0h2v2H5zm4 0h2v2H9zm4 0h2v2h-2zm-8 4v2H2V6zm1 0h2v2H5zm4 0h2v2H9zm4 0h2v2h-2zm-8 4v2H2v-2zm1 0h2v2H5zm4 0h2v2H9zm4 0h2v2h-2zm-8 4v2H2v-2zm1 0h2v2H5zm4 0h2v2H9zm4 0h2v2h-2z"/></svg>'>
+        @foreach ($allowedPageSizes ?? [10, 20, 30, 40, 50] as $size)
+         <option value="{{ $size }}" @selected(($perPage ?? 10) === $size)>
+          {{ __('crm.cards_per_column') }}: {{ $size }}
          </option>
         @endforeach
        </select>
-       <span class="filter-chevron"><i class="bi bi-chevron-down"></i></span>
       </div>
-     @endif
 
-     <div class="kanban-filter-control per-page-filter-control">
-      <span class="filter-icon"><i class="bi bi-grid-3x3-gap"></i></span>
-      <label for="kanbanPerPage" class="filter-label">{{ __('crm.cards_per_column') }}</label>
-      <select id="kanbanPerPage" name="per_page" aria-label="{{ __('crm.cards_per_column') }}" onchange="this.form.submit()">
-       @foreach ($allowedPageSizes ?? [10, 20, 30, 40, 50] as $size)
-        <option value="{{ $size }}" @selected(($perPage ?? 10) === $size)>
-         {{ $size }}
-        </option>
-       @endforeach
-      </select>
-      <span class="filter-chevron"><i class="bi bi-chevron-down"></i></span>
-     </div>
+      @if (isset($categories) && $categories->isNotEmpty())
+       <div style="min-width:180px;">
+        <select id="kanbanCategory" class="crm-custom-select" name="category_id" aria-label="{{ __('crm.stage_category') }}" onchange="this.form.submit()" data-crm-dropdown data-icon='<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm0 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2z"/></svg>'>
+         <option value="">{{ __('crm.all_stage_categories') }}</option>
+         @foreach ($categories as $category)
+          <option value="{{ $category->id }}" @selected((string)$selectedCategoryId === (string)$category->id)>
+           {{ $category->name_ar }}
+          </option>
+         @endforeach
+        </select>
+       </div>
+      @endif
     </form>
 
     <div class="summary">
@@ -1695,16 +1708,17 @@ html.dark .kanban-followup-frame,
       ) || request('scope') === 'all';
     @endphp
 
-    <article
-     class="kanban-column {{ $column['class'] }}"
-     data-kanban-column="{{ $column['code'] }}"
-     data-kanban-status-id="{{ $column['status_id'] }}"
-     data-kanban-status-name="{{ $column['name'] }}"
-     style="
-      --column-color:
-       {{ $column['status_color'] }};
-     "
-    >
+     <article
+      class="kanban-column {{ $column['class'] }}"
+      data-kanban-column="{{ $column['code'] }}"
+      data-kanban-status-id="{{ $column['status_id'] }}"
+      data-kanban-status-name="{{ $column['name'] }}"
+      data-kanban-category-id="{{ $column['category_id'] ?? '' }}"
+      style="
+       --column-color:
+        {{ $column['status_color'] }};
+      "
+     >
      @php
       $columnIconClass = match($column['code']) {
           'new' => 'bi bi-person-plus-fill',
@@ -1720,13 +1734,18 @@ html.dark .kanban-followup-frame,
       };
      @endphp
 
-     <header class="column-head">
-      <span class="column-icon">
-       <i class="{{ $columnIconClass }}"></i>
-      </span>
-      <h2 class="column-title">
-       {{ $column['name'] }}
-      </h2>
+      <header class="column-head">
+       <span class="column-icon">
+        <i class="{{ $columnIconClass }}"></i>
+       </span>
+       <h2 class="column-title">
+        {{ $column['name'] }}
+        @if (!empty($column['category_name']))
+          <span style="font-size:10px; font-weight:700; color:{{ $column['category_color'] ?: '#64748b' }}; background:{{ $column['category_color'] ? $column['category_color'].'18' : '#f1f5f9' }}; padding:2px 6px; border-radius:6px; margin-inline-start:4px; vertical-align:middle;">
+            {{ $column['category_name'] }}
+          </span>
+        @endif
+       </h2>
 
       <span
        class="column-count"
@@ -3792,6 +3811,23 @@ document.addEventListener(
   event.preventDefault();
   event.stopPropagation();
 
+  // Make kanban filter controls fully clickable
+  document.addEventListener('click', (event) => {
+   const control = event.target.closest('.kanban-filter-control');
+   if (!control) return;
+   const select = control.querySelector('select');
+   if (!select || event.target === select) return;
+
+   event.preventDefault();
+   if (typeof select.showPicker === 'function') {
+    try {
+     select.showPicker();
+     return;
+    } catch (_) {}
+   }
+   select.focus();
+  });
+
   const paginationEl = btn.closest('[data-kanban-pagination]');
   if (!paginationEl) {
    return;
@@ -3806,6 +3842,6 @@ document.addEventListener(
 })();
 </script>
 <!-- CRM KANBAN INTERNAL PER-COLUMN PAGINATION JS END -->
-
+<script src="{{ asset('crm-dropdown.js') }}?v=1.0.1"></script>
 </body>
 </html>

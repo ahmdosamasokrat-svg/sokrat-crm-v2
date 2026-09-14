@@ -7,7 +7,6 @@ namespace App\Http\Requests\Settings;
 use App\Security\CrmPermission;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
 class StoreUserRequest extends FormRequest
 {
@@ -38,8 +37,8 @@ class StoreUserRequest extends FormRequest
             'voip_extension' => ['nullable', 'string', 'max:50'],
             'password' => [
                 'required',
+                'string',
                 'confirmed',
-                Password::min(10),
             ],
             'group_ids' => ['required', 'array', 'min:1'],
             'group_ids.*' => [
@@ -48,7 +47,21 @@ class StoreUserRequest extends FormRequest
                 'exists:groups,id',
             ],
             'pipeline_stage_access_mode' => ['required', Rule::in(['all', 'selected'])],
-            'pipeline_stage_ids' => ['required_if:pipeline_stage_access_mode,selected', 'array', 'min:1'],
+            'pipeline_stage_category_ids' => ['nullable', 'array'],
+            'pipeline_stage_category_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('pipeline_stage_categories', 'id')->where(
+                    static fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at'),
+                ),
+            ],
+            'pipeline_stage_ids' => [
+                Rule::requiredIf(fn () => $this->input('pipeline_stage_access_mode') === 'selected' && empty($this->input('pipeline_stage_category_ids'))),
+                'nullable',
+                'array',
+            ],
             'pipeline_stage_ids.*' => [
                 'integer',
                 'distinct',

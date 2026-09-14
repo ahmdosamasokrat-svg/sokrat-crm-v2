@@ -282,7 +282,27 @@
             return el.value || '';
         }
 
+        function setControlState(item, enabled, isRequired) {
+            const controls = item.querySelectorAll('input, select, textarea');
+            controls.forEach(ctrl => {
+                if (enabled) {
+                    ctrl.removeAttribute('disabled');
+                    if (isRequired) {
+                        ctrl.setAttribute('required', 'required');
+                    } else {
+                        ctrl.removeAttribute('required');
+                    }
+                } else {
+                    ctrl.setAttribute('disabled', 'disabled');
+                    ctrl.removeAttribute('required');
+                }
+            });
+        }
+
         function updateConditions() {
+            // If the entire container or block is disabled/hidden, do not enable nested controls
+            const isScopeDisabled = wrap.closest('[disabled]') !== null || wrap.style.display === 'none' || wrap.closest('.stage-questions-block[style*="display: none"]') !== null || wrap.closest('.stage-questions-block[style*="display:none"]') !== null;
+
             const items = wrap.querySelectorAll('.stage-field-item[data-has-condition="1"]');
             let changed = false;
             let iterations = 0;
@@ -298,14 +318,22 @@
                     const exp = item.getAttribute('data-condition-value') || '';
                     const isReq = item.getAttribute('data-sf-required') === '1';
 
-                    // Check if parent element is itself hidden in this form
+                    // Check if parent element is present and active in this form
                     const parentItem = wrap.querySelector(`.stage-field-item[data-sf-key="${parentKey}"]`);
-                    const parentHidden = parentItem && parentItem.style.display === 'none';
+                    if (!parentItem) {
+                        // Orphan condition: parent does not exist in schema, treat as NOT APPLICABLE
+                        if (item.style.display !== 'none') {
+                            item.style.display = 'none';
+                            changed = true;
+                        }
+                        setControlState(item, false, false);
+                        return;
+                    }
 
+                    const parentHidden = parentItem.style.display === 'none';
                     const parentVal = getFieldValue(parentKey);
                     const met = !parentHidden && evalCondition(op, parentVal, exp);
 
-                    const inputEl = item.querySelector('input:not([type="hidden"]), select, textarea');
                     const currentlyHidden = item.style.display === 'none';
 
                     if (met) {
@@ -313,19 +341,17 @@
                             item.style.display = item.getAttribute('data-sf-type') === 'textarea' ? 'block' : '';
                             changed = true;
                         }
-                        if (inputEl) {
-                            if (isReq) inputEl.setAttribute('required', 'required');
-                            inputEl.removeAttribute('disabled');
+                        if (!isScopeDisabled) {
+                            setControlState(item, true, isReq);
+                        } else {
+                            setControlState(item, false, false);
                         }
                     } else {
                         if (!currentlyHidden) {
                             item.style.display = 'none';
                             changed = true;
                         }
-                        if (inputEl) {
-                            inputEl.removeAttribute('required');
-                            inputEl.setAttribute('disabled', 'disabled');
-                        }
+                        setControlState(item, false, false);
                     }
                 });
             } while (changed && iterations < 10);
@@ -333,6 +359,7 @@
 
         wrap.addEventListener('input', updateConditions);
         wrap.addEventListener('change', updateConditions);
+        wrap.addEventListener('crm:reevaluate-conditions', updateConditions);
         updateConditions();
     })();
     </script>

@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('voip_extension')->nullable()->after('email');
-        });
+        if (!Schema::hasColumn('users', 'voip_extension')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('voip_extension')->nullable()->after('email');
+            });
+        }
     }
 
     /**

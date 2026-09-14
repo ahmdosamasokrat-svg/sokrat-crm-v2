@@ -250,9 +250,9 @@
             try {
                 return ['light', 'dark', 'system'].includes(localStorage.getItem(storageKey))
                     ? localStorage.getItem(storageKey)
-                    : 'system';
+                    : 'light';
             } catch (error) {
-                return 'system';
+                return 'light';
             }
         };
 

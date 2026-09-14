@@ -280,6 +280,27 @@ class StageFieldController extends Controller
             abort(404);
         }
 
+        // Phase 9 Option A: Safe dependency check
+        // Block deletion if active child fields in this stage depend on this parent field
+        $activeDependents = PipelineStageField::query()
+            ->where('pipeline_stage_id', $stage->id)
+            ->where('id', '!=', $field->id)
+            ->where('is_active', true)
+            ->get()
+            ->filter(function (PipelineStageField $other) use ($field) {
+                $referenced = StageFieldSchema::extractReferencedFields($other->conditions);
+                return in_array($field->key, $referenced, true);
+            });
+
+        if ($activeDependents->isNotEmpty()) {
+            $depLabels = $activeDependents->map(fn ($d) => $d->localizedLabel())->implode('، ');
+            return redirect()
+                ->route('v2.settings.stages.fields.index', $stage)
+                ->withErrors([
+                    'field' => "لا يمكن حذف هذا السؤال لوجود أسئلة فرعية نشطة تعتمد عليه في الشروط: ({$depLabels}). يرجى تعديل أو حذف الأسئلة المعتمدة أولاً.",
+                ]);
+        }
+
         $field->delete();
         StageFieldSchema::flushCache((int) $stage->id);
 
@@ -294,6 +315,28 @@ class StageFieldController extends Controller
 
         if ((int) $field->pipeline_stage_id !== (int) $stage->id) {
             abort(404);
+        }
+
+        // If deactivating, verify no active children depend on it
+        if ($field->is_active) {
+            $activeDependents = PipelineStageField::query()
+                ->where('pipeline_stage_id', $stage->id)
+                ->where('id', '!=', $field->id)
+                ->where('is_active', true)
+                ->get()
+                ->filter(function (PipelineStageField $other) use ($field) {
+                    $referenced = StageFieldSchema::extractReferencedFields($other->conditions);
+                    return in_array($field->key, $referenced, true);
+                });
+
+            if ($activeDependents->isNotEmpty()) {
+                $depLabels = $activeDependents->map(fn ($d) => $d->localizedLabel())->implode('، ');
+                return redirect()
+                    ->route('v2.settings.stages.fields.index', $stage)
+                    ->withErrors([
+                        'field' => "لا يمكن تعطيل هذا السؤال لوجود أسئلة فرعية نشطة تعتمد عليه في الشروط: ({$depLabels}). يرجى تعطيلها أولاً.",
+                    ]);
+            }
         }
 
         $field->update(['is_active' => ! $field->is_active]);

@@ -466,31 +466,18 @@ class LeadFollowupController extends Controller
                 ],
 
                 'disinterest_reason' => [
-                    Rule::requiredIf(
-                        $status->code === 'not_interested' && ! $hasReasonField
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
 
                 'solution_type' => [
-                    Rule::requiredIf(
-                        $hasSolutionTypeField
-                    ),
                     'nullable',
-                    Rule::in([
-                        'call_center',
-                        'erp',
-                    ]),
+                    'string',
+                    'max:100',
                 ],
 
                 'lines_count' => [
-                    Rule::requiredIf(
-                        $hasSolutionTypeField
-                        && $hasLinesCountQuestion
-                        && $solutionTypeInput === 'call_center'
-                    ),
                     'nullable',
                     'integer',
                     'min:1',
@@ -498,32 +485,17 @@ class LeadFollowupController extends Controller
                 ],
 
                 'extensions' => [
-                    Rule::requiredIf(
-                        $hasSolutionTypeField
-                        && $hasExtensionsQuestion
-                        && $solutionTypeInput === 'call_center'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
 
                 'departments' => [
-                    Rule::requiredIf(
-                        $hasSolutionTypeField
-                        && $hasDepartmentsQuestion
-                        && $solutionTypeInput === 'erp'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
                 'quotation_file' => [
-                    Rule::requiredIf(
-                        $hasQuotationFileField
-                        && ! $hasCurrentQuotationFile
-                        && ! $hasQuotationUpload
-                    ),
                     'nullable',
                     'file',
                     'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
@@ -591,10 +563,7 @@ class LeadFollowupController extends Controller
 
         $normalizedStageValues = [];
         if ($targetStage !== null) {
-            $rawStageInputs = array_replace_recursive(
-                (array) $request->input('stage_fields', []),
-                (array) $request->file('stage_fields', [])
-            );
+            $rawStageInputs = \App\Support\StageFieldSchema::extractStageInputs($request);
             $stageKeys = \App\Support\StageFieldSchema::getFieldsForStage($targetStage, true)->pluck('key')->all();
             if (in_array('callback_at', $stageKeys, true) && empty($rawStageInputs['callback_at']) && $request->filled('next_follow_up_at')) {
                 $rawStageInputs['callback_at'] = (string) $request->input('next_follow_up_at');
@@ -787,6 +756,28 @@ class LeadFollowupController extends Controller
                             : null
                     ),
         ];
+
+        // Compatibility column sync from normalized stage values if not provided directly
+        if (empty($leadUpdateData['disinterest_reason']) && ! empty($normalizedStageValues['reason'])) {
+            $leadUpdateData['disinterest_reason'] = (string) $normalizedStageValues['reason'];
+        }
+        if (empty($leadUpdateData['solution_type']) && ! empty($normalizedStageValues['solution_type'])) {
+            $leadUpdateData['solution_type'] = (string) $normalizedStageValues['solution_type'];
+        }
+        if (empty($leadUpdateData['lines_count']) && ! empty($normalizedStageValues['lines_count'])) {
+            $leadUpdateData['lines_count'] = (int) $normalizedStageValues['lines_count'];
+        } elseif (empty($leadUpdateData['lines_count']) && ! empty($normalizedStageValues['q_cdljek'])) {
+            $leadUpdateData['lines_count'] = (int) $normalizedStageValues['q_cdljek'];
+        }
+        if (empty($leadUpdateData['extensions']) && ! empty($normalizedStageValues['extensions'])) {
+            $leadUpdateData['extensions'] = (string) $normalizedStageValues['extensions'];
+        }
+        if (empty($leadUpdateData['departments']) && ! empty($normalizedStageValues['departments'])) {
+            $leadUpdateData['departments'] = (string) $normalizedStageValues['departments'];
+        }
+        if (empty($leadUpdateData['quotation_file_path']) && ! empty($normalizedStageValues['quotation_file_path']['path'])) {
+            $leadUpdateData['quotation_file_path'] = (string) $normalizedStageValues['quotation_file_path']['path'];
+        }
 
         $fieldLabels = [
             'disinterest_reason' => 'سبب عدم الاهتمام',

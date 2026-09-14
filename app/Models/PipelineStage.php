@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
@@ -132,10 +133,15 @@ class PipelineStage extends Model
             return $query;
         }
 
-        return $query->whereHas(
-            'permittedUsers',
-            static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
-        );
+        return $query->where(function (Builder $stageQuery) use ($user): void {
+            $stageQuery->whereHas(
+                'permittedUsers',
+                static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+            )->orWhereHas(
+                'category.permittedUsers',
+                static fn (Builder $users): Builder => $users->whereKey($user->getKey()),
+            );
+        });
     }
 
     public static function clearSidebarCache(): void
@@ -184,6 +190,7 @@ class PipelineStage extends Model
     }
 
     protected $fillable = [
+        'pipeline_stage_category_id',
         'code',
         'name_ar',
         'description_ar',
@@ -199,6 +206,7 @@ class PipelineStage extends Model
     protected function casts(): array
     {
         return [
+            'pipeline_stage_category_id' => 'integer',
             'position' => 'integer',
             'is_primary' => 'boolean',
             'is_system' => 'boolean',
@@ -284,5 +292,10 @@ class PipelineStage extends Model
     public function stageValues(): HasMany
     {
         return $this->hasMany(LeadStageFieldValue::class, 'pipeline_stage_id');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(PipelineStageCategory::class, 'pipeline_stage_category_id');
     }
 }

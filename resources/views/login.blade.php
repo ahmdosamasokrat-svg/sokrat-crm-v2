@@ -106,5 +106,17 @@
 
         <button type="submit">تسجيل الدخول</button>
     </form>
+    <script>
+        (() => {
+            const form = document.querySelector('form.login-card');
+            if (form) {
+                form.addEventListener('submit', () => {
+                    try {
+                        localStorage.setItem('sokrat.crm.theme', 'light');
+                    } catch (e) {}
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

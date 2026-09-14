@@ -19,6 +19,7 @@ enum CrmPermission: string
     case LEADS_DELETE = 'leads.delete';
     case LEADS_IMPORT = 'leads.import';
     case LEADS_EXPORT = 'leads.export';
+    case LEADS_PHONE_VIEW = 'leads.phone.view';
     case LEADS_FOLLOWUPS_VIEW = 'leads.followups.view';
     case LEADS_FOLLOWUPS_CREATE = 'leads.followups.create';
 
@@ -83,6 +84,7 @@ enum CrmPermission: string
             self::LEADS_DELETE => 'حذف العملاء',
             self::LEADS_IMPORT => 'استيراد العملاء',
             self::LEADS_EXPORT => 'تصدير العملاء',
+            self::LEADS_PHONE_VIEW => 'عرض أرقام الهواتف غير المقنعة',
             self::LEADS_FOLLOWUPS_VIEW => 'عرض متابعات العملاء',
             self::LEADS_FOLLOWUPS_CREATE => 'تسجيل متابعات العملاء',
             self::TASKS_VIEW => 'عرض المهام والمتابعات',
@@ -109,7 +111,7 @@ enum CrmPermission: string
             self::VOIP_SETTINGS => 'إدارة ربط السنترال (VoIP)',
             self::CALENDAR_VIEW => 'عرض التقويم والأحداث',
             self::CALENDAR_MANAGE => 'إدارة التقويم والأحداث',
-            self::TECHNICAL_SUPPORT_VIEW => 'عرض خوادم الدعم الفني',
+            self::TECHNICAL_SUPPORT_VIEW => 'عرض قسم الدعم الفني',
             self::TECHNICAL_SUPPORT_MANAGE => 'إدارة خوادم وتذاكر الدعم الفني',
             self::TECHNICAL_SUPPORT_REPORTS => 'عرض تقارير الدعم الفني',
             self::TECHNICAL_SUPPORT_TASKS_MANAGE => 'إدارة مهام الدعم الفني',

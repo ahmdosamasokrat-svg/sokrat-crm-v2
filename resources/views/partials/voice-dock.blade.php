@@ -1,0 +1,1572 @@
+@if(Auth::check() && !empty(Auth::user()->voip_extension) && !request()->boolean('kanban_popup') && !request()->has('kanban_popup') && !request()->boolean('popup') && !request()->has('popup'))
+{{-- SOKRAT VOICE REDESIGNED ULTRA-CLEAN FLOATING DOCK --}}
+<aside id="sokratVoiceDock" class="sokrat-voice-dock" aria-label="Sokrat Voice">
+    <button id="voiceDockToggle" type="button" class="sokrat-voice-pill" title="Sokrat Voice (Ext {{ Auth::user()->voip_extension }})">
+        <span class="sokrat-voice-status-wrapper">
+            <span class="sokrat-voice-dot" data-voice-status="offline"></span>
+            <span class="sokrat-voice-ping" data-voice-status="offline"></span>
+        </span>
+        <span class="sokrat-voice-ext"><i class="bi bi-person-badge"></i> {{ Auth::user()->voip_extension }}</span>
+        
+        <span class="sokrat-voice-call-info" hidden>
+            <span class="sokrat-voice-call-divider"></span>
+            <span data-voice-remote class="sokrat-voice-remote"></span>
+            <span data-voice-timer class="sokrat-voice-timer">00:00</span>
+        </span>
+
+        <span class="sokrat-voice-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span data-voice-label-text>Voice</span>
+        </span>
+
+        <span id="voiceReconnectAction" class="sokrat-voice-reconnect" hidden title="{{ __('crm.reconnect') ?? 'إعادة الاتصال' }}">
+            <i class="bi bi-arrow-repeat"></i>
+            <span>{{ __('crm.reconnect') ?? 'إعادة اتصال' }}</span>
+        </span>
+    </button>
+
+    <div class="sokrat-voice-quick-actions" hidden>
+        <button data-voice-mute type="button" class="sokrat-voice-action-btn" title="{{ __('crm.mute') ?? 'Mute' }}">
+            <i class="bi bi-mic-fill"></i>
+        </button>
+        <button data-voice-hangup type="button" class="sokrat-voice-action-btn hangup" title="{{ __('crm.end_call') ?? 'End Call' }}">
+            <i class="bi bi-telephone-x-fill"></i>
+        </button>
+    </div>
+</aside>
+
+{{-- EXPANDED SOFTPHONE PANEL (NON-ELECTRON BROWSER FALLBACK ONLY) --}}
+<div id="sokratVoicePanel" class="sokrat-voice-panel" hidden>
+    <div class="sokrat-voice-frame-wrap" id="sokratVoiceFrameWrap"></div>
+</div>
+
+{{-- INCOMING CALL TOAST NOTIFICATION --}}
+<div id="sokratVoiceToast" class="sokrat-voice-toast" hidden>
+    <div class="sokrat-voice-toast-ico"><i class="bi bi-telephone-inbound-fill"></i></div>
+    <div class="sokrat-voice-toast-content">
+        <div class="sokrat-voice-toast-head">
+            <strong data-toast-caller class="sokrat-voice-toast-num"></strong>
+            <span class="sokrat-voice-toast-badge">{{ __('crm.incoming_call') ?? 'مكالمة واردة' }}</span>
+        </div>
+        <div class="sokrat-voice-toast-leads" data-toast-leads></div>
+    </div>
+    <button type="button" class="sokrat-voice-toast-dismiss" id="voiceToastDismiss" title="Dismiss">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</div>
+{{-- INCOMING CALL LEAD PROFILE SCREEN-POP MODAL --}}
+<div id="sokratLeadScreenPop" class="sokrat-lead-screen-pop" hidden>
+    <div class="sokrat-screen-pop-head">
+        <div class="sokrat-screen-pop-title">
+            <span class="sokrat-screen-pop-pulse"></span>
+            <strong>{{ __('crm.incoming_call') ?? 'مكالمة واردة' }}</strong>
+            <span class="sokrat-screen-pop-badge-ext">{{ Auth::user()->voip_extension }}</span>
+        </div>
+        <button type="button" class="sokrat-screen-pop-close" id="voiceScreenPopDismiss" title="{{ __('crm.close') ?? 'إغلاق' }}">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="sokrat-screen-pop-body" data-pop-content>
+        <!-- Populated dynamically by handleIncomingCall -->
+    </div>
+</div>
+
+<style>
+/* CRITICAL: Hidden attribute MUST override all display declarations */
+.sokrat-voice-dock[hidden],
+.sokrat-voice-toast[hidden],
+.sokrat-lead-screen-pop[hidden],
+.sokrat-voice-call-info[hidden],
+.sokrat-voice-quick-actions[hidden],
+#sokratVoiceToast[hidden],
+#sokratLeadScreenPop[hidden] {
+    display: none !important;
+}
+
+/* Panel hidden state: keep iframe rendered in DOM for active background WebRTC connection without visual footprint */
+.sokrat-voice-panel[hidden],
+#sokratVoicePanel[hidden] {
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(24px) scale(0.96) !important;
+    display: flex !important;
+}
+
+/* Suppress voice dock in popups, modals, iframes, and followup screens */
+body.kanban-followup-popup .sokrat-voice-dock,
+body.kanban-followup-popup .sokrat-voice-panel,
+body.kanban-followup-popup .sokrat-voice-toast,
+body.kanban-followup-popup .sokrat-lead-screen-pop,
+body.is-popup .sokrat-voice-dock,
+body.is-popup .sokrat-voice-panel,
+html.in-iframe .sokrat-voice-dock,
+body.in-iframe .sokrat-voice-dock {
+    display: none !important;
+}
+
+/* Floating Dock Pill — ALWAYS Bottom-Right */
+.sokrat-voice-dock {
+    position: fixed !important;
+    bottom: 24px !important;
+    right: 24px !important;
+    left: auto !important;
+    top: auto !important;
+    z-index: 2147483645 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: ltr !important;
+    pointer-events: auto !important;
+}
+
+.sokrat-voice-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 9px 18px !important;
+    border-radius: 9999px !important;
+    border: 1px solid #27272a !important;
+    background: #0E0E13 !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    color: #f4f4f5 !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) !important;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    line-height: 1 !important;
+    outline: none !important;
+}
+.sokrat-voice-pill:hover {
+    box-shadow: 0 12px 30px rgba(0,0,0,0.65), 0 0 0 1px #3f3f46 !important;
+    border-color: #3f3f46 !important;
+    transform: translateY(-2px) !important;
+}
+.sokrat-voice-status-wrapper {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 12px !important;
+    height: 12px !important;
+}
+.sokrat-voice-dot {
+    width: 9px !important;
+    height: 9px !important;
+    border-radius: 50% !important;
+    background: #71717a !important;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.sokrat-voice-ping {
+    position: absolute !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 50% !important;
+    opacity: 0.75 !important;
+    pointer-events: none !important;
+    display: none !important;
+}
+.sokrat-voice-dot[data-voice-status="online"] { 
+    background: #10b981 !important; 
+    box-shadow: 0 0 8px #10b981, 0 0 16px rgba(16, 185, 129, 0.6) !important; 
+}
+.sokrat-voice-ping[data-voice-status="online"] {
+    display: inline-block !important;
+    background: #10b981 !important;
+    box-shadow: 0 0 8px #10b981 !important;
+    animation: sokrat-voice-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite !important;
+}
+.sokrat-voice-dot[data-voice-status="ringing"] { 
+    background: #f59e0b !important; 
+    box-shadow: 0 0 8px #f59e0b, 0 0 16px rgba(245, 158, 11, 0.5) !important;
+    animation: sokrat-voice-pulse 0.6s ease-in-out infinite alternate !important; 
+}
+.sokrat-voice-dot[data-voice-status="incall"] { 
+    background: #ef4444 !important; 
+    box-shadow: 0 0 8px #ef4444, 0 0 16px rgba(239, 68, 68, 0.5) !important;
+    animation: sokrat-voice-pulse 0.9s ease-in-out infinite alternate !important; 
+}
+.sokrat-voice-dot[data-voice-status="signed_out"] {
+    background: #64748b !important;
+    box-shadow: 0 0 6px rgba(100, 116, 139, 0.4) !important;
+}
+.sokrat-voice-dot-sm {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background: #71717a !important;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+}
+.sokrat-voice-dot-sm[data-voice-status="online"] { background: #10b981 !important; box-shadow: 0 0 6px #10b981 !important; }
+.sokrat-voice-dot-sm[data-voice-status="incall"] { background: #ef4444 !important; box-shadow: 0 0 6px #ef4444 !important; }
+.sokrat-voice-dot-sm[data-voice-status="signed_out"] { background: #64748b !important; box-shadow: 0 0 4px rgba(100, 116, 139, 0.4) !important; }
+
+.sokrat-voice-reconnect {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: rgba(37, 99, 235, 0.15) !important;
+    color: #60a5fa !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+.sokrat-voice-reconnect:hover {
+    background: rgba(37, 99, 235, 0.3) !important;
+    color: #93c5fd !important;
+}
+.sokrat-voice-reconnect[hidden] {
+    display: none !important;
+}
+.sokrat-voice-action-btn.muted {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+}
+
+.sokrat-voice-ext {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-weight: 700 !important;
+    background: #18181b !important;
+    color: #a1a1aa !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid #27272a !important;
+    font-size: 11px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+}
+.sokrat-voice-label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    color: #f4f4f5 !important;
+    font-weight: 700 !important;
+}
+.sokrat-voice-call-divider {
+    width: 1px !important;
+    height: 14px !important;
+    background: #27272a !important;
+    display: inline-block !important;
+    margin: 0 4px !important;
+}
+.sokrat-voice-call-info {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+.sokrat-voice-remote {
+    font-weight: 700 !important;
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    color: #f4f4f5 !important;
+}
+.sokrat-voice-timer {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-weight: 800 !important;
+    color: #ef4444 !important;
+    background: #27272a !important;
+    border: 1px solid #3f3f46 !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+}
+.sokrat-voice-quick-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+.sokrat-voice-action-btn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50% !important;
+    border: 1px solid #27272a !important;
+    background: #18181b !important;
+    color: #f4f4f5 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    outline: none !important;
+}
+.sokrat-voice-action-btn:hover {
+    border-color: #3f3f46 !important;
+    color: #ffffff !important;
+    transform: translateY(-2px) scale(1.05) !important;
+}
+.sokrat-voice-action-btn.hangup {
+    color: #f87171 !important;
+    background: rgba(220,38,55,0.18) !important;
+    border-color: rgba(220,38,55,0.35) !important;
+}
+.sokrat-voice-action-btn.hangup:hover {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border-color: #dc2626 !important;
+}
+
+@keyframes sokrat-voice-ping {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    75%, 100% {
+        transform: scale(2.3);
+        opacity: 0;
+    }
+}
+
+/* Expanded Softphone Panel — ZERO SCROLL, ALWAYS Bottom-Right */
+.sokrat-voice-panel {
+    position: fixed !important;
+    bottom: 82px !important;
+    right: 24px !important;
+    left: auto !important;
+    top: auto !important;
+    width: 440px !important;
+    height: 620px !important;
+    max-width: calc(100vw - 40px) !important;
+    max-height: calc(100vh - 90px) !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    z-index: 2147483646 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    animation: sokrat-voice-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: ltr !important;
+    pointer-events: auto !important;
+}
+.sokrat-voice-panel-head {
+    display: none !important;
+}
+.sokrat-voice-frame-wrap {
+    flex: 1 !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: relative !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+#sokratVoiceFrame,
+.sokrat-voice-panel iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Incoming Call Toast */
+.sokrat-voice-toast {
+    position: fixed !important;
+    top: 24px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 12px 18px !important;
+    background: #ffffff !important;
+    border: 2px solid #16a34a !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18) !important;
+    min-width: 320px !important;
+    max-width: 460px !important;
+    width: auto !important;
+    height: auto !important;
+    animation: sokrat-voice-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    margin: 0 !important;
+}
+.sokrat-voice-toast-ico {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+    background: #dcfce7 !important;
+    color: #16a34a !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    font-size: 18px !important;
+    flex-shrink: 0 !important;
+    animation: sokrat-voice-ring 0.8s ease-in-out infinite alternate !important;
+}
+.sokrat-voice-toast-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+.sokrat-voice-toast-head {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-bottom: 3px !important;
+}
+.sokrat-voice-toast-num {
+    font-size: 15px !important;
+    color: #0f172a !important;
+    font-family: monospace !important;
+}
+.sokrat-voice-toast-badge {
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    background: #dcfce7 !important;
+    color: #15803d !important;
+    padding: 2px 7px !important;
+    border-radius: 999px !important;
+}
+.sokrat-voice-toast-leads {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+}
+.sokrat-voice-lead-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 4px 10px !important;
+    border-radius: 7px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    font-size: 12px !important;
+    text-decoration: none !important;
+    transition: all 0.15s ease !important;
+}
+.sokrat-voice-lead-link:hover {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #dc2637 !important;
+}
+.sokrat-voice-lead-link.create {
+    color: #16a34a !important;
+    background: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+}
+.sokrat-voice-toast-dismiss {
+    background: none !important;
+    border: none !important;
+    color: #94a3b8 !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    padding: 2px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+}
+.sokrat-voice-toast-dismiss:hover { color: #0f172a !important; }
+
+/* Dark mode overrides (Matching SokratCRM Theme) */
+html.dark-mode .sokrat-voice-pill { background: #0E0E13 !important; color: #f4f4f5 !important; border: 1px solid #27272a !important; box-shadow: 0 8px 25px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) !important; }
+html.dark-mode .sokrat-voice-ext { background: #18181b !important; color: #a1a1aa !important; border: 1px solid #27272a !important; }
+html.dark-mode .sokrat-voice-label { color: #f4f4f5 !important; }
+html.dark-mode .sokrat-voice-action-btn { background: #18181b !important; border-color: #27272a !important; color: #f4f4f5 !important; }
+html.dark-mode .sokrat-voice-action-btn.hangup { background: rgba(220,38,55,0.15) !important; color: #f87171 !important; border-color: rgba(220,38,55,0.3) !important; }
+html.dark-mode .sokrat-voice-panel { width: 440px !important; height: 620px !important; bottom: 82px !important; right: 24px !important; background: transparent !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+html.dark-mode .sokrat-voice-frame-wrap { background: transparent !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+html.dark-mode #sokratVoiceFrame,
+html.dark-mode .sokrat-voice-panel iframe { background: transparent !important; border-radius: 0 !important; }
+html.dark-mode .sokrat-voice-toast { background: #18181b !important; color: #f4f4f5 !important; border-color: #16a34a !important; }
+html.dark-mode .sokrat-voice-toast-num { color: #f4f4f5 !important; }
+html.dark-mode .sokrat-voice-lead-link { background: #27272a !important; border-color: rgba(255,255,255,0.08) !important; color: #f4f4f5 !important; }
+
+@keyframes sokrat-voice-pulse { to { opacity: 0.35; transform: scale(0.9); } }
+@keyframes sokrat-voice-ring { 0% { transform: rotate(-6deg); } 100% { transform: rotate(6deg); } }
+@keyframes sokrat-voice-slide-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sokrat-voice-toast-in { from { opacity: 0; transform: translate(-50%, -16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* --- SOKRAT LEAD PROFILE SCREEN-POP MODAL --- */
+.sokrat-lead-screen-pop {
+    position: fixed !important;
+    top: 24px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important;
+    width: 90% !important;
+    max-width: 480px !important;
+    background: #ffffff !important;
+    border: 2px solid #3b82f6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(59, 130, 246, 0.15) !important;
+    animation: sokrat-screen-pop-slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    overflow: hidden !important;
+    font-family: inherit !important;
+    direction: rtl !important;
+}
+
+html.dark-mode .sokrat-lead-screen-pop {
+    background: #18181b !important;
+    border-color: #3b82f6 !important;
+    color: #f4f4f5 !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;
+}
+
+.sokrat-screen-pop-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 18px !important;
+    background: #eff6ff !important;
+    border-bottom: 1px solid #dbeafe !important;
+}
+
+html.dark-mode .sokrat-screen-pop-head {
+    background: #1e293b !important;
+    border-bottom-color: #334155 !important;
+}
+
+.sokrat-screen-pop-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #1e40af !important;
+}
+
+html.dark-mode .sokrat-screen-pop-title {
+    color: #93c5fd !important;
+}
+
+.sokrat-screen-pop-badge-ext {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    background: #dbeafe !important;
+    color: #1e40af !important;
+    padding: 2px 7px !important;
+    border-radius: 999px !important;
+    margin-inline-start: 6px !important;
+}
+
+html.dark-mode .sokrat-screen-pop-badge-ext {
+    background: rgba(59, 130, 246, 0.2) !important;
+    color: #93c5fd !important;
+}
+
+.sokrat-screen-pop-pulse {
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 50% !important;
+    background: #10b981 !important;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7) !important;
+    animation: sokrat-pop-pulse 1.2s infinite !important;
+}
+
+@keyframes sokrat-pop-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes sokrat-screen-pop-slide {
+    from { opacity: 0; transform: translate(-50%, -24px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.sokrat-screen-pop-close {
+    background: none !important;
+    border: none !important;
+    color: #64748b !important;
+    font-size: 16px !important;
+    cursor: pointer !important;
+    padding: 4px !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: 6px !important;
+}
+
+.sokrat-screen-pop-close:hover {
+    background: rgba(0,0,0,0.06) !important;
+    color: #ef4444 !important;
+}
+
+.sokrat-screen-pop-body {
+    padding: 16px 18px !important;
+}
+
+.sokrat-screen-pop-caller {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+}
+
+.sokrat-screen-pop-caller .phone-num {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    font-family: monospace !important;
+    color: #0f172a !important;
+}
+
+html.dark-mode .sokrat-screen-pop-caller .phone-num {
+    color: #f8fafc !important;
+}
+
+.sokrat-screen-pop-caller .badge-status {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 2px 8px !important;
+    border-radius: 999px !important;
+    background: #fef3c7 !important;
+    color: #92400e !important;
+}
+
+.sokrat-pop-lead-card {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    margin-bottom: 12px !important;
+}
+
+html.dark-mode .sokrat-pop-lead-card {
+    background: #27272a !important;
+    border-color: #3f3f46 !important;
+}
+
+.sokrat-pop-lead-name {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin-bottom: 4px !important;
+}
+
+html.dark-mode .sokrat-pop-lead-name {
+    color: #f8fafc !important;
+}
+
+.sokrat-pop-lead-meta {
+    font-size: 12px !important;
+    color: #64748b !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+
+html.dark-mode .sokrat-pop-lead-meta {
+    color: #a1a1aa !important;
+}
+
+.sokrat-pop-stage-badge {
+    background: #dbeafe !important;
+    color: #1e40af !important;
+    padding: 2px 8px !important;
+    border-radius: 6px !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+}
+
+.sokrat-pop-actions {
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+}
+
+.sokrat-pop-btn {
+    flex: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 9px 14px !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    border: none !important;
+}
+
+.sokrat-pop-btn-primary {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+.sokrat-pop-btn-primary:hover {
+    background: #1d4ed8 !important;
+    color: #ffffff !important;
+}
+
+.sokrat-pop-btn-secondary {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+html.dark-mode .sokrat-pop-btn-secondary {
+    background: #3f3f46 !important;
+    color: #e4e4e7 !important;
+    border-color: #52525b !important;
+}
+
+.sokrat-pop-btn-secondary:hover {
+    background: #e2e8f0 !important;
+}
+
+.sokrat-pop-btn-create {
+    background: #10b981 !important;
+    color: #ffffff !important;
+}
+
+.sokrat-pop-btn-create:hover {
+    background: #059669 !important;
+    color: #ffffff !important;
+}
+
+/* Inline Click-to-Call Buttons */
+.btn-dial-inline {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 6px !important;
+    background: #ecfdf5 !important;
+    border: 1px solid #a7f3d0 !important;
+    color: #059669 !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    margin-inline-start: 6px !important;
+    vertical-align: middle !important;
+    padding: 0 !important;
+}
+
+.btn-dial-inline:hover {
+    background: #10b981 !important;
+    border-color: #059669 !important;
+    color: #ffffff !important;
+    transform: scale(1.08) !important;
+}
+
+html.dark-mode .btn-dial-inline {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    color: #34d399 !important;
+}
+
+html.dark-mode .btn-dial-inline:hover {
+    background: #10b981 !important;
+    color: #ffffff !important;
+}
+</style>
+
+<script>
+(function() {
+    'use strict';
+    window.sokratVoiceDial = function(phone, leadName) {
+        if (!phone) return;
+        const cleanPhone = String(phone).replace(/[^0-9+*#]/g, '');
+        if (!cleanPhone) return;
+
+        if (typeof window.__sokratVoiceTriggerDial === 'function') {
+            window.__sokratVoiceTriggerDial(cleanPhone, leadName);
+        } else {
+            window.__sokratPendingDial = cleanPhone;
+            window.__sokratPendingLeadName = leadName;
+            window.dispatchEvent(new CustomEvent('sokrat:voice-dial', { detail: { phone: cleanPhone, leadName } }));
+        }
+    };
+
+    // Defense-in-depth: Never initialize or display CRM voice dock when page is embedded inside an iframe or popup
+    if (window.self !== window.top || window.location.search.includes('kanban_popup=1') || window.location.search.includes('popup=1')) {
+        try {
+            ['sokratVoiceDock', 'sokratVoicePanel', 'sokratVoiceToast', 'sokratLeadScreenPop'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.remove();
+            });
+        } catch (_) {}
+        return;
+    }
+
+    function initSokratVoice() {
+        const isDesktop = Boolean(window.sokratDesktop && window.sokratDesktop.isDesktop && typeof window.sokratDesktop.getSoftphoneSnapshot === 'function');
+        const dock = document.getElementById('sokratVoiceDock');
+        if (!dock) return;
+
+        const panel = document.getElementById('sokratVoicePanel');
+        const toast = document.getElementById('sokratVoiceToast');
+        const popModal = document.getElementById('sokratLeadScreenPop');
+        const popDismiss = document.getElementById('voiceScreenPopDismiss');
+        const toggle = document.getElementById('voiceDockToggle');
+        const statusDots = document.querySelectorAll('[data-voice-status]');
+        const statusPings = document.querySelectorAll('.sokrat-voice-ping');
+        const callInfo = dock.querySelector('.sokrat-voice-call-info');
+        const quickActions = dock.querySelector('.sokrat-voice-quick-actions');
+        const remoteEl = dock.querySelector('[data-voice-remote]');
+        const timerEl = dock.querySelector('[data-voice-timer]');
+        const labelEl = dock.querySelector('.sokrat-voice-label');
+        const labelTextEl = dock.querySelector('[data-voice-label-text]');
+        const reconnectBtn = document.getElementById('voiceReconnectAction');
+        const muteBtn = dock.querySelector('[data-voice-mute]');
+        const hangupBtn = dock.querySelector('[data-voice-hangup]');
+
+        // Always attach to body root
+        if (dock.parentElement !== document.body) document.body.appendChild(dock);
+        if (panel && panel.parentElement !== document.body) document.body.appendChild(panel);
+        if (toast && toast.parentElement !== document.body) document.body.appendChild(toast);
+        if (popModal && popModal.parentElement !== document.body) document.body.appendChild(popModal);
+
+        if (popDismiss) {
+            popDismiss.addEventListener('click', () => {
+                if (popModal) popModal.hidden = true;
+            });
+        }
+
+        window.sokratQuickNote = function(leadId) {
+            const note = prompt('أدخل ملاحظة المكالمة السريعة:\n(Enter quick call note:)');
+            if (!note || !note.trim()) return;
+            fetch('/leads/' + leadId + '/notes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify({ note: note.trim() })
+            }).then(r => {
+                if (r.ok) alert('تم حفظ الملاحظة بنجاح');
+                else alert('تعذر حفظ الملاحظة');
+            }).catch(() => alert('تعذر الاتصال بالخادم'));
+        };
+
+        const USER_EXTENSION = '{{ Auth::user()->voip_extension }}';
+        const SOFTPHONE_URL = '/voip/softphone';
+        const SESSION_BOOTSTRAP_URL = '/voip/softphone/session';
+        const LEAD_LOOKUP_URL = '/api/leads/by-phone';
+        const VOICE_ORIGIN = window.location.origin;
+        const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        // Cross-tab / cross-page Broadcast Channel for call sync (browser only)
+        let syncChannel = null;
+        try {
+            if (!isDesktop && typeof BroadcastChannel !== 'undefined') {
+                syncChannel = new BroadcastChannel('sokrat_voice_crm_channel');
+                syncChannel.onmessage = (e) => handleSyncMessage(e.data);
+            }
+        } catch (_) {}
+
+        let panelOpen = false;
+        let frame = null;
+        let frameLoaded = false;
+        let pendingDial = null;
+        let currentIncomingCallId = null;
+        let isBootstrapping = false;
+        let desktopUnsubscribes = [];
+
+        let voiceState = {
+            inCall: false,
+            registered: false,
+            callId: null,
+            remote: '',
+            callStartTime: null,
+            isMuted: false,
+            timer: null
+        };
+
+        function setStatus(status) {
+            statusDots.forEach(dot => dot.dataset.voiceStatus = status);
+            statusPings.forEach(ping => ping.dataset.voiceStatus = status);
+            if (labelEl) {
+                if (status === 'signed_out') {
+                    if (labelTextEl) labelTextEl.textContent = 'تسجيل خروج';
+                    if (reconnectBtn) reconnectBtn.hidden = false;
+                } else {
+                    if (labelTextEl) labelTextEl.textContent = 'Voice';
+                    if (reconnectBtn) reconnectBtn.hidden = true;
+                }
+            }
+        }
+
+        function updateMuteUi(isMuted) {
+            voiceState.isMuted = Boolean(isMuted);
+            if (muteBtn) {
+                if (voiceState.isMuted) {
+                    muteBtn.classList.add('muted');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-mute-fill"></i>';
+                    muteBtn.title = 'Unmute';
+                } else {
+                    muteBtn.classList.remove('muted');
+                    muteBtn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+                    muteBtn.title = 'Mute';
+                }
+            }
+        }
+
+        function startTimer(callStartTime) {
+            if (voiceState.timer) {
+                clearInterval(voiceState.timer);
+                voiceState.timer = null;
+            }
+            voiceState.callStartTime = callStartTime || Date.now();
+            const updateTicker = () => {
+                const now = Date.now();
+                const elapsed = Math.max(0, Math.floor((now - voiceState.callStartTime) / 1000));
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                if (timerEl) timerEl.textContent = m + ':' + s;
+            };
+            updateTicker();
+            voiceState.timer = setInterval(updateTicker, 1000);
+        }
+
+        function stopTimer() {
+            if (voiceState.timer) {
+                clearInterval(voiceState.timer);
+                voiceState.timer = null;
+            }
+            voiceState.callStartTime = null;
+            if (timerEl) timerEl.textContent = '00:00';
+        }
+
+        function handleSyncMessage(data) {
+            if (!data) return;
+            if (data.type === 'CALL_ENDED') {
+                voiceState.inCall = false;
+                setStatus(voiceState.registered ? 'online' : 'offline');
+                if (callInfo) callInfo.hidden = true;
+                if (quickActions) quickActions.hidden = true;
+                if (labelEl) labelEl.hidden = false;
+                stopTimer();
+            }
+        }
+
+        function applySnapshot(snapshot) {
+            if (!snapshot) return;
+
+            // Visibility
+            panelOpen = Boolean(snapshot.isVisible);
+
+            // Mute state
+            updateMuteUi(snapshot.isMuted);
+
+            // Call state
+            const callState = snapshot.callState;
+            if (callState === 'in_call' || callState === 'confirmed' || callState === 'accepted') {
+                voiceState.inCall = true;
+                voiceState.callId = snapshot.callId;
+                voiceState.remote = snapshot.remoteNumber || '';
+                setStatus('incall');
+                if (callInfo) callInfo.hidden = false;
+                if (quickActions) quickActions.hidden = false;
+                if (labelEl) labelEl.hidden = true;
+                if (remoteEl) remoteEl.textContent = voiceState.remote;
+                hideToast();
+                hideScreenPop();
+
+                const startTime = snapshot.callStartTime || voiceState.callStartTime || Date.now();
+                startTimer(startTime);
+            } else if (callState === 'ringing') {
+                setStatus('ringing');
+            } else if (callState === 'ended' || callState === 'failed' || callState === 'idle') {
+                voiceState.inCall = false;
+                voiceState.callId = null;
+                voiceState.remote = '';
+                if (callInfo) callInfo.hidden = true;
+                if (quickActions) quickActions.hidden = true;
+                if (labelEl) labelEl.hidden = false;
+                hideToast();
+                hideScreenPop();
+                stopTimer();
+
+                if (snapshot.sessionState === 'signed_out') {
+                    setStatus('signed_out');
+                } else if (snapshot.isRegistered || snapshot.sessionState === 'registered') {
+                    setStatus('online');
+                } else {
+                    setStatus('offline');
+                }
+            }
+
+            if (!voiceState.inCall && callState !== 'ringing') {
+                if (snapshot.sessionState === 'signed_out') {
+                    setStatus('signed_out');
+                } else if (snapshot.isRegistered || snapshot.sessionState === 'registered') {
+                    setStatus('online');
+                } else {
+                    setStatus('offline');
+                }
+            }
+        }
+
+        async function fetchSessionAndStart() {
+            if (isBootstrapping) return;
+            isBootstrapping = true;
+            try {
+                const response = await fetch(SESSION_BOOTSTRAP_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
+                    }
+                });
+                if (!response.ok) {
+                    console.error('[VoiceDock] Session bootstrap failed with HTTP', response.status);
+                    setStatus('offline');
+                    return;
+                }
+                const data = await response.json();
+                if (data.success && data.sessionUrl && data.extension) {
+                    if (window.sokratDesktop && typeof window.sokratDesktop.startSoftphone === 'function') {
+                        await window.sokratDesktop.startSoftphone(data.sessionUrl, data.extension);
+                    }
+                } else {
+                    console.error('[VoiceDock] Invalid session data returned:', data);
+                    setStatus('offline');
+                }
+            } catch (err) {
+                console.error('[VoiceDock] Error bootstrapping softphone session:', err);
+                setStatus('offline');
+            } finally {
+                isBootstrapping = false;
+            }
+        }
+
+        async function performExplicitReconnect() {
+            console.log('[VoiceDock] Explicit reconnect requested by user.');
+            if (window.sokratDesktop && typeof window.sokratDesktop.reconnectSoftphone === 'function') {
+                try {
+                    await window.sokratDesktop.reconnectSoftphone();
+                } catch (_) {}
+            }
+            await fetchSessionAndStart();
+        }
+
+        if (reconnectBtn) {
+            reconnectBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                performExplicitReconnect();
+            });
+        }
+
+        function getOrCreateFrame() {
+            let f = document.getElementById('sokratVoiceFrame');
+            if (!f && panel) {
+                const wrap = document.getElementById('sokratVoiceFrameWrap') || panel;
+                f = document.createElement('iframe');
+                f.id = 'sokratVoiceFrame';
+                f.allow = 'microphone *; autoplay *; camera *';
+                f.referrerPolicy = 'same-origin';
+                f.title = 'Sokrat Voice Softphone';
+                wrap.appendChild(f);
+                frame = f;
+            }
+            return f;
+        }
+
+        function isDarkMode() {
+            return document.documentElement.classList.contains('dark-mode') || 
+                   (localStorage.getItem('sokrat.crm.theme') || '').includes('dark');
+        }
+
+        function syncThemeToFrame() {
+            const f = frame || document.getElementById('sokratVoiceFrame');
+            if (f && f.contentWindow) {
+                f.contentWindow.postMessage({
+                    version: 1,
+                    type: 'sokrat.voice.set_theme',
+                    payload: { isDark: isDarkMode() }
+                }, '*');
+            }
+        }
+
+        function loadFreshSession() {
+            const f = getOrCreateFrame();
+            if (!f) return;
+            const themeParam = isDarkMode() ? 'dark' : 'light';
+            frameLoaded = false;
+            f.addEventListener('load', () => {
+                frameLoaded = true;
+                setTimeout(() => syncThemeToFrame(), 300);
+            }, { once: true });
+            f.src = SOFTPHONE_URL + '?theme=' + themeParam + '&t=' + Date.now();
+        }
+
+        // ==========================================
+        // 1. DESKTOP MODE
+        // ==========================================
+        if (isDesktop) {
+            console.log('[Sokrat CRM Desktop] Running with persistent background telephony.');
+            if (panel) panel.remove();
+
+            window.addEventListener('beforeunload', () => {
+                desktopUnsubscribes.forEach(fn => {
+                    try { if (typeof fn === 'function') fn(); } catch (_) {}
+                });
+                desktopUnsubscribes = [];
+            });
+
+            // On every page mount: call getSoftphoneSnapshot() before rendering, then subscribe with cleanup
+            if (typeof window.sokratDesktop.getSoftphoneSnapshot === 'function') {
+                window.sokratDesktop.getSoftphoneSnapshot().then((snapshot) => {
+                    applySnapshot(snapshot);
+
+                    // Fetch /voip/softphone/session ONLY when idle or different extension
+                    if (snapshot.extension && snapshot.extension !== USER_EXTENSION) {
+                        console.log('[VoiceDock] Extension mismatch (' + snapshot.extension + ' vs ' + USER_EXTENSION + '), restarting session...');
+                        fetchSessionAndStart();
+                    } else if (snapshot.sessionState === 'idle') {
+                        console.log('[VoiceDock] Softphone session is idle, bootstrapping...');
+                        fetchSessionAndStart();
+                    } else if (snapshot.sessionState === 'signed_out') {
+                        console.log('[VoiceDock] Softphone is signed out, awaiting explicit reconnect action.');
+                    } else {
+                        console.log('[VoiceDock] Rehydrated existing softphone session (' + snapshot.sessionState + ').');
+                    }
+
+                    // Subscribe to authoritative snapshots
+                    if (typeof window.sokratDesktop.onSoftphoneSnapshot === 'function') {
+                        const unsub = window.sokratDesktop.onSoftphoneSnapshot((updatedSnapshot) => {
+                            applySnapshot(updatedSnapshot);
+                        });
+                        desktopUnsubscribes.push(unsub);
+                    }
+
+                    if (typeof window.sokratDesktop.onSoftphoneVisibility === 'function') {
+                        const unsub = window.sokratDesktop.onSoftphoneVisibility((payload) => {
+                            panelOpen = Boolean(payload?.visible);
+                        });
+                        desktopUnsubscribes.push(unsub);
+                    }
+
+                    if (typeof window.sokratDesktop.onIncomingCall === 'function') {
+                        const unsub = window.sokratDesktop.onIncomingCall((payload) => {
+                            currentIncomingCallId = payload?.callId || null;
+                            handleIncomingCall(payload?.phone || 'Unknown', currentIncomingCallId);
+                        });
+                        desktopUnsubscribes.push(unsub);
+                    }
+                }).catch((err) => {
+                    console.error('[VoiceDock] Failed to retrieve softphone snapshot:', err);
+                });
+            }
+        } else {
+            // ==========================================
+            // 2. NON-DESKTOP BROWSER FALLBACK MODE
+            // ==========================================
+            const themeObserver = new MutationObserver(() => syncThemeToFrame());
+            themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+
+            window.addEventListener('message', (e) => {
+                const f = frame || document.getElementById('sokratVoiceFrame');
+                if (!f || e.source !== f.contentWindow) return;
+                const isOriginAllowed = e.origin === window.location.origin || 
+                                        e.origin.includes('192.168.100.128') || 
+                                        e.origin.includes('localhost') || 
+                                        e.origin.includes('127.0.0.1');
+                if (!isOriginAllowed) return;
+                const msg = e.data;
+                if (!msg || msg.version !== 1 || typeof msg.type !== 'string') return;
+
+                const type = msg.type;
+                const payload = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
+
+                switch (type) {
+                    case 'sokrat.voice.ready':
+                        syncThemeToFrame();
+                        break;
+                    case 'sokrat.voice.registration': {
+                        const st = payload.state;
+                        if (st === 'REGISTERED') {
+                            setStatus('online');
+                            voiceState.registered = true;
+                            if (pendingDial && f && f.contentWindow) {
+                                const phoneToDial = pendingDial;
+                                pendingDial = null;
+                                setTimeout(() => {
+                                    f.contentWindow.postMessage({
+                                        version: 1,
+                                        type: 'sokrat.voice.dial',
+                                        requestId: Date.now().toString(36),
+                                        payload: { phone: phoneToDial, autoCall: true }
+                                    }, '*');
+                                }, 350);
+                            }
+                        } else if (st === 'DISCONNECTED' || st === 'AUTH_FAILED') {
+                            setStatus('offline');
+                            voiceState.registered = false;
+                            if (pendingDial) {
+                                showToast(st === 'AUTH_FAILED' ? 'فشل تسجيل الهاتف في السيرفر' : 'الهاتف غير متصل حالياً', 4000);
+                                pendingDial = null;
+                            }
+                        }
+                        break;
+                    }
+                    case 'sokrat.voice.incoming':
+                        currentIncomingCallId = payload.callId || null;
+                        handleIncomingCall(payload.phone || 'Unknown', currentIncomingCallId);
+                        break;
+                    case 'sokrat.voice.call_state': {
+                        const state = payload.state;
+                        if (state === 'confirmed' || state === 'in_call' || state === 'accepted') {
+                            voiceState.inCall = true;
+                            voiceState.callId = payload.callId;
+                            voiceState.remote = payload.phone || '';
+                            setStatus('incall');
+                            if (callInfo) callInfo.hidden = false;
+                            if (quickActions) quickActions.hidden = false;
+                            if (labelEl) labelEl.hidden = true;
+                            if (remoteEl) remoteEl.textContent = voiceState.remote;
+                            hideToast();
+                            const startTime = payload.callStartTime || payload.startTime || Date.now();
+                            startTimer(startTime);
+                        } else if (state === 'ended' || state === 'failed') {
+                            voiceState.inCall = false;
+                            voiceState.callId = null;
+                            currentIncomingCallId = null;
+                            voiceState.remote = '';
+                            setStatus(voiceState.registered ? 'online' : 'offline');
+                            if (callInfo) callInfo.hidden = true;
+                            if (quickActions) quickActions.hidden = true;
+                            if (labelEl) labelEl.hidden = false;
+                            hideToast();
+                            hideScreenPop();
+                            stopTimer();
+                        } else if (state === 'ringing') {
+                            setStatus('ringing');
+                        }
+                        break;
+                    }
+                    case 'sokrat.voice.mute_state':
+                        updateMuteUi(payload.isMuted);
+                        break;
+                }
+            });
+
+            window.addEventListener('beforeunload', (e) => {
+                if (voiceState.inCall) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!voiceState.inCall) return;
+                const link = e.target.closest('a[href]');
+                if (!link || !link.href || link.href.startsWith('#') || link.href.startsWith('javascript:')) return;
+                if (link.target === '_blank' || link.origin !== location.origin) return;
+                if (link.closest('#sokratLeadScreenPop') || link.closest('#sokratVoiceToast')) return;
+
+                e.preventDefault();
+                const choice = confirm('لديك مكالمة نشطة. هل تريد متابعة التنقل في الـ CRM؟\n(You have an active call. Navigating directly might disconnect audio unless opened in persistent window).');
+                if (choice) {
+                    window.location.href = link.href;
+                }
+            });
+
+            try {
+                const savedPanelOpen = sessionStorage.getItem('sokrat_voice_panel_open') === '1';
+                if (savedPanelOpen) {
+                    expandPanel();
+                } else {
+                    loadFreshSession();
+                }
+            } catch (_) {
+                loadFreshSession();
+            }
+        }
+
+        function expandPanel() {
+            if (isDesktop && window.sokratDesktop && typeof window.sokratDesktop.showSoftphone === 'function') {
+                panelOpen = true;
+                window.sokratDesktop.showSoftphone();
+                return;
+            }
+            if (panel) {
+                const f = getOrCreateFrame();
+                if (f && (!frameLoaded || !f.src || f.src === 'about:blank')) {
+                    loadFreshSession();
+                }
+                panel.removeAttribute('hidden');
+                panelOpen = true;
+                try { sessionStorage.setItem('sokrat_voice_panel_open', '1'); } catch (_) {}
+                setTimeout(() => syncThemeToFrame(), 300);
+            }
+        }
+
+        function collapsePanel() {
+            if (isDesktop && window.sokratDesktop && typeof window.sokratDesktop.hideSoftphone === 'function') {
+                panelOpen = false;
+                window.sokratDesktop.hideSoftphone();
+                return;
+            }
+            if (panel) {
+                panel.setAttribute('hidden', 'hidden');
+                panelOpen = false;
+                try { sessionStorage.setItem('sokrat_voice_panel_open', '0'); } catch (_) {}
+            }
+        }
+
+        toggle.addEventListener('click', () => {
+            if (panelOpen) collapsePanel();
+            else expandPanel();
+        });
+
+        if (muteBtn) {
+            muteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isDesktop) {
+                    if (typeof window.sokratDesktop.toggleMute === 'function') {
+                        window.sokratDesktop.toggleMute();
+                    } else if (typeof window.sokratDesktop.callAction === 'function') {
+                        window.sokratDesktop.callAction('toggle_mute', voiceState.callId);
+                    }
+                    return;
+                }
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage({ version: 1, type: 'sokrat.voice.toggle_mute' }, VOICE_ORIGIN);
+                }
+            });
+        }
+
+        if (hangupBtn) {
+            hangupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isDesktop) {
+                    if (typeof window.sokratDesktop.hangup === 'function') {
+                        window.sokratDesktop.hangup();
+                    } else if (typeof window.sokratDesktop.callAction === 'function') {
+                        window.sokratDesktop.callAction('hangup', voiceState.callId);
+                    }
+                    return;
+                }
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage({ version: 1, type: 'sokrat.voice.hangup' }, VOICE_ORIGIN);
+                }
+            });
+        }
+
+        window.__sokratVoiceTriggerDial = function(cleanPhone, leadName) {
+            if (leadName && remoteEl) remoteEl.textContent = leadName;
+
+            if (isDesktop) {
+                if (typeof window.sokratDesktop.showSoftphone === 'function') {
+                    window.sokratDesktop.showSoftphone();
+                }
+                window.sokratDesktop.dial(cleanPhone, leadName);
+                return;
+            }
+
+            expandPanel();
+            if (voiceState.registered && frame && frame.contentWindow) {
+                frame.contentWindow.postMessage({
+                    version: 1,
+                    type: 'sokrat.voice.dial',
+                    requestId: Date.now().toString(36),
+                    payload: { phone: cleanPhone, autoCall: true }
+                }, VOICE_ORIGIN);
+            } else {
+                pendingDial = cleanPhone;
+                showToast('جاري تجهيز الهاتف والاتصال...', 3500);
+            }
+        };
+
+        if (window.__sokratPendingDial) {
+            window.__sokratVoiceTriggerDial(window.__sokratPendingDial, window.__sokratPendingLeadName);
+            window.__sokratPendingDial = null;
+            window.__sokratPendingLeadName = null;
+        }
+
+        window.addEventListener('sokrat:voice-dial', (e) => {
+            if (e.detail?.phone && typeof window.__sokratVoiceTriggerDial === 'function') {
+                window.__sokratVoiceTriggerDial(e.detail.phone, e.detail.leadName);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-voice-dial]');
+            if (!btn) return;
+            if (btn.hasAttribute('data-transition-popup')) return;
+            e.preventDefault();
+            window.sokratVoiceDial(btn.dataset.voiceDial, btn.dataset.leadName);
+        });
+
+        function maskPhoneNumber(num) {
+            if (!num) return '';
+            const clean = String(num).trim();
+            if (clean.length < 7) return clean;
+            const isPlus = clean.startsWith('+');
+            const pfx = isPlus ? 5 : 4;
+            const sfx = 3;
+            if (clean.length <= (pfx + sfx)) return clean.slice(0, 3) + '****' + clean.slice(-2);
+            return clean.slice(0, pfx) + '****' + clean.slice(-sfx);
+        }
+
+        async function handleIncomingCall(phone, callId) {
+            const displayPhone = maskPhoneNumber(phone);
+            setStatus('ringing');
+            expandPanel();
+
+            const popModal = document.getElementById('sokratLeadScreenPop');
+            if (popModal) {
+                const popContent = popModal.querySelector('[data-pop-content]');
+                if (popContent) {
+                    popContent.innerHTML = `
+                        <div class="sokrat-screen-pop-caller">
+                            <span class="phone-num">${displayPhone}</span>
+                            <span class="badge-status">جاري البحث عن العميل...</span>
+                        </div>
+                    `;
+                }
+                popModal.hidden = false;
+            }
+
+            const callerEl = toast ? toast.querySelector('[data-toast-caller]') : null;
+            const leadsContainer = toast ? toast.querySelector('[data-toast-leads]') : null;
+            if (callerEl) callerEl.textContent = displayPhone;
+            if (leadsContainer) leadsContainer.replaceChildren();
+
+            try {
+                const res = await fetch(LEAD_LOOKUP_URL + '?phone=' + encodeURIComponent(phone), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
+                const data = await res.json();
+                if (callId && currentIncomingCallId !== callId) {
+                    return;
+                }
+                const leads = data.leads || [];
+
+                if (popModal) {
+                    const popContent = popModal.querySelector('[data-pop-content]');
+                    if (popContent) {
+                        if (leads.length === 0) {
+                            popContent.innerHTML = `
+                                <div class="sokrat-screen-pop-caller">
+                                    <span class="phone-num">${displayPhone}</span>
+                                    <span class="badge-status" style="background:#fee2e2;color:#991b1b;">عميل غير مسجل</span>
+                                </div>
+                                <div class="sokrat-pop-lead-card" style="text-align:center;padding:16px;">
+                                    <p style="margin:0 0 10px 0;font-size:13px;color:#64748b;">لا يوجد عميل مسجل بهذا الرقم في النظام</p>
+                                    <a href="/leads/create?phone=${encodeURIComponent(phone)}" class="sokrat-pop-btn sokrat-pop-btn-create">
+                                        <i class="bi bi-person-plus-fill"></i> إنشاء عميل جديد برقم ${phone}
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            const lead = leads[0];
+                            const leadName = lead.name || phone;
+                            const company = lead.company ? ` • ${lead.company}` : '';
+                            const stageName = lead.stage_name || 'عميل';
+                            const employee = lead.assigned_employee ? `المسؤول: ${lead.assigned_employee}` : '';
+                            const branchBadge = lead.branch_name ? `<span class="badge-branch" style="background:#eff6ff;color:#2563eb;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid #bfdbfe;"><i class="bi bi-geo-alt-fill"></i> ${lead.branch_name}</span>` : '';
+                            const statusText = lead.is_other_branch ? `عميل مسجل (${lead.branch_name || 'فرع آخر'})` : 'عميل مسجل';
+                            const statusBg = lead.is_other_branch ? '#eff6ff' : '#dcfce7';
+                            const statusColor = lead.is_other_branch ? '#1e40af' : '#15803d';
+
+                            popContent.innerHTML = `
+                                <div class="sokrat-screen-pop-caller">
+                                    <span class="phone-num">${displayPhone}</span>
+                                    <span class="badge-status" style="background:${statusBg};color:${statusColor};">${statusText}</span>
+                                </div>
+                                <div class="sokrat-pop-lead-card">
+                                    <div class="sokrat-pop-lead-name">${leadName}${company}</div>
+                                    <div class="sokrat-pop-lead-meta" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                        <span class="sokrat-pop-stage-badge">${stageName}</span>
+                                        ${branchBadge}
+                                        ${employee ? `<span><i class="bi bi-person-badge"></i> ${employee}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="sokrat-pop-actions">
+                                    <a href="${lead.url}" class="sokrat-pop-btn sokrat-pop-btn-primary">
+                                        <i class="bi bi-box-arrow-up-right"></i> عرض ملف العميل وسجل المتابعات
+                                    </a>
+                                    ${!lead.is_other_branch ? `
+                                    <button type="button" class="sokrat-pop-btn sokrat-pop-btn-secondary" onclick="window.sokratQuickNote('${lead.id}')">
+                                        <i class="bi bi-pencil-square"></i> إضافة ملاحظة
+                                    </button>` : ''}
+                                </div>
+                            `;
+                        }
+                    }
+                }
+
+                if (leadsContainer) {
+                    if (leads.length === 0) {
+                        const createBtn = document.createElement('a');
+                        createBtn.className = 'sokrat-voice-lead-link create';
+                        createBtn.href = '/leads/create?phone=' + encodeURIComponent(phone);
+                        createBtn.target = '_self';
+                        createBtn.innerHTML = '<i class="bi bi-person-plus-fill"></i> {{ __("crm.add_lead") ?? "إنشاء جهة اتصال جديدة" }}';
+                        leadsContainer.appendChild(createBtn);
+                    } else {
+                        leads.forEach(lead => {
+                            const leadLink = document.createElement('a');
+                            leadLink.className = 'sokrat-voice-lead-link';
+                            leadLink.href = lead.url;
+                            leadLink.target = '_self';
+                            leadLink.innerHTML = '<i class="bi bi-person-fill"></i> ' + lead.name + ' <small style="color:#64748b;margin-inline-start:auto;">#' + lead.id + '</small>';
+                            leadsContainer.appendChild(leadLink);
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('[Voice ScreenPop] Lookup error:', err);
+            }
+
+            if (toast) toast.hidden = false;
+
+            if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification('Sokrat Voice: ' + phone, {
+                    body: 'مكالمة واردة من ' + phone,
+                    icon: '/favicon.png',
+                    tag: 'sokrat-voice-incoming'
+                });
+            }
+        }
+
+        function hideToast() {
+            if (toast) toast.hidden = true;
+        }
+
+        function hideScreenPop() {
+            const pop = document.getElementById('sokratLeadScreenPop');
+            if (pop) pop.hidden = true;
+        }
+
+        function showToast(msg, duration) {
+            console.log('[VoiceDock Toast]', msg);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSokratVoice);
+    } else {
+        initSokratVoice();
+    }
+})();
+</script>
+@endif

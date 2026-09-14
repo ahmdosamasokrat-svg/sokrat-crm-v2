@@ -11,12 +11,14 @@ use App\Models\Lead;
 use App\Models\LeadFollowup;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
+use App\Models\PipelineStageCategory;
 use App\Models\User;
 use App\Security\CrmPermission;
 use App\Services\VoipService;
 use App\Support\CrmDatabaseGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 class DashboardController extends Controller
 {
@@ -721,16 +723,22 @@ class DashboardController extends Controller
             ->whereBetween('lsh.changed_at', [$startPeriod, $endPeriod])
             ->select('leads.id as lead_id', 'ls2.pipeline_stage_id as stage_id', DB::raw("DATE_FORMAT(lsh.changed_at, '%Y-%m') as ym"));
 
-        $stageCountsRaw = DB::query()
-            ->fromSub($q1->union($q2), 'u')
-            ->select('ym', 'stage_id', DB::raw('count(distinct lead_id) as count'))
-            ->groupBy('ym', 'stage_id')
-            ->get();
+        $timelineSql = $timelineLeadBase->toRawSql();
+        $chartCacheKey = 'crm.dashboard_timeline.' . md5($timelineSql . '_' . implode(',', $selectedStageIds) . '_' . $startPeriod->timestamp . '_' . $endPeriod->timestamp);
+        $stageCountLookup = Cache::remember($chartCacheKey, now()->addMinutes(5), static function () use ($q1, $q2): array {
+            $stageCountsRaw = DB::query()
+                ->fromSub($q1->union($q2), 'u')
+                ->select('ym', 'stage_id', DB::raw('count(distinct lead_id) as count'))
+                ->groupBy('ym', 'stage_id')
+                ->get();
 
-        $stageCountLookup = [];
-        foreach ($stageCountsRaw as $row) {
-            $stageCountLookup[$row->stage_id][$row->ym] = (int) $row->count;
-        }
+            $lookup = [];
+            foreach ($stageCountsRaw as $row) {
+                $lookup[$row->stage_id][$row->ym] = (int) $row->count;
+            }
+
+            return $lookup;
+        });
 
         $stageMonthlyData = [];
         foreach ($selectedChartStages as $stage) {
@@ -920,11 +928,41 @@ class DashboardController extends Controller
         $todayEnd = now()
             ->endOfDay();
 
+        $categories = PipelineStageCategory::query()
+            ->where('is_active', true)
+            ->withCount(['activeStages'])
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        $requestedCategoryId = $request->query('category_id');
+        $selectedCategoryId = null;
+        if ($requestedCategoryId !== null && $requestedCategoryId !== '' && $requestedCategoryId !== 'all') {
+            if ($requestedCategoryId === 'uncategorized') {
+                $selectedCategoryId = 'uncategorized';
+            } elseif (ctype_digit((string) $requestedCategoryId)) {
+                $catId = (int) $requestedCategoryId;
+                if ($categories->contains('id', $catId)) {
+                    $selectedCategoryId = $catId;
+                }
+            }
+        }
+
         $statuses = LeadStatus::query()
             ->visibleTo($user)
-            ->with('stage.activeFields')
-            ->whereHas('stage', static fn ($query) => $query->where('is_active', true))
-            ->orderBy('position')
+            ->with(['stage.activeFields', 'stage.category'])
+            ->whereHas('stage', static function (Builder $query) use ($selectedCategoryId): void {
+                $query->where('is_active', true);
+                if ($selectedCategoryId === 'uncategorized') {
+                    $query->whereNull('pipeline_stage_category_id');
+                } elseif (is_int($selectedCategoryId)) {
+                    $query->where('pipeline_stage_category_id', $selectedCategoryId);
+                }
+            })
+            ->join('pipeline_stages', 'pipeline_stages.id', '=', 'lead_statuses.pipeline_stage_id')
+            ->orderBy('pipeline_stages.position')
+            ->orderBy('lead_statuses.position')
+            ->select('lead_statuses.*')
             ->get();
         $kanbanColumns = [];
         $totalLeads = 0;
@@ -1094,6 +1132,9 @@ class DashboardController extends Controller
                 'class' => $ui['kanban_class'] ?: str_replace(['_', ' '], '-', (string) $status->code),
                 'status_color' => $status->color ?: ($status->stage?->color ?: '#3478f6'),
                 'stage_color' => $status->stage?->color ?: ($status->color ?: '#3478f6'),
+                'category_id' => $status->stage?->pipeline_stage_category_id,
+                'category_name' => $status->stage?->category?->name_ar,
+                'category_color' => $status->stage?->category?->color,
                 'total_count' => $totalCount,
                 'no_date_count' => $noDateCount,
                 'scope_counts' => $scopeCounts,
@@ -1108,6 +1149,8 @@ class DashboardController extends Controller
             'kanban',
             [
                 'kanbanColumns' => $kanbanColumns,
+                'categories' => $categories,
+                'selectedCategoryId' => $selectedCategoryId,
                 'totalLeads' => $totalLeads,
                 'canFilterByEmployee' => $canFilterByEmployee,
                 'employees' => $employees,
@@ -1567,18 +1610,22 @@ class DashboardController extends Controller
         $toStatusIds = $toStage->statuses->pluck('id')->all();
 
         if ($isSame) {
-            $denominator = (clone $leadBase)
-                ->where(static function (Builder $q) use ($fromStatusIds): void {
-                    $q->whereIn('leads.lead_status_id', $fromStatusIds);
-                    if (! empty($fromStatusIds)) {
-                        $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds): void {
-                            $hq->whereIn('to_status_id', $fromStatusIds)
-                                ->orWhereIn('from_status_id', $fromStatusIds);
-                        });
-                    }
-                })
-                ->distinct()
-                ->count('leads.id');
+            $rawSql = $leadBase->toRawSql();
+            $cacheKey = 'crm.stage_conversion.same.' . md5($memoKey . '_' . $rawSql);
+            $denominator = (int) Cache::remember($cacheKey, now()->addMinutes(3), static function () use ($leadBase, $fromStatusIds): int {
+                return (int) (clone $leadBase)
+                    ->where(static function (Builder $q) use ($fromStatusIds): void {
+                        $q->whereIn('leads.lead_status_id', $fromStatusIds);
+                        if (! empty($fromStatusIds)) {
+                            $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds): void {
+                                $hq->whereIn('to_status_id', $fromStatusIds)
+                                    ->orWhereIn('from_status_id', $fromStatusIds);
+                            });
+                        }
+                    })
+                    ->distinct()
+                    ->count('leads.id');
+            });
 
             return $this->stageConversionMemo[$memoKey] = [
                 'from_stage_id' => $fromStage->id,
@@ -1601,34 +1648,17 @@ class DashboardController extends Controller
         }
 
         // Forward Progression
-        $denominator = (clone $leadBase)
-            ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
-                $q->whereIn('leads.lead_status_id', $fromStatusIds);
-                if (! empty($toStatusIds)) {
-                    $q->orWhereIn('leads.lead_status_id', $toStatusIds);
-                }
-                if (! empty($fromStatusIds)) {
-                    $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
-                        $hq->whereIn('to_status_id', $fromStatusIds)
-                            ->orWhereIn('from_status_id', $fromStatusIds);
-                        if (! empty($toStatusIds)) {
-                            $hq->orWhereIn('to_status_id', $toStatusIds);
-                        }
-                    });
-                }
-            })
-            ->distinct()
-            ->count('leads.id');
-
-        $numerator = (clone $leadBase)
-            ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
-                $q->where(static function (Builder $sub) use ($fromStatusIds, $toStatusIds): void {
-                    $sub->whereIn('leads.lead_status_id', $fromStatusIds);
+        $rawSql = $leadBase->toRawSql();
+        $cacheKey = 'crm.stage_conversion.fwd.' . md5($memoKey . '_' . $rawSql);
+        [$denominator, $numerator] = Cache::remember($cacheKey, now()->addMinutes(3), static function () use ($leadBase, $fromStatusIds, $toStatusIds): array {
+            $den = (int) (clone $leadBase)
+                ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
+                    $q->whereIn('leads.lead_status_id', $fromStatusIds);
                     if (! empty($toStatusIds)) {
-                        $sub->orWhereIn('leads.lead_status_id', $toStatusIds);
+                        $q->orWhereIn('leads.lead_status_id', $toStatusIds);
                     }
                     if (! empty($fromStatusIds)) {
-                        $sub->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
+                        $q->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
                             $hq->whereIn('to_status_id', $fromStatusIds)
                                 ->orWhereIn('from_status_id', $fromStatusIds);
                             if (! empty($toStatusIds)) {
@@ -1636,18 +1666,41 @@ class DashboardController extends Controller
                             }
                         });
                     }
-                });
-            })
-            ->where(static function (Builder $q) use ($toStatusIds): void {
-                $q->whereIn('leads.lead_status_id', $toStatusIds);
-                if (! empty($toStatusIds)) {
-                    $q->orWhereHas('statusHistory', static function (Builder $hq) use ($toStatusIds): void {
-                        $hq->whereIn('to_status_id', $toStatusIds);
+                })
+                ->distinct()
+                ->count('leads.id');
+
+            $num = (int) (clone $leadBase)
+                ->where(static function (Builder $q) use ($fromStatusIds, $toStatusIds): void {
+                    $q->where(static function (Builder $sub) use ($fromStatusIds, $toStatusIds): void {
+                        $sub->whereIn('leads.lead_status_id', $fromStatusIds);
+                        if (! empty($toStatusIds)) {
+                            $sub->orWhereIn('leads.lead_status_id', $toStatusIds);
+                        }
+                        if (! empty($fromStatusIds)) {
+                            $sub->orWhereHas('statusHistory', static function (Builder $hq) use ($fromStatusIds, $toStatusIds): void {
+                                $hq->whereIn('to_status_id', $fromStatusIds)
+                                    ->orWhereIn('from_status_id', $fromStatusIds);
+                                if (! empty($toStatusIds)) {
+                                    $hq->orWhereIn('to_status_id', $toStatusIds);
+                                }
+                            });
+                        }
                     });
-                }
-            })
-            ->distinct()
-            ->count('leads.id');
+                })
+                ->where(static function (Builder $q) use ($toStatusIds): void {
+                    $q->whereIn('leads.lead_status_id', $toStatusIds);
+                    if (! empty($toStatusIds)) {
+                        $q->orWhereHas('statusHistory', static function (Builder $hq) use ($toStatusIds): void {
+                            $hq->whereIn('to_status_id', $toStatusIds);
+                        });
+                    }
+                })
+                ->distinct()
+                ->count('leads.id');
+
+            return [$den, $num];
+        });
 
         $rate = $denominator > 0 ? round(($numerator / $denominator) * 100, 1) : 0.0;
         $subtitle = __('crm.from_stage_prefix') . ' ' . $fromStage->localizedName() . ' ' . __('crm.to_stage_prefix') . ' ' . $toStage->localizedName();

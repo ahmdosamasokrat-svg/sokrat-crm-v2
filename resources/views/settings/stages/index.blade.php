@@ -46,6 +46,7 @@
                 <tr>
                     <th style="width:60px">{{ __('crm.order_col') }}</th>
                     <th>{{ __('crm.stage_name_col') }}</th>
+                    <th>{{ __('crm.stage_category') }}</th>
                     <th>{{ __('crm.type_col') }}</th>
                     <th>{{ __('crm.color_col') }}</th>
                     <th>{{ __('crm.leads_count_col') }}</th>
@@ -73,6 +74,15 @@
                                     @endif
                                 </div>
                             </div>
+                        </td>
+                        <td>
+                            @if ($stage->category)
+                                <a href="{{ route('v2.settings.stage_categories.index') }}" class="badge" style="background:{{ $stage->category->color }}1a; color:{{ $stage->category->color }}; border:1px solid {{ $stage->category->color }}40; font-size:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">
+                                    <i class="bi {{ $stage->category->icon ?: 'bi-collection' }}"></i> {{ $stage->category->name_ar }}
+                                </a>
+                            @else
+                                <span style="color:var(--muted); font-size:12px;">—</span>
+                            @endif
                         </td>
                         <td>
                             @if ($stage->isPrimary())
@@ -111,7 +121,7 @@
                                         <span class="badge" style="background:#6366f1; color:#fff; font-size:10px; padding:1px 5px; border-radius:10px; margin-inline-start:2px;">{{ (int) $stage->fields_count }}</span>
                                     @endif
                                 </a>
-                                <button type="button" class="btn small soft" style="padding:0 8px;" onclick="openEditModal({{ json_encode($stage) }})" title="{{ __('crm.edit') }}" aria-label="{{ __('crm.edit') }}">
+                                <button type="button" class="btn small soft" style="padding:0 8px;" onclick='openEditModal(@json($stage))' title="{{ __('crm.edit') }}" aria-label="{{ __('crm.edit') }}">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
 
@@ -124,7 +134,7 @@
                                         </button>
                                     </form>
                                 @else
-                                    <button type="button" class="btn small danger" style="padding:0 8px;" onclick="openSafeDeleteStageModal({{ json_encode($stage) }}, {{ (int) $stage->leads_count }})" title="حذف المرحلة ونقل/أرشفة العملاء" aria-label="{{ __('crm.delete') }}">
+                                    <button type="button" class="btn small danger" style="padding:0 8px;" onclick='openSafeDeleteStageModal(@json($stage), {{ (int) $stage->leads_count }})' title="حذف المرحلة ونقل/أرشفة العملاء" aria-label="{{ __('crm.delete') }}">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 @endif
@@ -174,8 +184,8 @@ $crmStageIcons = [
 @endphp
 
 <!-- MODAL: ADD STAGE -->
-<div id="addStageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center; padding:18px;">
-    <div style="background:#fff; border-radius:16px; max-width:520px; width:100%; max-height:calc(100dvh - 36px); overflow-y:auto; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+<div id="addStageModal" class="crm-body-modal-shell" style="display:none;" onclick="if(event.target===this && (Date.now() - (this._openedAt || 0) > 300)) this.style.display='none'">
+    <div class="crm-body-modal-dialog" style="max-width:520px;" onclick="event.stopPropagation()">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
             <h3 style="margin:0; font-size:18px;">{{ __('crm.add_stage_modal_title') }}</h3>
             <button type="button" onclick="document.getElementById('addStageModal').style.display='none'" style="border:0; background:transparent; font-size:22px; cursor:pointer">&times;</button>
@@ -224,6 +234,15 @@ $crmStageIcons = [
                     </div>
                 </div>
             </div>
+            <div style="margin-bottom:14px;">
+                <label>{{ __('crm.stage_category') }} <small style="color:var(--muted)">({{ __('crm.optional') }})</small></label>
+                <select name="pipeline_stage_category_id" style="width:100%; padding:10px 14px; border:1px solid #dbe1e9; border-radius:10px; font-size:14px; background:#fff; color:var(--dark);">
+                    <option value="">-- {{ __('crm.no_category_direct') }} --</option>
+                    @foreach ($categories as $cat)
+                        <option value="{{ $cat->id }}">{{ $cat->name_ar }}</option>
+                    @endforeach
+                </select>
+            </div>
             <div style="margin-bottom:18px;">
                 <label>{{ __('crm.description_optional') }}</label>
                 <textarea name="description_ar" rows="2" placeholder="{{ __('crm.description_optional') }}"></textarea>
@@ -237,8 +256,8 @@ $crmStageIcons = [
 </div>
 
 <!-- MODAL: EDIT STAGE -->
-<div id="editStageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center; padding:18px;">
-    <div style="background:#fff; border-radius:16px; max-width:520px; width:100%; max-height:calc(100dvh - 36px); overflow-y:auto; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+<div id="editStageModal" class="crm-body-modal-shell" style="display:none;" onclick="if(event.target===this && (Date.now() - (this._openedAt || 0) > 300)) this.style.display='none'">
+    <div class="crm-body-modal-dialog" style="max-width:520px;" onclick="event.stopPropagation()">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
             <h3 style="margin:0; font-size:18px;">{{ __('crm.edit_stage_modal_title') }}</h3>
             <button type="button" onclick="document.getElementById('editStageModal').style.display='none'" style="border:0; background:transparent; font-size:22px; cursor:pointer">&times;</button>
@@ -303,6 +322,15 @@ $crmStageIcons = [
                     </label>
                 </div>
             </div>
+            <div style="margin-bottom:14px;">
+                <label>{{ __('crm.stage_category') }} <small style="color:var(--muted)">({{ __('crm.optional') }})</small></label>
+                <select name="pipeline_stage_category_id" id="editStageCategoryId" style="width:100%; padding:10px 14px; border:1px solid #dbe1e9; border-radius:10px; font-size:14px; background:#fff; color:var(--dark);">
+                    <option value="">-- {{ __('crm.no_category_direct') }} --</option>
+                    @foreach ($categories as $cat)
+                        <option value="{{ $cat->id }}">{{ $cat->name_ar }}</option>
+                    @endforeach
+                </select>
+            </div>
             <div style="margin-bottom:18px;">
                 <label>{{ __('crm.description_optional') }}</label>
                 <textarea id="editStageDescription" name="description_ar" rows="2"></textarea>
@@ -315,8 +343,8 @@ $crmStageIcons = [
     </div>
 </div>
 <!-- MODAL: SAFE DELETE STAGE WITH LEADS -->
-<div id="safeDeleteStageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center; padding:18px;">
-    <div style="background:#fff; border-radius:16px; max-width:520px; width:100%; max-height:calc(100dvh - 36px); overflow-y:auto; padding:20px; box-shadow:0 20px 40px rgba(0,0,0,0.2);">
+<div id="safeDeleteStageModal" class="crm-body-modal-shell" style="display:none;" onclick="if(event.target===this && (Date.now() - (this._openedAt || 0) > 300)) closeSafeDeleteStageModal()">
+    <div class="crm-body-modal-dialog" style="max-width:520px;" onclick="event.stopPropagation()">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
             <h3 style="margin:0; font-size:18px; color:var(--red);"><i class="bi bi-exclamation-triangle"></i> حذف المرحلة: <span id="safeDeleteStageName"></span></h3>
             <button type="button" onclick="closeSafeDeleteStageModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
@@ -419,7 +447,9 @@ function openAddStageModal() {
     clearIconSelection('addStage');
     document.getElementById('stageColorPicker').value = '#7b61df';
     document.getElementById('stageColorInput').value = '#7b61df';
-    document.getElementById('addStageModal').style.display = 'flex';
+    const modal = document.getElementById('addStageModal');
+    modal._openedAt = Date.now();
+    modal.style.display = 'flex';
 }
 
 function openEditModal(stage) {
@@ -430,6 +460,7 @@ function openEditModal(stage) {
     document.getElementById('editStageColorInput').value = stage.color || '#3478f6';
     document.getElementById('editStageColorPicker').value = stage.color || '#3478f6';
     document.getElementById('editStageDescription').value = stage.description_ar || '';
+    document.getElementById('editStageCategoryId').value = stage.pipeline_stage_category_id || '';
 
     // Handle Icon in edit modal
     if (stage.icon && stage.icon.trim() !== '') {
@@ -450,7 +481,9 @@ function openEditModal(stage) {
         activeCb.checked = !!stage.is_active;
     }
 
-    document.getElementById('editStageModal').style.display = 'flex';
+    const modal = document.getElementById('editStageModal');
+    modal._openedAt = Date.now();
+    modal.style.display = 'flex';
 }
 
 function openSafeDeleteStageModal(stage, count) {
@@ -470,7 +503,9 @@ function openSafeDeleteStageModal(stage, count) {
         if (firstValid) select.value = firstValid.value;
     }
 
-    document.getElementById('safeDeleteStageModal').style.display = 'flex';
+    const modal = document.getElementById('safeDeleteStageModal');
+    modal._openedAt = Date.now();
+    modal.style.display = 'flex';
 }
 
 function onSafeDeleteActionChange(radio) {

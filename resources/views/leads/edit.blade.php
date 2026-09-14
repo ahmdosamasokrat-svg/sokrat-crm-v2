@@ -1352,169 +1352,8 @@
       </div>
      </section>
 
-     <section
-      class="form-section conditional reveal-panel is-hidden"
-      id="notInterestedSection"
-     >
-      <div class="section-head">
-       <h3>{{ __('crm.not_interested_reason') }}</h3>
-       <p>{{ __('crm.reason_required') }}</p>
-      </div>
-
-      <div class="field">
-       <label for="disinterestReason">
-        {{ __('crm.not_interested_reason') }}
-        <span class="required">*</span>
-       </label>
-
-       <textarea
-        id="disinterestReason"
-        name="disinterest_reason"
-        maxlength="5000"
-       >{{ old('disinterest_reason', $lead->disinterest_reason) }}</textarea>
-      </div>
-     </section>
-
-     <section
-      class="form-section conditional reveal-panel quotation-card is-hidden"
-      id="quotationSection"
-     >
-      <div class="section-head quotation-section-head">
-       <h3>{{ __('crm.quotation_data') }}</h3>
-       <p>
-        تظهر هذه البيانات في مراحل عرض سعر، مناقشة،
-        تقفيل عقد وتنفيذ.
-       </p>
-      </div>
-
-      <div class="fields">
-       <div class="field">
-        <label for="solutionType">
-         {{ __('crm.system_type') }}
-         <span class="required">*</span>
-        </label>
-
-        <select
-         class="quotation-select"
-         id="solutionType"
-         name="solution_type"
-        >
-         <option value="">{{ __('crm.select_system_type') }}</option>
-
-         <option
-          value="call_center"
-          @selected(old('solution_type', $lead->solution_type) === 'call_center')
-         >
-          Call Center
-         </option>
-
-         <option
-          value="erp"
-          @selected(old('solution_type', $lead->solution_type) === 'erp')
-         >
-          ERP
-         </option>
-        </select>
-       </div>
-
-       <div class="field">
-        <label for="quotationFile">
-         ملف عرض السعر
-
-         @if ($hasQuotationFile)
-          <span class="optional">
-           (اختياري — يوجد ملف حالي)
-          </span>
-         @else
-          <span class="required">*</span>
-         @endif
-        </label>
-
-        <input
-         class="quotation-file"
-         id="quotationFile"
-         type="file"
-         name="quotation_file"
-         accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-        >
-
-        <span
-         class="help quotation-file-help{{ $hasQuotationFile ? ' has-file' : '' }}"
-         id="quotationFileHelp"
-         aria-live="polite"
-        >
-         {{ $quotationFileHelpText }}
-        </span>
-
-        @if ($hasQuotationFile)
-         <a
-          class="quotation-preview-link"
-          href="{{ route('v2.leads.quotation.preview', $lead) }}"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="معاينة ملف عرض السعر: {{ $quotationFileName }}"
-         >
-          <span aria-hidden="true">👁</span>
-          {{ __('crm.preview_quotation') }}
-         </a>
-        @endif
-       </div>
-      </div>
-
-      <div
-       class="fields quotation-detail-panel reveal-panel is-hidden"
-       id="callCenterFields"
-      >
-       <div class="field">
-        <label for="linesCount">
-         {{ __('crm.line_count') }}
-         <span class="required">*</span>
-        </label>
-
-        <input
-         id="linesCount"
-         type="number"
-         name="lines_count"
-         value="{{ old('lines_count', $lead->lines_count) }}"
-         min="1"
-         max="1000000"
-        >
-       </div>
-
-       <div class="field full">
-        <label for="extensions">
-         {{ __('crm.accessories') }}
-         <span class="required">*</span>
-        </label>
-
-        <textarea
-         id="extensions"
-         name="extensions"
-         maxlength="5000"
-         placeholder="{{ __('crm.accessories_placeholder') }}"
-        >{{ old('extensions', $lead->extensions) }}</textarea>
-       </div>
-      </div>
-
-      <div
-       class="fields quotation-detail-panel reveal-panel is-hidden"
-       id="erpFields"
-      >
-       <div class="field full">
-        <label for="departments">
-         {{ __('crm.departments') }}
-         <span class="required">*</span>
-        </label>
-
-        <textarea
-         id="departments"
-         name="departments"
-         maxlength="5000"
-         placeholder="{{ __('crm.departments_placeholder') }}"
-        >{{ old('departments', $lead->departments) }}</textarea>
-       </div>
-      </div>
-     </section>
+      {{-- Obsolete duplicate stage-question panels (notInterestedSection, quotationSection)
+           have been removed in favor of the authoritative dynamic Stage Questions section (#stageQuestionsSection). --}}
 
      <div class="form-actions">
       <a
@@ -1633,193 +1472,64 @@
     });
    });
 
-  const statusSelect =
-   document.getElementById('leadStatus');
+   const statusSelect =
+    document.getElementById('leadStatus');
 
-  const businessSection =
-   document.getElementById('businessDetailsSection');
+   const businessSection =
+    document.getElementById('businessDetailsSection');
 
-  const noAnswerSection =
-   document.getElementById('noAnswerSection');
+   const noAnswerSection =
+    document.getElementById('noAnswerSection');
 
-  const notInterestedSection =
-   document.getElementById('notInterestedSection');
+   const selectedStatusCode = () => {
+    const option =
+     statusSelect?.options[statusSelect?.selectedIndex];
 
-  const quotationSection =
-   document.getElementById('quotationSection');
+    return option?.dataset?.code || '';
+   };
 
-  const solutionType =
-   document.getElementById('solutionType');
+   const updateStatusSections = () => {
+    const code = selectedStatusCode();
 
-  const callCenterFields =
-   document.getElementById('callCenterFields');
+    const businessActive = [
+     'interested',
+     'no_answer',
+     'meeting',
+     'quotation',
+     'discussion',
+     'contract_closed',
+     'execution'
+    ].includes(code);
 
-  const erpFields =
-   document.getElementById('erpFields');
+    const noAnswerActive =
+     code === 'no_answer';
 
-  const disinterestReason =
-   document.getElementById('disinterestReason');
-
-  const quotationFile =
-   document.getElementById('quotationFile');
-
-  const hasExistingQuotationFile =
-   @json($hasQuotationFile);
-
-  const quotationFileDefaultHelp =
-   @json($quotationFileHelpText);
-
-  const linesCount =
-   document.getElementById('linesCount');
-
-  const extensions =
-   document.getElementById('extensions');
-
-  const departments =
-   document.getElementById('departments');
-
-  const quotationStageCodes = [
-   'quotation',
-   'discussion',
-   'contract_closed',
-   'execution'
-  ];
-
-  const selectedStatusCode = () => {
-   const option =
-    statusSelect.options[statusSelect.selectedIndex];
-
-   return option?.dataset?.code || '';
-  };
-
-  const updateSolutionFields = () => {
-   const quotationActive =
-    quotationStageCodes.includes(
-     selectedStatusCode()
+    businessSection?.classList.toggle(
+     'is-hidden',
+     !businessActive
     );
 
-   const type = quotationActive
-    ? solutionType.value
-    : '';
-
-   const callCenterActive =
-    type === 'call_center';
-
-   const erpActive =
-    type === 'erp';
-
-   callCenterFields.classList.toggle(
-    'is-hidden',
-    !callCenterActive
-   );
-
-   erpFields.classList.toggle(
-    'is-hidden',
-    !erpActive
-   );
-
-   linesCount.required = callCenterActive;
-   extensions.required = callCenterActive;
-   departments.required = erpActive;
-  };
-
-  const updateStatusSections = () => {
-   const code = selectedStatusCode();
-
-   const businessActive = [
-    'interested',
-    'no_answer',
-    'meeting',
-    'quotation',
-    'discussion',
-    'contract_closed',
-    'execution'
-   ].includes(code);
-
-   const noAnswerActive =
-    code === 'no_answer';
-
-   const notInterestedActive =
-    code === 'not_interested';
-
-   const quotationActive =
-    quotationStageCodes.includes(code);
-
-   businessSection.classList.toggle(
-    'is-hidden',
-    !businessActive
-   );
-
-   noAnswerSection.classList.toggle(
-    'is-hidden',
-    !noAnswerActive
-   );
-
-   notInterestedSection.classList.toggle(
-    'is-hidden',
-    !notInterestedActive
-   );
-
-   quotationSection.classList.toggle(
-    'is-hidden',
-    !quotationActive
-   );
-
-   disinterestReason.required =
-    notInterestedActive;
-
-   solutionType.required =
-    quotationActive;
-
-   quotationFile.required =
-    quotationActive
-    && !hasExistingQuotationFile;
-
-   updateSolutionFields();
-  };
-
-  statusSelect.addEventListener(
-   'change',
-   updateStatusSections
-  );
-
-  solutionType.addEventListener(
-   'change',
-   updateSolutionFields
-  );
-
-  const quotationFileHelp =
-   document.getElementById('quotationFileHelp');
-
-  quotationFile?.addEventListener(
-   'change',
-   () => {
-    const file = quotationFile.files?.[0];
-
-    quotationFileHelp?.classList.toggle(
-     'has-file',
-     Boolean(file)
-     || hasExistingQuotationFile
+    noAnswerSection?.classList.toggle(
+     'is-hidden',
+     !noAnswerActive
     );
+   };
 
-    if (quotationFileHelp) {
-     quotationFileHelp.textContent = file
-      ? 'تم اختيار الملف: ' + file.name
-      : quotationFileDefaultHelp;
-    }
-   }
-  );
+   statusSelect?.addEventListener(
+    'change',
+    updateStatusSections
+   );
 
-  document
-   .getElementById('followUpButton')
-   .addEventListener('click', () => {
-    window.alert(
-     'سيتم تفعيل تسجيل المتابعة في المرحلة القادمة.'
-    );
-   });
+   document
+    .getElementById('followUpButton')
+    ?.addEventListener('click', () => {
+     window.alert(
+      'سيتم تفعيل تسجيل المتابعة في المرحلة القادمة.'
+     );
+    });
 
-  updateStatusSections();
- })();
+   updateStatusSections();
+  })();
 </script>
 </body>
 </html>

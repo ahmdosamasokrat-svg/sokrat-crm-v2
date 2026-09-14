@@ -362,7 +362,12 @@ class StageFieldSchema
         $referencedKeys = self::extractReferencedFields($field->conditions);
         foreach ($referencedKeys as $refKey) {
             $parentField = $allFields->firstWhere('key', $refKey);
-            if ($parentField && ! empty($parentField->conditions)) {
+            // If the referenced parent field does not exist or is inactive,
+            // the dependent field must be treated as NOT APPLICABLE
+            if (! $parentField || ! $parentField->is_active) {
+                return false;
+            }
+            if (! empty($parentField->conditions)) {
                 if (! self::evaluateFieldApplicability($parentField, $data, $allFields, $visited)) {
                     return false;
                 }
@@ -599,22 +604,46 @@ class StageFieldSchema
     }
 
     /**
-     * Validate and extract stage fields from incoming raw request input.
+     * Extract and normalize raw stage field data from a Request or raw array,
+     * merging both scalar inputs and uploaded files into a unified array.
+     */
+    public static function extractStageInputs(mixed $source): array
+    {
+        if ($source instanceof \Illuminate\Http\Request) {
+            $inputFields = $source->input('stage_fields', []);
+            $fileFields = $source->file('stage_fields', []);
+
+            $inputs = is_array($inputFields) ? $inputFields : [];
+            $files = is_array($fileFields) ? $fileFields : [];
+
+            return array_replace_recursive($inputs, $files);
+        }
+
+        if (is_array($source)) {
+            if (isset($source['stage_fields']) && is_array($source['stage_fields'])) {
+                return $source['stage_fields'];
+            }
+            return $source;
+        }
+
+        return [];
+    }
+
+    /**
+     * Validate and extract stage fields from incoming raw request input or Request object.
      *
      * @throws ValidationException
      */
     public static function validateAndExtract(
         PipelineStage|int $stage,
-        array $rawInput,
+        mixed $rawInput,
         ?User $actor = null
     ): array {
         $activeFields = self::getFieldsForStage($stage, true);
         $stageModel = $stage instanceof PipelineStage ? $stage : PipelineStage::query()->find($stage);
         $stageId = $stageModel?->id ?? (int) $stage;
 
-        $submitted = isset($rawInput['stage_fields']) && is_array($rawInput['stage_fields'])
-            ? $rawInput['stage_fields']
-            : $rawInput;
+        $submitted = self::extractStageInputs($rawInput);
 
         // Security check 1: Disallow arbitrary unknown keys
         $activeKeys = $activeFields->pluck('key')->all();
@@ -862,13 +891,22 @@ class StageFieldSchema
                     // Format canonical value according to column type
                     $cfg = PipelineStageField::CANONICAL_FIELDS[$target];
                     if (in_array($cfg['type'], ['number', 'integer'], true)) {
-                        $canonical[$target] = $val !== null && is_numeric($val) ? 0 + $val : null;
+                        $formattedVal = $val !== null && is_numeric($val) ? 0 + $val : null;
                     } elseif (in_array($cfg['type'], ['checkbox', 'boolean'], true)) {
-                        $canonical[$target] = $val !== null ? filter_var($val, FILTER_VALIDATE_BOOLEAN) : false;
+                        $formattedVal = $val !== null ? filter_var($val, FILTER_VALIDATE_BOOLEAN) : false;
                     } elseif (is_array($val) && isset($val['path'])) {
-                        $canonical[$target] = (string) $val['path'];
+                        $formattedVal = (string) $val['path'];
                     } else {
-                        $canonical[$target] = $val !== null ? (is_scalar($val) ? trim((string) $val) : json_encode($val)) : null;
+                        $formattedVal = $val !== null ? (is_scalar($val) ? trim((string) $val) : json_encode($val)) : null;
+                        if ($formattedVal === '') {
+                            $formattedVal = null;
+                        }
+                    }
+
+                    // Protect against overwriting existing/validated lead attributes with null
+                    // when an optional canonical stage field was left empty
+                    if ($formattedVal !== null) {
+                        $canonical[$target] = $formattedVal;
                     }
                 }
             } else {

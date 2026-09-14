@@ -57,10 +57,9 @@
     root.classList.add('crm-sidebar-collapsed');
    }
    const savedTheme = localStorage.getItem('sokrat.crm.theme');
-   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
    root.classList.toggle(
     'dark-mode',
-    savedTheme === 'dark' || (savedTheme !== 'light' && prefersDark)
+    savedTheme === 'dark'
    );
   } catch (error) {}
  })();
@@ -89,9 +88,14 @@
   href="{{ route('dashboard') }}"
  >
   <img
-   class="logo"
+   class="logo crm-logo-light"
    src="{{ asset('images/sokrat-pro-tech.png') }}"
    alt="Sokrat PRO"
+  >
+  <img
+   class="logo crm-logo-dark"
+   src="{{ asset('images/sokrat-pro-tech-dark.png') }}"
+   alt="Sokrat PRO Tech"
   >
 
   <span>
@@ -399,7 +403,7 @@
   @endcan
   @endif
 
-  @if(auth()->user()?->can('technical_support.view') || auth()->user()?->can('technical_support.reports') || auth()->user()?->can('technical_support.tasks.manage') || ($crmSidebarHasSupportTasks ?? false))
+  @can('technical_support.view')
   <div>
    <button
     class="crm-toggle toggle {{ $crmSidebarTechnicalSupportActive ? 'active' : '' }}"
@@ -420,7 +424,6 @@
    >
     <div class="crm-sub-inner">
      <nav>
-      @can('technical_support.view')
       <a
        class="{{ request()->routeIs('v2.technical-support.index', 'v2.technical-support.cards.*', 'v2.technical-support.tickets.*', 'v2.technical-support.ips.*', 'v2.technical-support.devices.*') ? 'active' : '' }}"
        href="{{ route('v2.technical-support.index') }}"
@@ -433,7 +436,6 @@
       >
        {{ __('crm.support_team') }}
       </a>
-      @endcan
       @can('technical_support.reports')
       <a
        class="{{ request()->routeIs('v2.technical-support.reports') ? 'active' : '' }}"
@@ -452,7 +454,7 @@
     </div>
    </div>
   </div>
-  @endif
+  @endcan
 
 
   @can('settings.access')
@@ -475,6 +477,7 @@
 
 @once
 <script src="{{ asset('quotation-generator/crm-sidebar.js') }}?v=crm-sidebar-drawer-v2"></script>
+<script src="{{ asset('crm-dropdown.js') }}?v=1.0.1"></script>
 @endonce
 <!-- CRM TASK SIDEBAR ACTIVE STATUS START -->
 <style>

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Models\PipelineStage;
+use App\Models\PipelineStageCategory;
 use App\Support\CrmDatabaseGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -25,10 +26,17 @@ class PipelineStageController extends Controller
         PipelineStage::repairOrphanStages();
 
         $stages = PipelineStage::query()
+            ->with(['category'])
             ->withCount([
                 'leads',
                 'fields' => static fn ($q) => $q->whereNull('deleted_at'),
             ])
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        $categories = PipelineStageCategory::query()
+            ->where('is_active', true)
             ->orderBy('position')
             ->orderBy('id')
             ->get();
@@ -39,6 +47,7 @@ class PipelineStageController extends Controller
 
         return view('settings.stages.index', [
             'stages' => $stages,
+            'categories' => $categories,
             'totalStagesCount' => $totalStagesCount,
             'primaryStagesCount' => $primaryStagesCount,
             'customStagesCount' => $customStagesCount,
@@ -51,6 +60,7 @@ class PipelineStageController extends Controller
 
         $validated = $request->validate([
             'name_ar' => ['required', 'string', 'max:100'],
+            'pipeline_stage_category_id' => ['nullable', 'integer', 'exists:pipeline_stage_categories,id'],
             'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'icon' => ['nullable', 'string', 'max:50'],
             'description_ar' => ['nullable', 'string', 'max:255'],
@@ -67,6 +77,7 @@ class PipelineStageController extends Controller
 
             PipelineStage::query()->create([
                 'code' => $code,
+                'pipeline_stage_category_id' => ! empty($validated['pipeline_stage_category_id']) ? (int) $validated['pipeline_stage_category_id'] : null,
                 'name_ar' => trim($validated['name_ar']),
                 'description_ar' => $validated['description_ar'] ?? null,
                 'position' => $nextPosition,
@@ -90,6 +101,7 @@ class PipelineStageController extends Controller
 
         $validated = $request->validate([
             'name_ar' => ['required', 'string', 'max:100'],
+            'pipeline_stage_category_id' => ['nullable', 'integer', 'exists:pipeline_stage_categories,id'],
             'color' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'icon' => ['nullable', 'string', 'max:50'],
             'position' => ['required', 'integer', 'min:1', 'max:255'],
@@ -148,6 +160,7 @@ class PipelineStageController extends Controller
 
             $stage->update([
                 'name_ar' => trim($validated['name_ar']),
+                'pipeline_stage_category_id' => ! empty($validated['pipeline_stage_category_id']) ? (int) $validated['pipeline_stage_category_id'] : null,
                 'color' => $validated['color'] ?? $stage->color,
                 'icon' => array_key_exists('icon', $validated) ? (! empty($validated['icon']) ? trim($validated['icon']) : null) : $stage->icon,
                 'position' => $newPosition,
@@ -162,6 +175,9 @@ class PipelineStageController extends Controller
                 if ((int) $st->position !== $pos) {
                     $st->update(['position' => $pos]);
                 }
+                LeadStatus::query()
+                    ->where('pipeline_stage_id', $st->id)
+                    ->update(['position' => $pos]);
                 $pos++;
             }
 
@@ -332,6 +348,9 @@ class PipelineStageController extends Controller
                         if ((int) $st->position !== $pos) {
                             $st->update(['position' => $pos]);
                         }
+                        LeadStatus::query()
+                            ->where('pipeline_stage_id', $st->id)
+                            ->update(['position' => $pos]);
                         $pos++;
                     }
                 });
@@ -358,6 +377,9 @@ class PipelineStageController extends Controller
                 if ((int) $st->position !== $pos) {
                     $st->update(['position' => $pos]);
                 }
+                LeadStatus::query()
+                    ->where('pipeline_stage_id', $st->id)
+                    ->update(['position' => $pos]);
                 $pos++;
             }
         });

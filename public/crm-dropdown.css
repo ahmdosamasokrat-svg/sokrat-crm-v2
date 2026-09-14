@@ -1,0 +1,312 @@
+/* ==========================================================================
+   SOKRAT CRM UNIFIED CUSTOM DROPDOWN SYSTEM
+   Matches SokratCRM Design System (DESIGN.md) - Bilingual RTL/LTR & Dark Mode
+   ========================================================================== */
+
+.crm-dropdown {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  min-width: 160px;
+  font-family: Tajawal, Tahoma, Arial, sans-serif;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.crm-dropdown * {
+  box-sizing: border-box;
+}
+
+/* Trigger Button */
+.crm-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 14px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  color: #172033;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  text-align: start;
+  gap: 10px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.crm-dropdown-trigger:hover {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.crm-dropdown.is-open .crm-dropdown-trigger,
+.crm-dropdown-trigger:focus-visible {
+  border-color: #dc2637;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(220, 38, 55, 0.16);
+}
+
+.crm-dropdown-leading-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: color 0.18s ease;
+}
+
+.crm-dropdown.is-open .crm-dropdown-leading-icon,
+.crm-dropdown-trigger:hover .crm-dropdown-leading-icon {
+  color: #dc2637;
+}
+
+.crm-dropdown-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-dropdown-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease;
+}
+
+.crm-dropdown.is-open .crm-dropdown-chevron {
+  transform: rotate(180deg);
+  color: #dc2637;
+}
+
+/* Dropdown Menu Popup */
+.crm-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  width: 100%;
+  min-width: 220px;
+  max-width: 380px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.05);
+  padding: 6px;
+  z-index: 99999;
+  display: none;
+  animation: crmDropdownSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes crmDropdownSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.crm-dropdown.is-open .crm-dropdown-menu {
+  display: block;
+}
+
+/* Live Search inside Dropdown */
+.crm-dropdown-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+}
+
+.crm-dropdown-search-icon {
+  position: absolute;
+  inset-inline-start: 14px;
+  color: #94a3b8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.crm-dropdown-search-input {
+  width: 100%;
+  height: 34px;
+  padding-inline-start: 30px;
+  padding-inline-end: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #172033;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.crm-dropdown-search-input:focus {
+  border-color: #dc2637;
+  background: #ffffff;
+}
+
+/* Options List */
+.crm-dropdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0;
+  max-height: 250px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.crm-dropdown-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.crm-dropdown-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.crm-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #172033;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+  gap: 8px;
+}
+
+.crm-dropdown-item:hover,
+.crm-dropdown-item.is-focused {
+  background-color: #f1f5f9;
+  color: #dc2637;
+}
+
+.crm-dropdown-item.is-selected {
+  background-color: rgba(220, 38, 55, 0.08);
+  color: #dc2637;
+  font-weight: 800;
+}
+
+.crm-dropdown-item-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-dropdown-check {
+  display: none;
+  color: #dc2637;
+  flex-shrink: 0;
+}
+
+.crm-dropdown-item.is-selected .crm-dropdown-check {
+  display: inline-flex;
+}
+
+.crm-dropdown-no-results {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Dark Mode Theme */
+html.dark-mode .crm-dropdown-trigger,
+html.dark .crm-dropdown-trigger,
+[data-theme="dark"] .crm-dropdown-trigger {
+  background: #202631;
+  border-color: #333b49;
+  color: #f3f5f8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+html.dark-mode .crm-dropdown-trigger:hover,
+html.dark .crm-dropdown-trigger:hover,
+[data-theme="dark"] .crm-dropdown-trigger:hover {
+  background: #272e3a;
+  border-color: #475569;
+}
+
+html.dark-mode .crm-dropdown.is-open .crm-dropdown-trigger,
+html.dark .crm-dropdown.is-open .crm-dropdown-trigger,
+[data-theme="dark"] .crm-dropdown.is-open .crm-dropdown-trigger {
+  background: #202631;
+  border-color: #dc2637;
+  box-shadow: 0 0 0 3.5px rgba(220, 38, 55, 0.25);
+}
+
+html.dark-mode .crm-dropdown-menu,
+html.dark .crm-dropdown-menu,
+[data-theme="dark"] .crm-dropdown-menu {
+  background: #202631;
+  border-color: #333b49;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+html.dark-mode .crm-dropdown-search-wrap,
+html.dark .crm-dropdown-search-wrap,
+[data-theme="dark"] .crm-dropdown-search-wrap {
+  border-color: #2e3846;
+}
+
+html.dark-mode .crm-dropdown-search-input,
+html.dark .crm-dropdown-search-input,
+[data-theme="dark"] .crm-dropdown-search-input {
+  background: #1a202c;
+  border-color: #333b49;
+  color: #f3f5f8;
+}
+
+html.dark-mode .crm-dropdown-search-input:focus,
+html.dark .crm-dropdown-search-input:focus,
+[data-theme="dark"] .crm-dropdown-search-input:focus {
+  border-color: #dc2637;
+  background: #202631;
+}
+
+html.dark-mode .crm-dropdown-item,
+html.dark .crm-dropdown-item,
+[data-theme="dark"] .crm-dropdown-item {
+  color: #f3f5f8;
+}
+
+html.dark-mode .crm-dropdown-item:hover,
+html.dark .crm-dropdown-item:hover,
+[data-theme="dark"] .crm-dropdown-item:hover {
+  background: #2a3443;
+  color: #f87171;
+}
+
+html.dark-mode .crm-dropdown-item.is-selected,
+html.dark .crm-dropdown-item.is-selected,
+[data-theme="dark"] .crm-dropdown-item.is-selected {
+  background: rgba(220, 38, 55, 0.22);
+  color: #f87171;
+}
+
+html.dark-mode .crm-dropdown-check,
+html.dark .crm-dropdown-check,
+[data-theme="dark"] .crm-dropdown-check {
+  color: #f87171;
+}

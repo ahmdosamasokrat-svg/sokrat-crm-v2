@@ -41,9 +41,16 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        $request->user()->forceFill([
-            'last_login_at' => now(),
-        ])->save();
+        $user = $request->user();
+        if ($user !== null) {
+            $user->forceFill([
+                'last_login_at' => now(),
+                'locale' => 'ar',
+            ])->save();
+
+            // Default to Arabic on login
+            session(['locale' => 'ar']);
+        }
 
         return redirect()->intended(route('dashboard'));
     }

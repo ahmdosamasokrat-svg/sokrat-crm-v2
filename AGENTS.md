@@ -1,105 +1,89 @@
-# Repository Guidelines
+# PROJECT KNOWLEDGE BASE
 
-## Project Overview
+**Generated:** 2026-09-13
+**Commit:** 12cfd58
+**Branch:** main
 
-SokratCRM V2 is a Laravel 13 CRM for authenticated, active employees. It centralizes lead lifecycle and pipeline management, Kanban workflows, quotations, follow-ups/tasks, campaigns, reports, imports/exports, notifications, RBAC, VoIP, and technical-support network status. The production target is Ubuntu 24.04.4 with Apache and MySQL/MariaDB.
+## OVERVIEW
+SokratCRM V2 is a Laravel 13 CRM on PHP 8.3 & MySQL running on Ubuntu 24.04. It centralizes lead pipelines, dynamic stage forms, quotations, task scheduling, campaigns, RBAC, VoIP, and notifications.
 
-The UI is bilingual Arabic/English. Preserve the existing RTL/LTR behavior, shared shell, and design system when changing operational pages; see `PRODUCT.md` and `DESIGN.md`.
-
-## Architecture & Data Flow
-
-- `public/index.php` and `artisan` are the HTTP and CLI entry points. Laravel is configured in `bootstrap/app.php` with `routes/web.php` and `routes/console.php`.
-- `routes/web.php` contains login/language routes, a throttled public Twilio status webhook, and the main authenticated route group. Most application routes require both `auth` and `active`, then apply permission middleware such as `can:leads.view`.
-- `SetLocaleMiddleware` resolves Arabic/English locale behavior; `EnsureUserIsActive` prevents disabled accounts from continuing to use authenticated sessions.
-- Controllers validate requests, authorize, query Eloquent models/repositories, and return Blade views, redirects, or JSON for web interactions. There is no separate API route tree; JSON endpoints are session-authenticated web routes.
-- Domain logic belongs in services/support classes rather than growing controllers. Lead transitions use `LeadTransitionService` and database transactions with row locking, validation, canonical-field updates, campaign synchronization, and history/value persistence.
-- Models define relationships, scopes, policies, and access boundaries. `Lead::accessibleTo()` and related permission logic are security-critical; do not replace scoped queries with unrestricted model access.
-- Persistence is MySQL-backed. Migrations establish users/cache/jobs, pipeline stages/statuses, leads, access control, dynamic stage fields, documents/trash, calendar, campaigns, quotations, notifications, and technical-support data. `CrmDatabaseGuard` rejects an unexpected database in core flows.
-- Notifications are planned on the minute, deduplicated, claimed transactionally, and delivered through queued jobs. Channel settings live in `config/crm_notifications.php`; external integrations include Tailscale (`TailscaleStatusService`) and VoIP (`VoipService`). Infrastructure unavailability should render a recoverable state, not crash the page.
-- Blade is the primary frontend boundary. Shared pieces live under `resources/views/partials/` (sidebar, topbar, notification center); page-specific CSS/JavaScript is often inline or under `public/`. `resources/js/app.js` currently has no application behavior, so do not assume a conventional SPA entry point.
-
-## Key Directories
-
-- `app/Http/Controllers/`: HTTP orchestration for leads, dashboard, calendar, campaigns, quotations, reports, notifications, VoIP, technical support, and settings.
-- `app/Http/Requests/`: request validation, including settings and campaign forms.
-- `app/Models/`: Eloquent entities, relationships, casts, scopes, and model-level access behavior.
-- `app/Services/`, `app/Services/Reports/`: transactional/domain workflows and reporting.
-- `app/Support/`, `app/Security/`, `app/Policies/`: reusable schema/filter logic, permission and assignment boundaries, and authorization.
-- `app/Jobs/`, `app/Notifications/`, `app/Mail/`, `app/Observers/`: deferred notifications and model-driven side effects.
-- `database/migrations/`, `database/seeders/`, `database/factories/`: schema, CRM/RBAC bootstrap data, and test factories.
-- `resources/views/`: Blade layouts, pages, and shared partials; `resources/css/`: Tailwind entry styles.
-- `public/`: published CSS/JS and standalone modules such as `crm-notifications.js` and `quotation-generator/`.
-- `routes/`: HTTP and scheduled CLI routes.
-- `tests/Unit/`, `tests/Feature/`: PHPUnit unit and integration/HTTP/security coverage.
-
-## Development Commands
-
-```bash
-# Install PHP dependencies and prepare a local app
-composer setup
-
-# Run the application, queue listener, logs, and Vite together
-composer dev
-
-# Run frontend production build
-npm run build
-
-# Run Vite alone
-npm run dev
-
-# Clear config and run the Laravel test suite
-composer test
-
-# Run a focused test or suite
-php artisan test tests/Feature/AuthenticationTest.php
-php artisan test tests/Feature/Security/AuthenticationAndPermissionEnforcementTest.php
-php artisan test --filter test_name
-vendor/bin/phpunit --testsuite Unit
-vendor/bin/phpunit --testsuite Feature
+## STRUCTURE
+```
+sokrat-crm-v2/
+├── app/
+│   ├── Http/Controllers/   # Web route handlers & settings controllers (no separate API tree)
+│   ├── Models/             # 26 Eloquent entities with accessibleTo/visibleTo scopes
+│   ├── Services/           # Transactional domain logic (transitions, distribution, notifications, VoIP)
+│   ├── Support/            # CrmDatabaseGuard, StageFieldSchema, dynamic filters
+│   ├── Security/           # CrmPermission enum & LeadAssignment logic
+│   └── Policies/           # Authorization policies combining permissions with record scopes
+├── database/migrations/    # Schema definitions for CRM pipelines, dynamic fields, RBAC
+├── resources/views/        # Blade templates with bilingual Arabic/English RTL/LTR shell
+├── public/                 # Assets, crm-notifications.js, quotation-generator module
+├── routes/                 # web.php (all authenticated web routes) & console.php (notification scheduler)
+└── tests/                  # PHPUnit test suites guarded by strict testing DB isolation
 ```
 
-`composer setup` expects `.env`, a reachable database, and performs migrations. The production-oriented `install.sh` is root-only, Ubuntu-24.04-specific, configures Apache/MySQL, seeds the application, and is destructive when paired with `uninstall.sh`; use it only for deployment, not routine local development.
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Lead stage transitions | `app/Services/LeadTransitionService.php` | Atomic row-locked state machine with history & validation |
+| Lead access & scoping | `app/Models/Lead.php` | `accessibleTo()` scope restricts non-admin access |
+| Dynamic stage fields | `app/Support/StageFieldSchema.php` | Normalizes canonical/custom stage field definitions |
+| RBAC & permissions | `app/Security/CrmPermission.php` | Enum-backed permissions; gates registered in AppServiceProvider |
+| Lead distribution | `app/Services/LeadDistributionService.php` | 6 distribution strategies (round-robin, weighted, etc.) |
+| Notification scheduler | `app/Console/Commands/DispatchCrmNotifications.php` | Scheduled every minute via `routes/console.php` |
+| VoIP & MicroSIP | `app/Services/VoipService.php` | External PBX integration & `tel:` handler routes |
+| Web routing & security | `routes/web.php` | Monolithic web routes with `auth`, `active`, and `can:` guards |
+| Database safety guard | `app/Support/CrmDatabaseGuard.php` | Hard restriction to `sokrat_crm_v2` / `sokrat_crm_v2_testing` |
 
-## Code Conventions & Common Patterns
+## CODE MAP
+| Symbol | Type | Location | Refs | Role |
+|--------|------|----------|------|------|
+| `LeadTransitionService` | Class | `app/Services/LeadTransitionService.php` | 30 | Atomic lead status & pipeline transition engine |
+| `CrmPermission` | Enum | `app/Security/CrmPermission.php` | 201 | Central CRM permission definitions and module metadata |
+| `Lead` | Model | `app/Models/Lead.php` | 100+ | Primary CRM lead aggregate with `accessibleTo()` scope |
+| `User` | Model | `app/Models/User.php` | 80+ | Authenticated actor, RBAC roles, stage restriction logic |
+| `StageFieldSchema` | Class | `app/Support/StageFieldSchema.php` | 18 | Dynamic pipeline stage custom field engine |
+| `LeadAssignment` | Class | `app/Security/LeadAssignment.php` | 14 | Group assignment resolution and permission checking |
+| `CrmDatabaseGuard` | Class | `app/Support/CrmDatabaseGuard.php` | 12 | Prevents execution outside designated CRM databases |
+| `ReminderPlanner` | Class | `app/Services/Notifications/ReminderPlanner.php` | 14 | Plans lead & event notification occurrences |
+| `NotificationDispatcher` | Class | `app/Services/Notifications/NotificationDispatcher.php` | 10 | Dispatches pending notifications across channels |
+| `VoipService` | Class | `app/Services/VoipService.php` | 12 | VoIP server API client and session ticket generator |
+| `EmployeeReportService` | Class | `app/Services/Reports/EmployeeReportService.php` | 3 | Multi-metric employee performance report aggregator |
 
-- Follow PSR-4 namespaces (`App\\` → `app/`, `Tests\\` → `tests/`), PSR-style class names, and existing Laravel naming. Newer code commonly uses `declare(strict_types=1)`, typed parameters/returns, constructor injection, and small typed value/config methods.
-- Prefer route names with the existing `v2.*` convention, Eloquent scopes such as `accessibleTo`/`visibleTo`, camelCase relationships, policies, and form request validation.
-- Keep authorization at the query and policy boundaries. Preserve super-admin behavior and group/assignment/pipeline-stage scope rules; test both allowed and denied paths.
-- Use `DB::transaction()` and `lockForUpdate()` for state transitions or competing writes. Observers that trigger notifications should preserve after-commit behavior and deduplication.
-- Use Laravel fakes (`Storage`, `UploadedFile`, `Process`, `Queue`, `Mail`, `Http`) and Carbon test clocks in tests. Avoid live external services in tests.
-- Return JSON only where the existing web endpoint expects it; notification clients use same-origin credentials and CSRF protection. Keep webhook throttling/CSRF exceptions intentional.
-- Localization uses `lang/en*` and `lang/ar*`; add both locales for user-facing copy. Use logical CSS properties (`inline-start`/`inline-end`) rather than hard-coded left/right. Follow `DESIGN.md`: Tajawal for interface text, red for interaction emphasis, green only for positive/live state, and accessible focus/keyboard behavior.
-- `.editorconfig` specifies UTF-8, LF, final newlines, trimmed trailing whitespace, four-space indentation (two for YAML). Do not introduce a second formatter or frontend framework without an explicit repository-level decision.
+## CONVENTIONS
+- Strict types: `declare(strict_types=1);` and full parameter/return typing across all PHP classes.
+- Scoped Eloquent: Non-admin queries must use `accessibleTo($user)` or `visibleTo($user)` scopes.
+- Atomic mutation: Use `DB::transaction()` and `lockForUpdate()` for competing state changes.
+- Bilingual UI: All user copy in `lang/ar*` and `lang/en*`; use logical CSS (`inline-start`/`inline-end`).
+- Single route surface: No `routes/api.php`; JSON responses served via session-authenticated web routes.
 
-## Important Files
+## ANTI-PATTERNS (THIS PROJECT)
+- Unrestricted Queries: Never bypass `Lead::accessibleTo()` for non-super-admins.
+- Foreign Database: Never run on any DB other than `sokrat_crm_v2` (prod) or `sokrat_crm_v2_testing` (tests).
+- Inactive User Action: Inactive users cannot authenticate or hold active permissions.
+- Direct Lead Deletion: Never delete leads directly; use `LeadTrashService` with audit trail.
+- Client-only Authorization: Direct routes must enforce permissions and policies, not just sidebar hiding.
+- Untracked Field Columns: Do not bind arbitrary columns in dynamic stage fields (`id`, `password` blocked).
 
-- `composer.json`: PHP dependencies and `setup`, `dev`, and `test` workflows.
-- `package.json`, `package-lock.json`, `vite.config.js`: ESM Node tooling, Vite/Tailwind build, and locked frontend versions.
-- `bootstrap/app.php`: middleware, route registration, CSRF exception, and JSON exception behavior.
-- `routes/web.php`: complete web route and middleware/permission surface.
-- `routes/console.php`: scheduled `crm:notifications:dispatch` command.
-- `app/Services/LeadTransitionService.php`: atomic lead stage/status transition workflow.
-- `app/Models/Lead.php`, `app/Models/User.php`, `app/Security/CrmPermission.php`, `app/Policies/`: access and domain rules.
-- `app/Support/StageFieldSchema.php`: dynamic pipeline field rules and persistence support.
-- `config/crm.php`, `config/crm_notifications.php`, `config/services.php`, `config/voip.php`: application, notification, and external-service settings.
-- `.env.example`: required environment names and safe local defaults; never commit `.env` or credentials.
-- `phpunit.xml`, `tests/TestCase.php`: test suites and database safety guard.
-- `README.md`: deployment/install/uninstall and MicroSIP integration instructions.
+## UNIQUE STYLES
+- Interface Typography: Tajawal font family across all Arabic and English UI.
+- Color Semantics: Red accent for primary actions; green strictly reserved for positive/live states.
+- Dynamic Pipeline Values: Custom fields stored as typed records in `lead_stage_field_values`.
 
-## Runtime/Tooling Preferences
+## COMMANDS
+```bash
+composer setup          # Prepare app: install deps, migrate DB, build Vite
+composer dev            # Run concurrently: serve, queue:listen, pail, vite dev
+composer test           # Clear cache and run PHPUnit test suite
+npm run build           # Compile Tailwind 4 and Vite frontend assets
+php artisan test --filter {TestName} # Run focused test on sokrat_crm_v2_testing
+```
 
-- Required PHP runtime: 8.3. Laravel framework: 13.x. PHP dependencies are installed with Composer 2.x.
-- Frontend tooling uses Node.js/npm, ESM, Vite 8, Laravel Vite plugin, and Tailwind CSS 4. The installer provisions Node 20 LTS; the locked Vite toolchain requires a compatible modern Node release (Node 20.19+ or Node 22.12+).
-- Development services are PHP `artisan serve`, `queue:listen`, `pail`, and Vite via `composer dev`. Production deployment uses Apache `public/` as the document root and `mod_rewrite`.
-- MySQL is the normal runtime database. `.env.example` defaults to `sokrat_crm_v2`; do not point development or tests at customer/live data.
-- No repository scripts currently define ESLint, Prettier, TypeScript, or a dedicated lint/typecheck command. Laravel Pint is installed as a dev dependency; run it only when deliberately formatting PHP changes and follow existing style first.
-- Do not edit generated/runtime directories (`vendor/`, `node_modules/`, `public/build/`, `storage/`) or commit `.env` files.
+## NOTES
+- Testing DB: `tests/TestCase.php` hard-fails if DB is not `sokrat_crm_v2_testing`.
+- CLI Notification Schedule: `routes/console.php` requires external cron/systemd executing `schedule:run`.
+- Queue Listener: Queued notifications and digests require an active `queue:listen` or worker process.
+- MicroSIP: Windows `tel:` handler integration requires IP/host configuration in `open-crm-caller.cmd`.
 
-## Testing & QA
-
-- PHPUnit 12 is configured through `phpunit.xml`; suites are `tests/Unit` and `tests/Feature`, with `app/` as the source include. Tests are predominantly feature/security tests and use `RefreshDatabase`; a small number use `DatabaseTransactions`.
-- Tests require a dedicated MySQL database named exactly `sokrat_crm_v2_testing`. `tests/TestCase.php` refuses to run unless the environment is `testing`, the driver is MySQL, and `SELECT DATABASE()` confirms that exact database. Configure `.env.testing`/PHPUnit values and migrate it before running tests.
-- The test bootstrap seeds `CrmAccessControlSeeder` once per process and sets READ COMMITTED plus a lock wait timeout. Do not weaken these safety checks or run tests against production data.
-- Prefer a targeted test while iterating, then `composer test` for the full suite when practical. Test observable HTTP/view/JSON/database behavior, authorization boundaries, state transitions, and failure recovery—not implementation details.
-- Useful patterns: `RefreshDatabase`, named-route requests, `assertDatabase*`, `Storage::fake`, `Process::fake` for Tailscale, and `Queue`/`Mail`/`Http` fakes for notifications. Test Arabic and English behavior when changing localized UI or routes.
-- There is no configured browser/e2e suite, CI workflow, coverage threshold/report, or JavaScript test script. `tests/verify_employee_reports.php` is a standalone 21-check diagnostic, not PHPUnit discovery; only run it deliberately against the isolated test database.

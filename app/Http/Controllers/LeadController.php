@@ -187,7 +187,8 @@ class LeadController extends Controller
         $query = Lead::query()
             ->accessibleTo($user)
             ->with([
-                'status.stage:id,name_ar',
+                'status.stage:id,name_ar,color,pipeline_stage_category_id',
+                'status.stage.category',
                 'assignedUser:id,name',
                 'stageValues:id,lead_id,pipeline_stage_field_id,value',
             ]);
@@ -600,7 +601,8 @@ class LeadController extends Controller
             ],
             'solution_type' => [
                 'nullable',
-                'in:call_center,erp',
+                'string',
+                'max:100',
             ],
             'lines_count' => [
                 'nullable',
@@ -622,60 +624,13 @@ class LeadController extends Controller
                 'nullable',
                 'file',
                 'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
-                'max:2048',
+                'max:10240',
             ],
         ];
 
-        if ($status->code === 'not_interested') {
-            $rules['disinterest_reason'] = [
-                'required',
-                'string',
-                'max:5000',
-            ];
-        }
-
-        if ($isQuotationStage) {
-            $rules['solution_type'] = [
-                'required',
-                'in:call_center,erp',
-            ];
-
-            $rules['quotation_file'] = [
-                'required',
-                'file',
-                'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
-                'max:2048',
-            ];
-
-            if (
-                $request->input('solution_type')
-                === 'call_center'
-            ) {
-                $rules['lines_count'] = [
-                    'required',
-                    'integer',
-                    'min:1',
-                    'max:1000000',
-                ];
-
-                $rules['extensions'] = [
-                    'required',
-                    'string',
-                    'max:5000',
-                ];
-            }
-
-            if (
-                $request->input('solution_type')
-                === 'erp'
-            ) {
-                $rules['departments'] = [
-                    'required',
-                    'string',
-                    'max:5000',
-                ];
-            }
-        }
+        // Legacy status-code-driven required validation for Stage questions has been removed.
+        // Stage questions (e.g. reason for not_interested, solution_type, quotation_file)
+        // are now authoritatively validated by StageFieldSchema according to Stage Builder.
 
         $validated = $request->validate(
             $rules,
@@ -685,14 +640,6 @@ class LeadController extends Controller
                 'source.required' => 'المصدر مطلوب.',
                 'next_follow_up_at.required' => 'حدد موعد المتابعة القادمة.',
                 'next_follow_up_at.date_format' => 'موعد المتابعة القادمة غير صحيح.',
-                'disinterest_reason.required' => 'سبب عدم الاهتمام مطلوب.',
-                'solution_type.required' => 'نوع النظام مطلوب.',
-                'lines_count.required' => 'عدد الخطوط مطلوب.',
-                'extensions.required' => 'الملحقات مطلوبة.',
-                'departments.required' => 'الأقسام مطلوبة.',
-                'quotation_file.required' => 'ملف عرض السعر مطلوب.',
-                'quotation_file.mimes' => 'صيغة ملف عرض السعر غير مدعومة.',
-                'quotation_file.max' => 'حجم ملف عرض السعر يجب ألا يتجاوز 2 ميجابايت.',
             ]
         );
         $assignee = $actor;
@@ -758,7 +705,7 @@ class LeadController extends Controller
 
         $quotationPath = null;
 
-        if ($isQuotationStage) {
+        if ($request->hasFile('quotation_file')) {
             $quotationPath = $request
                 ->file('quotation_file')
                 ->store(
@@ -916,13 +863,34 @@ class LeadController extends Controller
         $stage = $status->stage;
         $normalizedStageValues = [];
         if ($stage !== null) {
-            $rawStageInputs = $request->input('stage_fields', []);
-            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $request, $actor);
             $split = \App\Support\StageFieldSchema::splitValues($stage, $normalizedStageValues);
             foreach ($split['canonical'] as $cAttr => $cVal) {
                 if (! in_array($cAttr, ['id', 'created_at', 'updated_at', 'lead_status_id'], true)) {
                     $leadData[$cAttr] = $cVal;
                 }
+            }
+
+            // Compatibility column sync from normalized stage values if not provided directly
+            if (empty($leadData['disinterest_reason']) && ! empty($normalizedStageValues['reason'])) {
+                $leadData['disinterest_reason'] = (string) $normalizedStageValues['reason'];
+            }
+            if (empty($leadData['solution_type']) && ! empty($normalizedStageValues['solution_type'])) {
+                $leadData['solution_type'] = (string) $normalizedStageValues['solution_type'];
+            }
+            if (empty($leadData['lines_count']) && ! empty($normalizedStageValues['lines_count'])) {
+                $leadData['lines_count'] = (int) $normalizedStageValues['lines_count'];
+            } elseif (empty($leadData['lines_count']) && ! empty($normalizedStageValues['q_cdljek'])) {
+                $leadData['lines_count'] = (int) $normalizedStageValues['q_cdljek'];
+            }
+            if (empty($leadData['extensions']) && ! empty($normalizedStageValues['extensions'])) {
+                $leadData['extensions'] = (string) $normalizedStageValues['extensions'];
+            }
+            if (empty($leadData['departments']) && ! empty($normalizedStageValues['departments'])) {
+                $leadData['departments'] = (string) $normalizedStageValues['departments'];
+            }
+            if (empty($leadData['quotation_file_path']) && ! empty($normalizedStageValues['quotation_file_path']['path'])) {
+                $leadData['quotation_file_path'] = (string) $normalizedStageValues['quotation_file_path']['path'];
             }
         }
 
@@ -1744,6 +1712,7 @@ class LeadController extends Controller
         ]);
 
         $leads = Lead::query()
+            ->with(['status.stage'])
             ->whereIn('id', $validated['lead_ids'])
             ->accessibleTo($actor)
             ->get();
@@ -2068,77 +2037,42 @@ class LeadController extends Controller
                     'max:150',
                 ],
                 'disinterest_reason' => [
-                    Rule::requiredIf(
-                        $status->code ===
-                            'not_interested'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
                 'solution_type' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                    ),
                     'nullable',
-                    Rule::in([
-                        'call_center',
-                        'erp',
-                    ]),
+                    'string',
+                    'max:100',
                 ],
                 'lines_count' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
-                    ),
                     'nullable',
                     'integer',
                     'min:1',
                     'max:1000000',
                 ],
                 'extensions' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput ===
-                            'call_center'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
                 'departments' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && $solutionTypeInput === 'erp'
-                    ),
                     'nullable',
                     'string',
                     'max:5000',
                 ],
                 'quotation_file' => [
-                    Rule::requiredIf(
-                        $isQuotationStage
-                        && ! $hasCurrentQuotationFile
-                    ),
                     'nullable',
                     'file',
                     'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
-                    'max:2048',
+                    'max:10240',
                 ],
             ],
             [
                 'first_name.required' => 'اسم العميل الأول مطلوب.',
                 'phone.required' => 'رقم الهاتف مطلوب.',
                 'source.required' => 'المصدر مطلوب.',
-                'disinterest_reason.required' => 'سبب عدم الاهتمام مطلوب.',
-                'solution_type.required' => 'نوع النظام مطلوب.',
-                'lines_count.required' => 'عدد الخطوط مطلوب.',
-                'extensions.required' => 'تفاصيل الملحقات مطلوبة.',
-                'departments.required' => 'الأقسام المطلوبة مطلوبة.',
-                'quotation_file.required' => 'ملف عرض السعر مطلوب.',
-                'quotation_file.max' => 'الحد الأقصى لملف عرض السعر 2MB.',
-                'quotation_file.mimes' => 'صيغة ملف عرض السعر غير مدعومة.',
             ]
         );
         $assignmentChanged = false;
@@ -2343,13 +2277,34 @@ class LeadController extends Controller
         $stage = $status->stage;
         $normalizedStageValues = [];
         if ($stage !== null) {
-            $rawStageInputs = $request->input('stage_fields', []);
-            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $rawStageInputs, $actor);
+            $normalizedStageValues = \App\Support\StageFieldSchema::validateAndExtract($stage, $request, $actor);
             $split = \App\Support\StageFieldSchema::splitValues($stage, $normalizedStageValues);
             foreach ($split['canonical'] as $cAttr => $cVal) {
                 if (! in_array($cAttr, ['id', 'created_at', 'updated_at', 'lead_status_id'], true)) {
                     $leadData[$cAttr] = $cVal;
                 }
+            }
+
+            // Compatibility column sync from normalized stage values if not provided directly
+            if (empty($leadData['disinterest_reason']) && ! empty($normalizedStageValues['reason'])) {
+                $leadData['disinterest_reason'] = (string) $normalizedStageValues['reason'];
+            }
+            if (empty($leadData['solution_type']) && ! empty($normalizedStageValues['solution_type'])) {
+                $leadData['solution_type'] = (string) $normalizedStageValues['solution_type'];
+            }
+            if (empty($leadData['lines_count']) && ! empty($normalizedStageValues['lines_count'])) {
+                $leadData['lines_count'] = (int) $normalizedStageValues['lines_count'];
+            } elseif (empty($leadData['lines_count']) && ! empty($normalizedStageValues['q_cdljek'])) {
+                $leadData['lines_count'] = (int) $normalizedStageValues['q_cdljek'];
+            }
+            if (empty($leadData['extensions']) && ! empty($normalizedStageValues['extensions'])) {
+                $leadData['extensions'] = (string) $normalizedStageValues['extensions'];
+            }
+            if (empty($leadData['departments']) && ! empty($normalizedStageValues['departments'])) {
+                $leadData['departments'] = (string) $normalizedStageValues['departments'];
+            }
+            if (empty($leadData['quotation_file_path']) && ! empty($normalizedStageValues['quotation_file_path']['path'])) {
+                $leadData['quotation_file_path'] = (string) $normalizedStageValues['quotation_file_path']['path'];
             }
         }
 

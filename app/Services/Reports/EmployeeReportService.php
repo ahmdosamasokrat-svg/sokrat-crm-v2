@@ -13,14 +13,118 @@ use App\Models\LeadStatusHistory;
 use App\Models\PipelineStage;
 use App\Models\User;
 use App\Security\CrmPermission;
+use App\Services\VoipService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 final class EmployeeReportService
 {
+    public function __construct(
+        private readonly ?VoipService $voipService = null,
+    ) {
+    }
+
+    private function getVoip(): VoipService
+    {
+        return $this->voipService ?? app(VoipService::class);
+    }
+
+    /**
+     * Format seconds into human readable duration (e.g. "1h 24m 10s" or "24د 10ث").
+     */
+    public static function formatSeconds(int $seconds): string
+    {
+        if ($seconds <= 0) {
+            return '0 ' . (app()->getLocale() === 'en' ? 'sec' : 'ثانية');
+        }
+
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $secs = $seconds % 60;
+
+        $parts = [];
+        if ($hours > 0) {
+            $parts[] = $hours . (app()->getLocale() === 'en' ? 'h' : 'س');
+        }
+        if ($minutes > 0) {
+            $parts[] = $minutes . (app()->getLocale() === 'en' ? 'm' : 'د');
+        }
+        if ($secs > 0 || empty($parts)) {
+            $parts[] = $secs . (app()->getLocale() === 'en' ? 's' : 'ث');
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * Get VoIP CDR statistics for a specific extension and date range.
+     *
+     * @return array{
+     *     available: bool,
+     *     total_calls: int,
+     *     answered_calls: int,
+     *     inbound_calls: int,
+     *     outbound_calls: int,
+     *     total_talk_seconds: int,
+     *     talk_time_formatted: string,
+     *     raw_stats?: array<string, mixed>
+     * }
+     */
+    public function getEmployeeVoipStats(?string $extension, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if (empty($extension) || ! $this->getVoip()->isConfigured()) {
+            return [
+                'available' => false,
+                'total_calls' => 0,
+                'answered_calls' => 0,
+                'inbound_calls' => 0,
+                'outbound_calls' => 0,
+                'total_talk_seconds' => 0,
+                'talk_time_formatted' => '—',
+            ];
+        }
+
+        $cacheKey = "crm.voip_ext_stats.{$extension}." . $from->format('Y-m-d') . '.' . $to->format('Y-m-d');
+
+        return Cache::remember($cacheKey, now()->addMinutes(3), function () use ($extension, $from, $to) {
+            try {
+                $res = $this->getVoip()->getExtensionStats($extension, [
+                    'from' => $from->format('Y-m-d'),
+                    'to' => $to->format('Y-m-d'),
+                ]);
+
+                $summary = $res['summary'] ?? [];
+                $totalCalls = (int) ($summary['total_calls'] ?? 0);
+                $answeredCalls = (int) ($summary['answered_calls'] ?? 0);
+                $talkSeconds = (int) ($summary['total_talk_seconds'] ?? 0);
+
+                return [
+                    'available' => true,
+                    'total_calls' => $totalCalls,
+                    'answered_calls' => $answeredCalls,
+                    'inbound_calls' => (int) ($summary['inbound_calls'] ?? 0),
+                    'outbound_calls' => (int) ($summary['outbound_calls'] ?? 0),
+                    'total_talk_seconds' => $talkSeconds,
+                    'talk_time_formatted' => self::formatSeconds($talkSeconds),
+                    'raw_stats' => $res,
+                ];
+            } catch (\Throwable) {
+                return [
+                    'available' => false,
+                    'total_calls' => 0,
+                    'answered_calls' => 0,
+                    'inbound_calls' => 0,
+                    'outbound_calls' => 0,
+                    'total_talk_seconds' => 0,
+                    'talk_time_formatted' => '—',
+                ];
+            }
+        });
+    }
     /**
      * Resolve date range from presets or custom inputs.
      *
@@ -119,7 +223,7 @@ final class EmployeeReportService
     {
         return $this->getAuthorizedEmployeesQuery($viewer)
             ->orderBy('name')
-            ->get(['id', 'name', 'username', 'email']);
+            ->get(['id', 'name', 'username', 'email', 'voip_extension']);
     }
 
     /**
@@ -351,6 +455,37 @@ final class EmployeeReportService
         // 10. Average Stage Duration across current leads (days since last stage change or creation)
         $avgStageDurationDays = $this->calculateAvgStageDurationDays($viewer, $filters);
 
+        // 11. VoIP PBX Telephony Metrics Aggregation
+        $voipEnabled = $this->getVoip()->isConfigured();
+        $totalPbxCalls = 0;
+        $answeredPbxCalls = 0;
+        $totalPbxTalkSeconds = 0;
+
+        if ($voipEnabled) {
+            if (! empty($filters['user_id'])) {
+                $filteredUser = User::query()->find((int) $filters['user_id']);
+                if ($filteredUser && ! empty($filteredUser->voip_extension)) {
+                    $uVoip = $this->getEmployeeVoipStats($filteredUser->voip_extension, $from, $to);
+                    $totalPbxCalls = $uVoip['total_calls'];
+                    $answeredPbxCalls = $uVoip['answered_calls'];
+                    $totalPbxTalkSeconds = $uVoip['total_talk_seconds'];
+                }
+            } else {
+                $authorizedExts = $this->getAuthorizedEmployees($viewer)
+                    ->whereNotNull('voip_extension')
+                    ->where('voip_extension', '!=', '')
+                    ->pluck('voip_extension')
+                    ->unique();
+
+                foreach ($authorizedExts as $ext) {
+                    $uVoip = $this->getEmployeeVoipStats((string) $ext, $from, $to);
+                    $totalPbxCalls += $uVoip['total_calls'];
+                    $answeredPbxCalls += $uVoip['answered_calls'];
+                    $totalPbxTalkSeconds += $uVoip['total_talk_seconds'];
+                }
+            }
+        }
+
         $kpis = [
             'total_leads' => $totalLeads,
             'active_leads' => $activeLeads,
@@ -364,6 +499,11 @@ final class EmployeeReportService
             'avg_followups_per_lead' => $avgFollowupsPerLead,
             'avg_response_hours' => $avgResponseHours,
             'avg_stage_duration_days' => $avgStageDurationDays,
+            'voip_enabled' => $voipEnabled,
+            'total_pbx_calls' => $totalPbxCalls,
+            'answered_pbx_calls' => $answeredPbxCalls,
+            'total_pbx_talk_seconds' => $totalPbxTalkSeconds,
+            'total_pbx_talk_formatted' => self::formatSeconds($totalPbxTalkSeconds),
         ];
 
         // Previous Period Comparison if requested
@@ -596,7 +736,9 @@ final class EmployeeReportService
             $operationalStats,
             $statusToStageMap,
             $conversionStatusIds,
-            $stages
+            $stages,
+            $from,
+            $to
         ): array {
             $empId = $employee->id;
 
@@ -638,11 +780,21 @@ final class EmployeeReportService
                 ? round(($convertedLeads / $totalLeads) * 100, 1)
                 : 0.0;
 
+            $voipStats = $this->getEmployeeVoipStats($employee->voip_extension, $from, $to);
+
             return [
                 'id' => $empId,
                 'name' => $employee->name,
                 'username' => $employee->username,
                 'email' => $employee->email,
+                'voip_extension' => $employee->voip_extension,
+                'voip_available' => $voipStats['available'],
+                'voip_total_calls' => $voipStats['total_calls'],
+                'voip_answered_calls' => $voipStats['answered_calls'],
+                'voip_inbound_calls' => $voipStats['inbound_calls'],
+                'voip_outbound_calls' => $voipStats['outbound_calls'],
+                'voip_talk_seconds' => $voipStats['total_talk_seconds'],
+                'voip_talk_time_formatted' => $voipStats['talk_time_formatted'],
                 'groups' => $employee->groups->pluck('name')->all(),
                 'assigned_leads' => $totalLeads,
                 'new_leads' => $newLeads,
@@ -731,13 +883,16 @@ final class EmployeeReportService
             ->pluck('exited_count', 'pipeline_stage_id')
             ->all();
 
-        // 4. Oldest lead per stage (1 single query)
-        $oldestLeads = $this->buildScopedLeadQuery($viewer, $filters)
+        // 4. Oldest lead per stage (optimized with subquery to prevent loading all leads into memory)
+        $oldestLeadSubQuery = $this->buildScopedLeadQuery($viewer, $filters)
             ->join('lead_statuses', 'leads.lead_status_id', '=', 'lead_statuses.id')
-            ->select('leads.id', 'leads.name', 'leads.company_name', 'leads.created_at', 'leads.assigned_user_id', 'lead_statuses.pipeline_stage_id')
-            ->orderBy('leads.created_at', 'asc')
+            ->selectRaw('leads.id, leads.name, leads.company_name, leads.created_at, leads.assigned_user_id, lead_statuses.pipeline_stage_id,
+                ROW_NUMBER() OVER (PARTITION BY lead_statuses.pipeline_stage_id ORDER BY leads.created_at ASC) as rn');
+
+        $oldestLeads = DB::query()
+            ->fromSub($oldestLeadSubQuery, 'ranked_leads')
+            ->where('rn', 1)
             ->get()
-            ->unique('pipeline_stage_id')
             ->keyBy('pipeline_stage_id');
 
         $performance = [];
@@ -759,7 +914,9 @@ final class EmployeeReportService
                     'id' => $oldestLead->id,
                     'name' => $oldestLead->name,
                     'company' => $oldestLead->company_name,
-                    'days_in_stage' => (int) $oldestLead->created_at?->diffInDays(now()),
+                    'days_in_stage' => ! empty($oldestLead->created_at)
+                        ? (int) \Carbon\Carbon::parse($oldestLead->created_at)->diffInDays(now())
+                        : 0,
                 ] : null,
             ];
         }
@@ -1317,12 +1474,16 @@ final class EmployeeReportService
             ->limit(15)
             ->get();
 
+        // VoIP PBX Telephony Activity for this employee
+        $voipStats = $this->getEmployeeVoipStats($employee->voip_extension, $from, $to);
+
         return [
             'employee' => [
                 'id' => $employee->id,
                 'name' => $employee->name,
                 'username' => $employee->username,
                 'email' => $employee->email,
+                'voip_extension' => $employee->voip_extension,
                 'groups' => $employee->groups->pluck('name')->all(),
             ],
             'metrics' => [
@@ -1331,6 +1492,18 @@ final class EmployeeReportService
                 'overdue_count' => $overdueCount,
                 'converted_count' => $convertedCount,
                 'conversion_rate' => $conversionRate,
+            ],
+            'voip' => [
+                'enabled' => $this->getVoip()->isConfigured(),
+                'extension' => $employee->voip_extension,
+                'available' => $voipStats['available'],
+                'total_calls' => $voipStats['total_calls'],
+                'answered_calls' => $voipStats['answered_calls'],
+                'inbound_calls' => $voipStats['inbound_calls'],
+                'outbound_calls' => $voipStats['outbound_calls'],
+                'total_talk_seconds' => $voipStats['total_talk_seconds'],
+                'talk_time_formatted' => $voipStats['talk_time_formatted'],
+                'raw_stats' => $voipStats['raw_stats'] ?? null,
             ],
             'recent_leads' => $recentLeads,
             'recent_followups' => $recentFollowups,

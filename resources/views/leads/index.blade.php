@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="{{ asset('css/tajawal.css') }}?v=1.0.0">
 <link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v=crm-sidebar-collapse-v2">
 <link rel="stylesheet" href="{{ asset('crm-notifications.css') }}?v=1.0.0">
+<link rel="stylesheet" href="{{ asset('crm-dropdown.css') }}?v=1.0.1">
 <style>
 :root {
   --red: #dc2637;
@@ -365,6 +366,131 @@ html.dark-mode .filter-control {
   background: rgba(30, 41, 59, 0.7);
   border-color: var(--line);
   color: var(--dark);
+}
+
+/* Unified CRM Dropdown */
+.crm-select-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  background: var(--card, #ffffff) !important;
+  border: 1.5px solid var(--line, #e2e8f0) !important;
+  border-radius: 11px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+}
+
+.crm-select-wrap:hover {
+  border-color: #cbd5e1 !important;
+  background-color: var(--bg, #f8fafc) !important;
+}
+
+.crm-select-wrap:focus-within {
+  border-color: var(--red, #dc2637) !important;
+  background-color: var(--card, #ffffff) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 55, 0.15) !important;
+}
+
+.crm-select-wrap .crm-select-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding-inline-start: 12px !important;
+  padding-inline-end: 4px !important;
+  color: var(--muted, #64748b) !important;
+  flex-shrink: 0 !important;
+  pointer-events: none !important;
+}
+
+.crm-select-wrap .crm-select-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+  fill: currentColor !important;
+}
+
+.crm-select-wrap select.crm-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline-start: 8px !important;
+  padding-inline-end: 32px !important;
+  font-family: Tajawal, Tahoma, Arial, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--dark, #182033) !important;
+  cursor: pointer !important;
+  outline: none !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.crm-select-wrap select.crm-select:focus {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.crm-select-wrap .crm-select-chevron {
+  position: absolute !important;
+  inset-inline-end: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #94a3b8 !important;
+  pointer-events: none !important;
+  transition: transform 0.18s ease, color 0.18s ease !important;
+}
+
+.crm-select-wrap .crm-select-chevron svg {
+  width: 11px !important;
+  height: 11px !important;
+  fill: currentColor !important;
+}
+
+.crm-select-wrap:hover .crm-select-chevron {
+  color: var(--muted, #64748b) !important;
+}
+
+.crm-select-wrap:focus-within .crm-select-chevron {
+  color: var(--red, #dc2637) !important;
+  transform: rotate(180deg) !important;
+}
+
+.crm-select-wrap select.crm-select option {
+  background-color: var(--card, #ffffff) !important;
+  color: var(--dark, #182033) !important;
+  font-weight: 600 !important;
+  padding: 8px 12px !important;
+}
+
+html.dark-mode .crm-select-wrap {
+  background-color: var(--card, #1e293b) !important;
+  border-color: var(--line, #334155) !important;
+}
+
+html.dark-mode .crm-select-wrap:hover {
+  background-color: rgba(30, 41, 59, 0.9) !important;
+  border-color: #475569 !important;
+}
+
+html.dark-mode .crm-select-wrap select.crm-select {
+  color: var(--dark, #f1f5f9) !important;
+}
+
+html.dark-mode .crm-select-wrap select.crm-select option {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 .dynamic-filter-builder {
   grid-column: 1 / -1;
@@ -966,14 +1092,16 @@ html.dark-mode .btn-action {
                 <!-- Employee Filter -->
                 <div class="filter-field">
                     <label for="leadEmployee"><i class="bi bi-person-check"></i> {{ __('crm.assigned_employee') }}</label>
-                    <select id="leadEmployee" name="employee" class="filter-control">
-                        <option value="">{{ __('كل الموظفين') }}</option>
-                        @foreach ($employees as $employee)
-                            <option value="{{ $employee }}" @selected($filters['employee'] === $employee)>
-                                {{ $employee }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div style="width:100%;">
+                        <select id="leadEmployee" name="employee" class="crm-custom-select filter-control" data-crm-dropdown data-icon='<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.5 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1zM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/><path d="M4.5 0A2.5 2.5 0 0 0 2 2.5V14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2.5A2.5 2.5 0 0 0 11.5 0zM3 2.5A1.5 1.5 0 0 1 4.5 1h7A1.5 1.5 0 0 1 13 2.5V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M10.02 12c.005-.184.02-.375.034-.555.056-.704.14-1.282.266-1.745A4.9 4.9 0 0 0 8 9c-1.378 0-2.496.53-2.92 1.077-.184.238-.309.522-.387.828a.5.5 0 0 0 .97.234c.05-.195.13-.38.252-.538C6.27 10.158 7.08 9.8 8 9.8c.92 0 1.73.358 2.085.801.074.092.127.202.164.321.037.119.06.252.073.403.014.16.023.325.027.475H3.5a.5.5 0 0 0 0 1h9a.5.5 0 0 0 .5-.5c0-.368-.008-.687-.02-1z"/></svg>'>
+                            <option value="">{{ __('كل الموظفين') }}</option>
+                            @foreach ($employees as $employee)
+                                <option value="{{ $employee }}" @selected($filters['employee'] === $employee)>
+                                    {{ $employee }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Follow Up Filter -->
@@ -1040,6 +1168,14 @@ html.dark-mode .btn-action {
                             <i class="bi bi-tag"></i>
                             <span class="dynamic-field-option-copy">
                                 <span>{{ __('crm.current_status') }}</span>
+                                <small style="color:var(--muted)">إلزامي</small>
+                            </span>
+                        </label>
+                        <label class="dynamic-field-option">
+                            <input type="checkbox" data-col-toggle="category" checked disabled>
+                            <i class="bi bi-collection"></i>
+                            <span class="dynamic-field-option-copy">
+                                <span>{{ __('crm.stage_category') }}</span>
                                 <small style="color:var(--muted)">إلزامي</small>
                             </span>
                         </label>
@@ -1297,6 +1433,7 @@ html.dark-mode .btn-action {
                             <th data-col="contact" style="min-width:140px">{{ __('crm.contact_data') }}</th>
                             <th data-col="company_source" style="min-width:140px">{{ __('crm.company_source') }}</th>
                             <th data-col="status" style="min-width:140px">{{ __('crm.current_status') }}</th>
+                            <th data-col="category" style="min-width:130px">{{ __('crm.stage_category') }}</th>
                             <th data-col="employee" style="min-width:130px">{{ __('crm.responsible_employee') }}</th>
                             <th data-col="followup" style="min-width:140px">{{ __('crm.next_followup') }}</th>
                             <th data-col="created_date" style="min-width:110px">{{ __('crm.created_date') }}</th>
@@ -1387,6 +1524,17 @@ html.dark-mode .btn-action {
                                     <span class="stage-name">
                                         {{ $lead->status?->stage?->name_ar ? __($lead->status->stage->name_ar) : __('بدون مرحلة') }}
                                     </span>
+                                </td>
+
+                                <td data-col="category">
+                                    @if ($lead->status?->stage?->category)
+                                        <span class="badge" style="background:{{ $lead->status->stage->category->color ? $lead->status->stage->category->color.'18' : '#f1f5f9' }}; color:{{ $lead->status->stage->category->color ?: '#475569' }}; border:1px solid {{ $lead->status->stage->category->color ? $lead->status->stage->category->color.'33' : '#e2e8f0' }}; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:5px;">
+                                            <i class="bi {{ $lead->status->stage->category->icon ?: 'bi-collection' }}"></i>
+                                            {{ $lead->status->stage->category->name_ar }}
+                                        </span>
+                                    @else
+                                        <span style="color:var(--muted); font-size:12px;">—</span>
+                                    @endif
                                 </td>
 
                                 <td data-col="employee">
@@ -1530,8 +1678,8 @@ html.dark-mode .btn-action {
     let searchDebounce = null;
 
     // 1. Column Management (Mandatory + Optional + Dynamic)
-    const MANDATORY_COLS = ['select', 'client', 'status', 'actions'];
-    const DEFAULT_COLS = ['client', 'contact', 'company_source', 'status', 'employee', 'followup', 'created_date', 'actions'];
+    const MANDATORY_COLS = ['select', 'client', 'status', 'category', 'actions'];
+    const DEFAULT_COLS = ['client', 'contact', 'company_source', 'status', 'category', 'employee', 'followup', 'created_date', 'actions'];
 
     const getStoredColumns = () => {
         try {
@@ -1935,5 +2083,6 @@ html.dark-mode .btn-action {
 })();
 </script>
 <script src="{{ asset('crm-notifications.js') }}?v=1.0.0"></script>
+<script src="{{ asset('crm-dropdown.js') }}?v=1.0.1"></script>
 </body>
 </html>

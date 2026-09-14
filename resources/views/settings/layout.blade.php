@@ -614,6 +614,9 @@
             <a class="{{ request()->routeIs('v2.settings.stages.*') ? 'active' : '' }}" href="{{ route('v2.settings.stages.index') }}">
                 <i class="bi bi-diagram-3"></i> {{ __('crm.stages_and_statuses') }}
             </a>
+            <a class="{{ request()->routeIs('v2.settings.stage_categories.*') ? 'active' : '' }}" href="{{ route('v2.settings.stage_categories.index') }}">
+                <i class="bi bi-collection"></i> {{ __('crm.stage_categories') }}
+            </a>
             @can('users.view')
                 <a class="{{ request()->routeIs('v2.settings.users.*') ? 'active' : '' }}" href="{{ route('v2.settings.users.index') }}">
                     <i class="bi bi-people"></i> {{ __('crm.users') }}

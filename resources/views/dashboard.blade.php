@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SokratCRM — {{ __('crm.dashboard') }}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ asset('crm-sidebar-shared.css') }}?v={{ time() }}">
+<link rel="stylesheet" href="{{ asset('crm-dropdown.css') }}?v=1.0.1">
 <style>
 /* ==========================================================================
    SOKRAT CRM BASE & LAYOUT STRUCTURE (Sidebar untouched, layout preserved)
@@ -371,6 +373,111 @@ html.dark-mode .crm-dashboard-v2 {
   border-color: var(--d-primary);
   background: var(--d-surface);
   box-shadow: 0 0 0 3px var(--d-primary-subtle);
+}
+
+/* Unified CRM Dropdown in Dashboard Filters */
+.crm-dashboard-v2 .crm-select-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 160px !important;
+  height: 40px !important;
+  background: var(--d-surface, #ffffff) !important;
+  border: 1.5px solid var(--d-border, #e2e8f0) !important;
+  border-radius: 11px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap:hover {
+  border-color: #cbd5e1 !important;
+  background-color: var(--d-surface-alt, #f8fafc) !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap:focus-within {
+  border-color: var(--red, #dc2637) !important;
+  background-color: var(--d-surface, #ffffff) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 55, 0.15) !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap .crm-select-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding-inline-start: 12px !important;
+  padding-inline-end: 4px !important;
+  color: var(--d-text-muted, #64748b) !important;
+  flex-shrink: 0 !important;
+  pointer-events: none !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap .crm-select-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+  fill: currentColor !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap select.crm-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline-start: 8px !important;
+  padding-inline-end: 32px !important;
+  font-family: Tajawal, Tahoma, Arial, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--d-text, #172033) !important;
+  cursor: pointer !important;
+  outline: none !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap select.crm-select:focus {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap .crm-select-chevron {
+  position: absolute !important;
+  inset-inline-end: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #94a3b8 !important;
+  pointer-events: none !important;
+  transition: transform 0.18s ease, color 0.18s ease !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap .crm-select-chevron svg {
+  width: 11px !important;
+  height: 11px !important;
+  fill: currentColor !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap:hover .crm-select-chevron {
+  color: var(--d-text-muted, #64748b) !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap:focus-within .crm-select-chevron {
+  color: var(--red, #dc2637) !important;
+  transform: rotate(180deg) !important;
+}
+
+.crm-dashboard-v2 .crm-select-wrap select.crm-select option {
+  background-color: var(--d-surface, #ffffff) !important;
+  color: var(--d-text, #172033) !important;
+  font-weight: 600 !important;
+  padding: 8px 12px !important;
 }
 .crm-dashboard-v2 .dash-filter-actions {
   display: flex;
@@ -2298,15 +2405,17 @@ html.dark-mode .toast {
   <!-- COMPACT FILTER TOOLBAR -->
   <form class="dash-filter-bar" id="filters" method="GET" action="{{ route('dashboard') }}">
     <div class="dash-filter-item">
-      <label><i class="bi bi-person-badge"></i> {{ __('الموظف') }}:</label>
-      <select name="employee">
-        <option value="">{{ __('جميع الموظفين') }}</option>
-        @foreach ($employees as $employee)
-          <option value="{{ $employee }}" @selected($filters['employee'] === $employee)>
-            {{ $employee }}
-          </option>
-        @endforeach
-      </select>
+      <label for="dashFilterEmployee">{{ __('الموظف') }}:</label>
+      <div style="width:100%;min-width:180px;">
+        <select class="crm-custom-select" id="dashFilterEmployee" name="employee" data-crm-dropdown data-icon='<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6.5 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1zM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/><path d="M4.5 0A2.5 2.5 0 0 0 2 2.5V14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2.5A2.5 2.5 0 0 0 11.5 0zM3 2.5A1.5 1.5 0 0 1 4.5 1h7A1.5 1.5 0 0 1 13 2.5V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M10.02 12c.005-.184.02-.375.034-.555.056-.704.14-1.282.266-1.745A4.9 4.9 0 0 0 8 9c-1.378 0-2.496.53-2.92 1.077-.184.238-.309.522-.387.828a.5.5 0 0 0 .97.234c.05-.195.13-.38.252-.538C6.27 10.158 7.08 9.8 8 9.8c.92 0 1.73.358 2.085.801.074.092.127.202.164.321.037.119.06.252.073.403.014.16.023.325.027.475H3.5a.5.5 0 0 0 0 1h9a.5.5 0 0 0 .5-.5c0-.368-.008-.687-.02-1z"/></svg>'>
+          <option value="">{{ __('جميع الموظفين') }}</option>
+          @foreach ($employees as $employee)
+            <option value="{{ $employee }}" @selected($filters['employee'] === $employee)>
+              {{ $employee }}
+            </option>
+          @endforeach
+        </select>
+      </div>
     </div>
 
     <div class="dash-filter-item">
@@ -4391,5 +4500,6 @@ html.dark-mode .toast {
   });
 })();
 </script>
+<script src="{{ asset('crm-dropdown.js') }}?v=1.0.1"></script>
 </body>
 </html>

@@ -14,8 +14,7 @@
 (() => {
     try {
         const theme = localStorage.getItem('sokrat.crm.theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (theme === 'dark' || (theme !== 'light' && prefersDark)) {
+        if (theme === 'dark') {
             document.documentElement.classList.add('dark-mode');
         }
     } catch (e) {}
@@ -730,18 +729,34 @@ function setNextDate(daysAhead, hour) {
             const blockStageId = block.getAttribute('data-stage-id');
             const isMatch = blockStageId && stageId && String(blockStageId) === String(stageId);
             block.style.display = isMatch ? 'block' : 'none';
-            block.querySelectorAll('input, select, textarea').forEach(input => {
-                if (isMatch) {
-                    input.removeAttribute('disabled');
-                    const req = input.closest('.stage-field-item')?.getAttribute('data-sf-required') === '1';
-                    if (req) {
-                        input.setAttribute('required', 'required');
+            if (isMatch) {
+                // 1. Enable base fields (unconditional)
+                block.querySelectorAll('.stage-field-item').forEach(item => {
+                    const hasCond = item.getAttribute('data-has-condition') === '1';
+                    if (!hasCond) {
+                        const isReq = item.getAttribute('data-sf-required') === '1';
+                        item.querySelectorAll('input, select, textarea').forEach(input => {
+                            input.removeAttribute('disabled');
+                            if (isReq) {
+                                input.setAttribute('required', 'required');
+                            } else {
+                                input.removeAttribute('required');
+                            }
+                        });
                     }
-                } else {
+                });
+                // 2. Dispatch condition re-evaluation to handle conditional fields
+                const wrap = block.querySelector('.stage-fields-container');
+                if (wrap) {
+                    wrap.dispatchEvent(new CustomEvent('crm:reevaluate-conditions'));
+                }
+            } else {
+                // Inactive stage: disable and strip required on all controls
+                block.querySelectorAll('input, select, textarea').forEach(input => {
                     input.setAttribute('disabled', 'disabled');
                     input.removeAttribute('required');
-                }
-            });
+                });
+            }
         });
     }
 

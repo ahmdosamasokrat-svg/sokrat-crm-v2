@@ -121,4 +121,38 @@ class UserPermissionsTest extends TestCase
             ->get(route('v2.settings.users.index'))
             ->assertOk();
     }
+
+    public function test_user_create_form_does_not_render_extension_subtext_or_10_char_requirement(): void
+    {
+        $response = $this->actingAs($this->superAdmin)
+            ->get(route('v2.settings.users.create'));
+
+        $response->assertOk();
+        $response->assertDontSee(__('crm.extension_hint'));
+        $response->assertDontSee(__('crm.password_minimum'));
+    }
+
+    public function test_user_can_be_created_with_password_less_than_10_characters(): void
+    {
+        $group = Group::query()->where('code', '<>', Group::SUPER_ADMIN_CODE)->first();
+
+        $response = $this->actingAs($this->superAdmin)
+            ->post(route('v2.settings.users.store'), [
+                'name' => 'Short Pass User',
+                'username' => 'shortpass_user',
+                'email' => 'shortpass@example.com',
+                'password' => '12345',
+                'password_confirmation' => '12345',
+                'group_ids' => [$group->id],
+                'pipeline_stage_access_mode' => 'all',
+            ]);
+
+        $response->assertSessionHasNoErrors();
+        $createdUser = User::where('username', 'shortpass_user')->firstOrFail();
+        $response->assertRedirect(route('v2.settings.users.edit', $createdUser));
+
+        $this->assertDatabaseHas('users', [
+            'username' => 'shortpass_user',
+        ]);
+    }
 }
